@@ -40,14 +40,13 @@ sub examine_hash {
     elsif ($type eq 'tree') {
         print "TREE\n";
         $trees{$hash} = 1;
-        open(TREE, "git cat-file -p $hash |");
-        while (<TREE>) {
-            my @matches = /\w+ \w+ (\w+)\s+(.*)/;
-            my ($chash, $cpath) = /\w+ \w+ (\w+)\s+(.*)/;
+        my $tree_text = qx{git cat-file -p $hash};
+        my @tree_lines = split(/\n/, $tree_text);
+        while (my ($i, $line) = each @tree_lines) {
+            my ($chash, $cpath) = $line =~ /\w+ \w+ (\w+)\s+(.*)/;
             push(@links, [$hash,$chash,$cpath]);
             examine_hash($chash);
         }
-        close(TREE);
     }
 
     elsif ($type eq 'blob') {
