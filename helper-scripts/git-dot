@@ -78,7 +78,7 @@ sub print_commits {
     print "\n\n// Commits\n{\n\n";
     while (my ($hash, $msg) = each %commits) {
         my $short = short_hash($hash);
-        print qq{   "$short"\[label="Commit $short\\n$msg"\]\n};
+        print qq{   "$hash"\[label="Commit $short\\n$msg"\]\n};
     }
     print "\}\n";
 }
@@ -87,7 +87,7 @@ sub print_trees {
     print "\n\n// Trees\n{\n\n";
     while (my ($hash) = each %trees) {
         my $short = short_hash($hash);
-        print qq{   "$short"\[label="Tree\\n$short"\]\n};
+        print qq{   "$hash"\[label="Tree\\n$short"\]\n};
     }
     print "\}\n";
 }
@@ -96,7 +96,7 @@ sub print_blobs {
     print "\n\n// Blobs\n{\n\n";
     while (my ($hash, $msg) = each %blobs) {
         my $short = short_hash($hash);
-        print qq{   "$short"\[label="Blob\\n$short"\]\n};
+        print qq{   "$hash"\[label="Blob\\n$short"\]\n};
     }
     print "\}\n";
 }
@@ -104,7 +104,7 @@ sub print_blobs {
 sub print_links {
     print "\n\n// Links\n";
     for my $i (0 .. $#links) {
-        my ($start, $end, $label) = (short_hash($links[$i][0]), short_hash($links[$i][1]), $links[$i][2]);
+        my ($start, $end, $label) = ($links[$i][0], $links[$i][1], $links[$i][2]);
         print qq{"$start" -> "$end"};
         print qq{ \[label="$label"\]} if $label;
         print qq{\n};
