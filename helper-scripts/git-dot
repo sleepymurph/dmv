@@ -27,7 +27,7 @@ sub examine_hash {
     if ($type eq 'commit') {
         my $commit_text = qx{git cat-file -p $hash};
         my @new_links = $commit_text =~ /^(?:tree|parent) (\w+)/mg;
-        my ($msg) = $commit_text =~ /\n\n(.+?)\n/m;
+        my ($msg) = $commit_text =~ /\n\n(.+?)$/m;
         my $linkjoin = join(',',@new_links);
         print "msg: $msg, links: $linkjoin\n";
         $commits{$hash} = $msg;
