@@ -78,6 +78,7 @@ sub print_commits {
     print "\n\n// Commits\n{\n  rank=same\n";
     while (my ($hash, $msg) = each %commits) {
         my $short = short_hash($hash);
+        $msg =~ s/(["])/\\$1/g;
         print qq{   "$hash"\[label="Commit $short\\n$msg"\]\n};
     }
     print "\}\n";
