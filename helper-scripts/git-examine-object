@@ -1,0 +1,13 @@
+#!/bin/bash
+
+file_to_hash() {
+    perl -pe 's{.git/objects/(\w+)/(\w+)}{$1$2}'
+}
+
+HASH=$(echo $1 | file_to_hash)
+
+TYPE=$(git cat-file -t $HASH)
+SIZE=$(git cat-file -s $HASH)
+echo "---- $HASH ($TYPE) ($SIZE) ----"
+git cat-file -p $HASH
+echo
