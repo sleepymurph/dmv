@@ -22,7 +22,7 @@ sub examine_hash {
     my $type = qx{git cat-file -t $hash}; chomp $type;
     my $size = qx{git cat-file -s $hash}; chomp $size;
 
-    print "// examining $hash ($type, $size) - ";
+    print "// examining {$hash} ($type, $size) - ";
 
     if ($type eq 'commit') {
         my $commit_text = qx{git cat-file -p $hash};
@@ -58,10 +58,10 @@ sub examine_hash {
 
 sub examine_refs() {
     for my $ref (@refs) {
-        my $hash=qx{git show-ref -s $ref};
+        my $hash=qx{git show-ref --heads --tags -s $ref};
         chomp $hash;
         push @links, [$ref, $hash];
-        print "// Following $ref ...\n";
+        print "// Following $ref -> {$hash}\n";
         examine_hash($hash);
     }
 }
