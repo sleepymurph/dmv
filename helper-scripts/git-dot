@@ -1,0 +1,124 @@
+#!/usr/bin/perl
+
+use strict;
+
+# @refs will be a list of git refs given on the command line
+# %seen is a hash of identifiers to boolean true, just indicating that the object has been seen
+# @links will be a list of tuples(lists) (start,end,label)
+our (@refs,%commits,%trees,%blobs,%seen,@links);
+
+@refs=@ARGV;
+
+sub short_hash {
+    my $hash=$_[0];
+    return substr($hash,0,7)
+}
+
+sub examine_hash {
+    my $hash = $_[0];
+    return if $seen{$hash};
+    $seen{$hash} = 1;
+
+    my $type = qx{git cat-file -t $hash}; chomp $type;
+    my $size = qx{git cat-file -s $hash}; chomp $size;
+
+    print "// examining $hash ($type, $size) - ";
+
+    if ($type eq 'commit') {
+        my $commit_text = qx{git cat-file -p $hash};
+        my @new_links = $commit_text =~ /^(?:tree|parent) (\w+)/g;
+        my ($msg) = $commit_text =~ /\n\n(.+?)\n/m;
+        print "msg: $msg\n";
+        $commits{$hash} = $msg;
+        for my $link (@new_links) {
+            push(@links, [$hash,$link]);
+            examine_hash($link);
+        }
+    }
+
+    elsif ($type eq 'tree') {
+        print "TREE\n";
+        $trees{$hash} = 1;
+        open(TREE, "git cat-file -p $hash |");
+        while (<TREE>) {
+            my @matches = /\w+ \w+ (\w+)\s+(.*)/;
+            my ($chash, $cpath) = /\w+ \w+ (\w+)\s+(.*)/;
+            push(@links, [$hash,$chash,$cpath]);
+            examine_hash($chash);
+        }
+        close(TREE);
+    }
+
+    elsif ($type eq 'blob') {
+        my $blob_text = qx{git cat-file -p $hash | head -n 4};
+        $blobs{$hash} = $blob_text;
+        print "BLOB\n";
+    }
+}
+
+sub examine_refs() {
+    for my $ref (@refs) {
+        my $hash=qx{git show-ref -s $ref};
+        chomp $hash;
+        push @links, [$ref, $hash];
+        print "// Following $ref ...\n";
+        examine_hash($hash);
+    }
+}
+
+sub print_refs {
+    print "\n\n// Refs\n{\n";
+    while (my ($i, $ref) = each @refs) {
+        print qq{   "$ref";\n};
+    }
+    print "}\n";
+}
+
+sub print_commits {
+    print "\n\n// Commits\n{\n\n";
+    while (my ($hash, $msg) = each %commits) {
+        my $short = short_hash($hash);
+        print qq{   "$short"\[label="Commit $short\\n$msg"\]\n};
+    }
+    print "\}\n";
+}
+
+sub print_trees {
+    print "\n\n// Trees\n{\n\n";
+    while (my ($hash) = each %trees) {
+        my $short = short_hash($hash);
+        print qq{   "$short"\[label="Tree\\n$short"\]\n};
+    }
+    print "\}\n";
+}
+
+sub print_blobs {
+    print "\n\n// Blobs\n{\n\n";
+    while (my ($hash, $msg) = each %blobs) {
+        my $short = short_hash($hash);
+        print qq{   "$short"\[label="Blob\\n$short"\]\n};
+    }
+    print "\}\n";
+}
+
+sub print_links {
+    print "\n\n// Links\n";
+    for my $i (0 .. $#links) {
+        my ($start, $end, $label) = (short_hash($links[$i][0]), short_hash($links[$i][1]), $links[$i][2]);
+        print qq{"$start" -> "$end"};
+        print qq{ \[label="$label"\]} if $label;
+        print qq{\n};
+    }
+}
+
+print "digraph git {\n";
+
+examine_refs();
+
+print_refs();
+print_commits();
+print_trees();
+print_blobs();
+print_links();
+
+print "\n}\n";
