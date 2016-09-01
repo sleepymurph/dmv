@@ -13,6 +13,10 @@ sub short_hash {
 }
 
 sub parse_args() {
+    # Default to master branch if none listed
+    if (! @ARGV) {
+        push(@ARGV, "master");
+    }
     my $cmd = "git rev-list " . join(' ', @ARGV);
     print "/* $cmd\n";
     my $commit_list = qx{$cmd};
