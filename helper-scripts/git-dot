@@ -45,6 +45,16 @@ sub examine_hash {
         my $linkjoin = join(',',@new_links);
         print "msg: $msg, links: $linkjoin\n";
         $commits{$hash} = $msg;
+
+        my $refs_text = qx{ git show-ref --heads --tags \\
+                            | grep $hash \\
+                            | awk "{print \\\$2}" };
+        my @refs_list = split("\n", $refs_text);
+        while (my ($i,$ref) = each @refs_list) {
+            push(@refs, $ref);
+            push(@links, [$ref,$hash]);
+        }
+
         for my $link (@new_links) {
             push(@links, [$hash,$link]);
             examine_hash($link);
