@@ -130,10 +130,11 @@ sub print_links {
     }
 }
 
-print "digraph git {\n";
-
 my @commits = parse_args();
 examine_hashes(@commits);
+
+print "\n\n";
+print "digraph git {\n";
 
 print_refs();
 print_commits();
