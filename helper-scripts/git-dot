@@ -7,11 +7,25 @@ use strict;
 # @links will be a list of tuples(lists) (start,end,label)
 our (@refs,%commits,%trees,%blobs,%seen,@links);
 
-@refs=@ARGV;
-
 sub short_hash {
     my $hash=$_[0];
     return substr($hash,0,7)
+}
+
+sub parse_args() {
+    my $cmd = "git rev-list " . join(' ', @ARGV);
+    print "/* $cmd\n";
+    my $commit_list = qx{$cmd};
+    my @commit_list = split("\n", $commit_list);
+    print join("\n", @commit_list);
+    print "\n*/\n";
+    return @commit_list;
+}
+
+sub examine_hashes {
+    while (my $hash = shift) {
+        examine_hash($hash);
+    }
 }
 
 sub examine_hash {
@@ -53,16 +67,6 @@ sub examine_hash {
         my $blob_text = qx{git cat-file -p $hash | head -n 4};
         $blobs{$hash} = $blob_text;
         print "BLOB\n";
-    }
-}
-
-sub examine_refs() {
-    for my $ref (@refs) {
-        my $hash=qx{git show-ref --heads --tags -s $ref};
-        chomp $hash;
-        push @links, [$ref, $hash];
-        print "// Following $ref -> {$hash}\n";
-        examine_hash($hash);
     }
 }
 
@@ -114,7 +118,8 @@ sub print_links {
 
 print "digraph git {\n";
 
-examine_refs();
+my @commits = parse_args();
+examine_hashes(@commits);
 
 print_refs();
 print_commits();
