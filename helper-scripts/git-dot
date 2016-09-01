@@ -18,11 +18,11 @@ sub parse_args() {
         push(@ARGV, "master");
     }
     my $cmd = "git rev-list " . join(' ', @ARGV);
-    print "/* $cmd\n";
+    print "$cmd\n";
     my $commit_list = qx{$cmd};
     my @commit_list = split("\n", $commit_list);
     print join("\n", @commit_list);
-    print "\n*/\n";
+    print "\n\n";
     return @commit_list;
 }
 
@@ -40,7 +40,7 @@ sub examine_hash {
     my $type = qx{git cat-file -t $hash}; chomp $type;
     my $size = qx{git cat-file -s $hash}; chomp $size;
 
-    print "// examining {$hash} ($type, $size) - ";
+    print "examining {$hash} ($type, $size) - ";
 
     if ($type eq 'commit') {
         my $commit_text = qx{git cat-file -p $hash};
@@ -130,10 +130,11 @@ sub print_links {
     }
 }
 
+print "/* ------------------------ \n\n";
 my @commits = parse_args();
 examine_hashes(@commits);
+print "\n\n * ------------------------ */ \n\n";
 
-print "\n\n";
 print "digraph git {\n";
 
 print_refs();
