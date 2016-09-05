@@ -11,14 +11,20 @@ import vcs
 
 class TestStats(collections.namedtuple(
         "TestStats",
-        "size magnitude create_time commit_time")):
+        "size create_time commit_time")):
 
     columns = [
             ("magnitude", 9, "%9d"),
             ("size", 20, "%20d"),
+            ("hsize", 8, "%8s"),
             ("create_time", 11, "%11.3f"),
             ("commit_time", 11, "%11.3f"),
         ]
+
+    def __init__(self, **args):
+        super(TestStats, self).__init__(args)
+        self.magnitude = math.frexp(self.size)[1]-1
+        self.hsize = hsize(self.size)
 
     @staticmethod
     def header():
@@ -37,6 +43,14 @@ class TestStats(collections.namedtuple(
             stats.append(fmt % getattr(self,name))
 
         return "  ".join(stats)
+
+
+def hsize(num, suffix='B'):
+    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
 def create_random_file(directory, name, size):
@@ -60,7 +74,6 @@ def test_add_file(size):
         committed_time = time.time()
         return TestStats(
                     size = size,
-                    magnitude = math.frexp(size)[1]-1,
                     commit_time = committed_time - created_time,
                     create_time = created_time - started_time,
                 )
