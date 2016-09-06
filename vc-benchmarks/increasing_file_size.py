@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import collections
 import math
 import os
@@ -45,6 +46,19 @@ class TestStats(collections.namedtuple(
         return "  ".join(stats)
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description=
+            "Test VCS performance for adding increasingly large files")
+
+    parser.add_argument("start_mag", type=int, default=10,
+            help="starting magnitude (2^N)")
+    parser.add_argument("end_mag", type=int, default=15,
+            help="ending magnitude (2^N)")
+
+    args = parser.parse_args()
+    return args
+
+
 def hsize(num, suffix='B'):
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
         if abs(num) < 1024.0:
@@ -83,7 +97,9 @@ def test_add_file(size):
 
 if __name__ == "__main__":
 
-    magnitudes = range(10, 31)
+    args = parse_args()
+
+    magnitudes = range(args.start_mag, args.end_mag)
     results = []
 
     for magnitude in magnitudes:
