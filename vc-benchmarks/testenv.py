@@ -8,28 +8,10 @@ import sys
 
 class TestEnv(collections.namedtuple(
         "TestEnv",
-        "testname testconfig hostname date commandline fsinfo")):
+        "hostname date commandline fsinfo")):
+    pass
 
-    def pretty_print(self):
-        print self.testname
-
-        if self.testconfig:
-            width = max([len(k) for k in self.testconfig.iterkeys()])
-            print
-            for k,v in self.testconfig.iteritems():
-                print "%-*s %s" % (width+1,k+':',v)
-            print
-
-        print "hostname:    %s" % self.hostname
-        print "date:        %s" % self.date.isoformat()
-        print "commandline: %s" % self.commandline
-
-        if self.fsinfo:
-            print
-            print "filesystems used:"
-            print self.fsinfo
-
-def gather_environment_stats(testname, testconfig={}, dirs=[]):
+def gather_environment_stats(dirs=[]):
 
     if dirs:
         cmd = ["df", "-h"] + dirs
@@ -39,10 +21,8 @@ def gather_environment_stats(testname, testconfig={}, dirs=[]):
         fsinfo = None
 
     return TestEnv(
-            testname = testname,
             hostname = socket.gethostname(),
-            date = datetime.datetime.utcnow(),
+            date = datetime.datetime.utcnow().isoformat(),
             commandline = " ".join(sys.argv),
             fsinfo = fsinfo,
-            testconfig = testconfig,
             )

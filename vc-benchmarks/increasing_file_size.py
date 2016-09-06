@@ -12,6 +12,26 @@ import time
 import testenv
 import vcs
 
+def parse_args():
+    parser = argparse.ArgumentParser(description=
+            "Test VCS performance for adding increasingly large files")
+
+    parser.add_argument("start_mag", type=int,
+            help="starting magnitude (2^N)")
+    parser.add_argument("end_mag", type=int, default=-1, nargs="?",
+            help="ending magnitude (2^N)")
+
+    parser.add_argument("--data_gen",
+            choices=['sparse', 'random'], default='sparse',
+            help="data generating strategy")
+
+    args = parser.parse_args()
+    if args.end_mag==-1:
+        args.end_mag = args.start_mag+1
+
+    return args
+
+
 class TestStats(collections.namedtuple(
         "TestStats",
         "size create_time commit_time")):
@@ -48,25 +68,6 @@ class TestStats(collections.namedtuple(
         return "  ".join(stats)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description=
-            "Test VCS performance for adding increasingly large files")
-
-    parser.add_argument("start_mag", type=int,
-            help="starting magnitude (2^N)")
-    parser.add_argument("end_mag", type=int, default=-1, nargs="?",
-            help="ending magnitude (2^N)")
-
-    parser.add_argument("--data",
-            choices=['sparse', 'random'], default='sparse',
-            help="data generating strategy")
-
-    args = parser.parse_args()
-    if args.end_mag==-1:
-        args.end_mag = args.start_mag+1
-    return args
-
-
 def hsize(num, suffix='B'):
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
         if abs(num) < 1024.0:
@@ -75,18 +76,18 @@ def hsize(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-def create_file(directory, name, size, data='sparse'):
+def create_file(directory, name, size, data_gen='sparse'):
     path = os.path.join(directory, name)
     with open(path, 'wb') as f:
-        if data=='sparse':
+        if data_gen=='sparse':
             f.truncate(size)
-        elif data=='random':
+        elif data_gen=='random':
             f.write(os.urandom(size))
         else:
-            raise "invalid data generation strategy: " + data
+            raise "invalid data_gen strategy: " + data_gen
 
 
-def test_add_file(size, data):
+def test_add_file(size, data_gen):
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark')
 
     try:
@@ -94,7 +95,7 @@ def test_add_file(size, data):
         repo.init_repo()
 
         started_time = time.time()
-        create_file(repodir, "test_file", size, data=data)
+        create_file(repodir, "test_file", size, data_gen=data_gen)
         created_time = time.time()
         repo.commit_file("test_file")
         committed_time = time.time()
@@ -107,23 +108,36 @@ def test_add_file(size, data):
         shutil.rmtree(repodir)
 
 
+def print_aligned(kvs):
+    kvdict = kvs if isinstance(kvs,dict) else kvs._asdict()
+    maxwidth = max([len(k) for k in kvdict.iterkeys()])
+    for k,v in kvdict.iteritems():
+        if "\n" not in v:
+            print "%-*s %s" % (maxwidth+1,k+':',v)
+        else:
+            print "\n%s:\n%s" % (k,v)
+
+
 if __name__ == "__main__":
 
     args = parse_args()
     env = testenv.gather_environment_stats(
-                "Commiting increasingly large files",
-                testconfig = {
-                    "data generation": args.data,
-                },
                 dirs = [tempfile.gettempdir()],
             )
 
-    env.pretty_print()
+    print "Committing increasingly large files"
+    print
+    print_aligned({
+            "data_gen": args.data_gen,
+        })
+    print
+    print_aligned(env)
+    print
     print TestStats.header()
 
     try:
         for magnitude in range(args.start_mag, args.end_mag):
-            result = test_add_file(2**magnitude, data=args.data)
+            result = test_add_file(2**magnitude, data_gen=args.data_gen)
             print result.row()
 
     except KeyboardInterrupt:
