@@ -50,9 +50,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description=
             "Test VCS performance for adding increasingly large files")
 
-    parser.add_argument("start_mag", type=int, default=10,
+    parser.add_argument("start_mag", type=int,
             help="starting magnitude (2^N)")
-    parser.add_argument("end_mag", type=int, default=15,
+    parser.add_argument("end_mag", type=int, default=-1, nargs="?",
             help="ending magnitude (2^N)")
 
     parser.add_argument("--data",
@@ -60,6 +60,8 @@ def parse_args():
             help="data generating strategy")
 
     args = parser.parse_args()
+    if args.end_mag==-1:
+        args.end_mag = args.start_mag+1
     return args
 
 
