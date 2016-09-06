@@ -55,6 +55,10 @@ def parse_args():
     parser.add_argument("end_mag", type=int, default=15,
             help="ending magnitude (2^N)")
 
+    parser.add_argument("--data",
+            choices=['sparse', 'random'], default='sparse',
+            help="data generating strategy")
+
     args = parser.parse_args()
     return args
 
@@ -67,14 +71,18 @@ def hsize(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-def create_random_file(directory, name, size):
+def create_file(directory, name, size, data='sparse'):
     path = os.path.join(directory, name)
     with open(path, 'wb') as f:
-        # f.write(os.urandom(size))
-        f.truncate(size)
+        if data=='sparse':
+            f.truncate(size)
+        elif data=='random':
+            f.write(os.urandom(size))
+        else:
+            raise "invalid data generation strategy: " + data
 
 
-def test_add_file(size):
+def test_add_file(size, data):
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark')
 
     try:
@@ -82,7 +90,7 @@ def test_add_file(size):
         repo.init_repo()
 
         started_time = time.time()
-        create_random_file(repodir, "test_file", size)
+        create_file(repodir, "test_file", size, data=data)
         created_time = time.time()
         repo.commit_file("test_file")
         committed_time = time.time()
@@ -103,7 +111,7 @@ if __name__ == "__main__":
     results = []
 
     for magnitude in magnitudes:
-        result = test_add_file(2**magnitude)
+        result = test_add_file(2**magnitude, data=args.data)
         results.append(result)
 
     print TestStats.header()
