@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import subprocess
+import sys
 
 class GitRepo:
 
@@ -8,7 +9,7 @@ class GitRepo:
         self.workdir = workdir
 
     def run_cmd(self, cmd):
-        subprocess.call(cmd, cwd=self.workdir, shell=True)
+        subprocess.call(cmd, cwd=self.workdir, shell=True, stdout=sys.stderr)
 
     def init_repo(self):
         self.run_cmd("git init")
