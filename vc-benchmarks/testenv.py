@@ -20,8 +20,8 @@ class TestEnv(collections.namedtuple(
                 print "%-*s %s" % (width+1,k+':',v)
             print
 
-        print "hostname: %s" % self.hostname
-        print "date: %s" % self.date.isoformat()
+        print "hostname:    %s" % self.hostname
+        print "date:        %s" % self.date.isoformat()
         print "commandline: %s" % self.commandline
 
         if self.fsinfo:
