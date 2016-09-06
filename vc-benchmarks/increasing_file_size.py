@@ -111,12 +111,14 @@ if __name__ == "__main__":
 
     args = parse_args()
     env = testenv.gather_environment_stats(
-                dirs = [tempfile.gettempdir()]
+                "Commiting increasingly large files",
+                testconfig = {
+                    "data generation": args.data,
+                },
+                dirs = [tempfile.gettempdir()],
             )
 
     env.pretty_print()
-    print "data generation: %s" % args.data
-    print
     print TestStats.header()
 
     try:
