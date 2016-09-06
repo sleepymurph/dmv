@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import time
 
+import testenv
 import vcs
 
 class TestStats(collections.namedtuple(
@@ -109,6 +110,7 @@ if __name__ == "__main__":
 
     args = parse_args()
 
+    env = testenv.gather_environment_stats()
     magnitudes = range(args.start_mag, args.end_mag)
     results = []
 
@@ -116,6 +118,9 @@ if __name__ == "__main__":
         result = test_add_file(2**magnitude, data=args.data)
         results.append(result)
 
+    env.pretty_print()
+    print "data generation: %s" % args.data
+    print
     print TestStats.header()
     for result in results:
         print result.row()
