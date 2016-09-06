@@ -110,7 +110,9 @@ def test_add_file(size, data):
 if __name__ == "__main__":
 
     args = parse_args()
-    env = testenv.gather_environment_stats()
+    env = testenv.gather_environment_stats(
+                dirs = [tempfile.gettempdir()]
+            )
 
     env.pretty_print()
     print "data generation: %s" % args.data
