@@ -117,8 +117,10 @@ if __name__ == "__main__":
     print
     print TestStats.header()
 
-    magnitudes = range(args.start_mag, args.end_mag)
+    try:
+        for magnitude in range(args.start_mag, args.end_mag):
+            result = test_add_file(2**magnitude, data=args.data)
+            print result.row()
 
-    for magnitude in magnitudes:
-        result = test_add_file(2**magnitude, data=args.data)
-        print result.row()
+    except KeyboardInterrupt:
+        print "Cancelled"
