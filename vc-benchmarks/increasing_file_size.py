@@ -5,6 +5,7 @@ import collections
 import math
 import os
 import shutil
+import sys
 import tempfile
 import time
 
@@ -109,18 +110,15 @@ def test_add_file(size, data):
 if __name__ == "__main__":
 
     args = parse_args()
-
     env = testenv.gather_environment_stats()
-    magnitudes = range(args.start_mag, args.end_mag)
-    results = []
-
-    for magnitude in magnitudes:
-        result = test_add_file(2**magnitude, data=args.data)
-        results.append(result)
 
     env.pretty_print()
     print "data generation: %s" % args.data
     print
     print TestStats.header()
-    for result in results:
+
+    magnitudes = range(args.start_mag, args.end_mag)
+
+    for magnitude in magnitudes:
+        result = test_add_file(2**magnitude, data=args.data)
         print result.row()
