@@ -13,6 +13,11 @@ class TestEnv(collections.namedtuple(
 
 def gather_environment_stats(dirs=[]):
 
+    hostname = socket.gethostname()
+    date = datetime.datetime.utcnow().isoformat()
+    commandline = " ".join(sys.argv)
+
+    # Filesystem information
     if dirs:
         cmd = ["df", "-h"] + dirs
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
@@ -21,8 +26,8 @@ def gather_environment_stats(dirs=[]):
         fsinfo = None
 
     return TestEnv(
-            hostname = socket.gethostname(),
-            date = datetime.datetime.utcnow().isoformat(),
-            commandline = " ".join(sys.argv),
+            hostname = hostname,
+            date = date,
+            commandline = commandline,
             fsinfo = fsinfo,
             )
