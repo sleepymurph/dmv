@@ -8,7 +8,7 @@ import sys
 
 class TestEnv(collections.namedtuple(
         "TestEnv",
-        "hostname date commandline fsinfo")):
+        "hostname date commandline memtotal memfree fsinfo")):
     pass
 
 def gather_environment_stats(dirs=[]):
@@ -16,6 +16,14 @@ def gather_environment_stats(dirs=[]):
     hostname = socket.gethostname()
     date = datetime.datetime.utcnow().isoformat()
     commandline = " ".join(sys.argv)
+
+    # Memory information
+    meminfo = {}
+    with open('/proc/meminfo') as f:
+        for line in f:
+            k,v = line.split(':')
+            v = v.strip()
+            meminfo[k] = v
 
     # Filesystem information
     if dirs:
@@ -29,5 +37,7 @@ def gather_environment_stats(dirs=[]):
             hostname = hostname,
             date = date,
             commandline = commandline,
+            memtotal = meminfo['MemTotal'],
+            memfree = meminfo['MemFree'],
             fsinfo = fsinfo,
             )
