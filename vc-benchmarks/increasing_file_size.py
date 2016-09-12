@@ -34,7 +34,7 @@ def parse_args():
 
 class TestStats(collections.namedtuple(
         "TestStats",
-        "filebytes create_time commit_time")):
+        "filebytes create_time commit_time repobytes")):
 
     columns = [
             ("magnitude", 9, "%9d"),
@@ -42,12 +42,15 @@ class TestStats(collections.namedtuple(
             ("filehsize", 9, "%9s"),
             ("create_time", 11, "%11.3f"),
             ("commit_time", 11, "%11.3f"),
+            ("repobytes", 20, "%20d"),
+            ("repohsize", 9, "%9s"),
         ]
 
     def __init__(self, **args):
         super(TestStats, self).__init__(args)
         self.magnitude = math.frexp(self.filebytes)[1]-1
-        self.filehsize = filehsize(self.filebytes)
+        self.filehsize = hsize(self.filebytes)
+        self.repohsize = hsize(self.repobytes)
 
     @staticmethod
     def header():
@@ -68,7 +71,7 @@ class TestStats(collections.namedtuple(
         return "  ".join(stats)
 
 
-def filehsize(num, suffix='B'):
+def hsize(num, suffix='B'):
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
         if abs(num) < 1024.0:
             return "%3.1f%s%s" % (num, unit, suffix)
@@ -99,10 +102,12 @@ def test_add_file(filebytes, data_gen):
         created_time = time.time()
         repo.commit_file("test_file")
         committed_time = time.time()
+        repobytes = repo.check_total_size()
         return TestStats(
                     filebytes = filebytes,
                     commit_time = committed_time - created_time,
                     create_time = created_time - started_time,
+                    repobytes = repobytes,
                 )
     finally:
         shutil.rmtree(repodir)
