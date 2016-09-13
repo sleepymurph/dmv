@@ -12,7 +12,7 @@ import time
 import testenv
 import vcs
 
-from testutil import log
+from testutil import hsize, log
 
 def parse_args():
     parser = argparse.ArgumentParser(description=
@@ -75,14 +75,6 @@ class TestStats(collections.namedtuple(
             stats.append(fmt % getattr(self,name))
 
         return "  ".join(stats)
-
-
-def hsize(num, suffix='B'):
-    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
-        if abs(num) < 1024.0:
-            return "%3.1f%s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
 def create_file(directory, name, filebytes, data_gen='sparse'):
