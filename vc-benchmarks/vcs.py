@@ -7,6 +7,10 @@ from testutil import log,logcall
 
 class GitRepo:
 
+    @staticmethod
+    def check_version():
+        return subprocess.check_output("git --version", shell=True).strip()
+
     def __init__(self, workdir):
         self.workdir = workdir
 

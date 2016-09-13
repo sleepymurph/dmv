@@ -139,11 +139,13 @@ if __name__ == "__main__":
     env = testenv.gather_environment_stats(
                 dirs = [tempfile.gettempdir()],
             )
+    git_version = vcs.GitRepo.check_version()
 
     print "Committing increasingly large files"
     print
     print_aligned({
             "data_gen": args.data_gen,
+            "git_version": git_version,
         })
     print
     print_aligned(env)
