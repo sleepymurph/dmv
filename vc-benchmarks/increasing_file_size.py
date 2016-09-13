@@ -23,7 +23,11 @@ def parse_args():
     parser.add_argument("end_mag", type=int, default=-1, nargs="?",
             help="ending magnitude (2^N)")
 
-    parser.add_argument("--data_gen",
+    parser.add_argument("--mag-steps", type=int,
+            default=1,
+            help="steps per order of magnitude, from 2^N to 2^(N+1)")
+
+    parser.add_argument("--data-gen",
             choices=['sparse', 'random'], default='sparse',
             help="data generating strategy")
 
@@ -40,11 +44,11 @@ class TestStats(collections.namedtuple(
 
     columns = [
             ("magnitude", 9, "%9d"),
-            ("filebytes", 20, "%20d"),
+            ("filebytes", 20, "%20x"),
             ("filehsize", 9, "%9s"),
             ("create_time", 11, "%11.3f"),
             ("commit_time", 11, "%11.3f"),
-            ("repobytes", 20, "%20d"),
+            ("repobytes", 20, "%20x"),
             ("repohsize", 9, "%9s"),
         ]
 
@@ -155,9 +159,12 @@ if __name__ == "__main__":
 
     try:
         for magnitude in range(args.start_mag, args.end_mag):
-            result = test_add_file(2**magnitude, data_gen=args.data_gen)
-            print result.row()
-            sys.stdout.flush()
+            for step in range(0, args.mag_steps):
+                bytesperstep = 2**magnitude / args.mag_steps
+                numbytes = 2**magnitude + step*bytesperstep
+                result = test_add_file(numbytes, data_gen=args.data_gen)
+                print result.row()
+                sys.stdout.flush()
 
     except KeyboardInterrupt:
         print "Cancelled"
