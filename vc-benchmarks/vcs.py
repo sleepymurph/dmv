@@ -18,8 +18,13 @@ class GitRepo:
         self.run_cmd("git init")
 
     def commit_file(self, filename):
+        print >> sys.stderr, "Adding file"
         self.run_cmd("git add %s" % filename)
+
+        print >> sys.stderr, "Committing file"
         self.run_cmd("git commit -m 'Add %s'" % filename)
+
+        print >> sys.stderr, "Finished commit"
 
     def check_total_size(self):
         du_out = self.check_output("du -s --block-size=1 .")

@@ -91,17 +91,28 @@ def create_file(directory, name, filebytes, data_gen='sparse'):
 
 
 def test_add_file(filebytes, data_gen):
+    filehsize = hsize(filebytes)
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark')
 
     try:
+        print >> sys.stderr, "%s: initializing repo" % filehsize
+
         repo = vcs.GitRepo(repodir)
         repo.init_repo()
+
+        print >> sys.stderr, "%s: generating file" % filehsize
 
         started_time = time.time()
         create_file(repodir, "test_file", filebytes, data_gen=data_gen)
         created_time = time.time()
+
+        print >> sys.stderr, "%s: adding/committing file" % filehsize
+
         repo.commit_file("test_file")
         committed_time = time.time()
+
+        print >> sys.stderr, "%s: checking resulting size" % filehsize
+
         repobytes = repo.check_total_size()
         return TestStats(
                     filebytes = filebytes,
