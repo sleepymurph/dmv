@@ -3,18 +3,25 @@
 import collections
 import datetime
 import os
+import platform
 import socket
 import subprocess
 import sys
 
 class TestEnv(collections.namedtuple(
-        "TestEnv",
-        "hostname date commandline testversion memtotal memfree fsinfo")):
+        "TestEnv", [
+            'date',
+            'commandline', 'testversion',
+            'hostname', 'platform',
+            'memtotal', 'memfree',
+            'fsinfo',
+        ])):
     pass
 
 def gather_environment_stats(dirs=[]):
 
     hostname = socket.gethostname()
+    platforminfo = platform.platform()
     date = datetime.datetime.utcnow().isoformat()
     commandline = " ".join(sys.argv)
 
@@ -42,6 +49,7 @@ def gather_environment_stats(dirs=[]):
 
     return TestEnv(
             hostname = hostname,
+            platform = platforminfo,
             date = date,
             commandline = commandline,
             testversion = testversion,
