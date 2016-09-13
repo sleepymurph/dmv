@@ -144,6 +144,7 @@ if __name__ == "__main__":
         for magnitude in range(args.start_mag, args.end_mag):
             result = test_add_file(2**magnitude, data_gen=args.data_gen)
             print result.row()
+            sys.stdout.flush()
 
     except KeyboardInterrupt:
         print "Cancelled"
