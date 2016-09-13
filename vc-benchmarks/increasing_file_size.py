@@ -12,6 +12,8 @@ import time
 import testenv
 import vcs
 
+from testutil import log
+
 def parse_args():
     parser = argparse.ArgumentParser(description=
             "Test VCS performance for adding increasingly large files")
@@ -82,12 +84,17 @@ def hsize(num, suffix='B'):
 def create_file(directory, name, filebytes, data_gen='sparse'):
     path = os.path.join(directory, name)
     with open(path, 'wb') as f:
+        log("Generating %s (%s, %s)" % (name, hsize(filebytes), data_gen))
+        starttime = time.time()
         if data_gen=='sparse':
             f.truncate(filebytes)
         elif data_gen=='random':
             f.write(os.urandom(filebytes))
         else:
             raise "invalid data_gen strategy: " + data_gen
+        elapsed = time.time() - starttime
+        log("Generated  %s (%s, %s) in %5.3f seconds" %
+                (name, hsize(filebytes), data_gen, elapsed))
 
 
 def test_add_file(filebytes, data_gen):
@@ -95,23 +102,15 @@ def test_add_file(filebytes, data_gen):
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark')
 
     try:
-        print >> sys.stderr, "%s: initializing repo" % filehsize
-
         repo = vcs.GitRepo(repodir)
         repo.init_repo()
-
-        print >> sys.stderr, "%s: generating file" % filehsize
 
         started_time = time.time()
         create_file(repodir, "test_file", filebytes, data_gen=data_gen)
         created_time = time.time()
 
-        print >> sys.stderr, "%s: adding/committing file" % filehsize
-
         repo.commit_file("test_file")
         committed_time = time.time()
-
-        print >> sys.stderr, "%s: checking resulting size" % filehsize
 
         repobytes = repo.check_total_size()
         return TestStats(
@@ -150,6 +149,7 @@ if __name__ == "__main__":
     print_aligned(env)
     print
     print TestStats.header()
+    sys.stdout.flush()
 
     try:
         for magnitude in range(args.start_mag, args.end_mag):

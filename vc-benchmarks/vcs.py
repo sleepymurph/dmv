@@ -3,13 +3,15 @@
 import subprocess
 import sys
 
+from testutil import log,logcall
+
 class GitRepo:
 
     def __init__(self, workdir):
         self.workdir = workdir
 
     def run_cmd(self, cmd):
-        subprocess.call(cmd, cwd=self.workdir, shell=True, stdout=sys.stderr)
+        logcall(cmd, cwd=self.workdir, shell=True)
 
     def check_output(self, cmd):
         return subprocess.check_output( cmd, cwd=self.workdir, shell=True)
@@ -18,13 +20,9 @@ class GitRepo:
         self.run_cmd("git init")
 
     def commit_file(self, filename):
-        print >> sys.stderr, "Adding file"
         self.run_cmd("git add %s" % filename)
-
-        print >> sys.stderr, "Committing file"
         self.run_cmd("git commit -m 'Add %s'" % filename)
-
-        print >> sys.stderr, "Finished commit"
+        log("Commit finished")
 
     def check_total_size(self):
         du_out = self.check_output("du -s --block-size=1 .")
