@@ -10,6 +10,7 @@ import tempfile
 import time
 
 import testenv
+import testutil
 import vcs
 
 from testutil import hsize, log
@@ -40,7 +41,7 @@ def parse_args():
 
 class TestStats(collections.namedtuple(
         "TestStats",
-        "filebytes create_time commit_time repobytes")):
+        "filebytes create_time commit_time repobytes errors")):
 
     columns = [
             ("magnitude", 9, "%9d"),
@@ -50,6 +51,7 @@ class TestStats(collections.namedtuple(
             ("commit_time", 11, "%11.3f"),
             ("repobytes", 12, "%12x"),
             ("repohsize", 9, "%9s"),
+            ("errors", 6, "%6s"),
         ]
 
     def __init__(self, **args):
@@ -97,6 +99,11 @@ def test_add_file(filebytes, data_gen):
     filehsize = hsize(filebytes)
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark')
 
+    # Create variables ahead of time in case there is an error
+    started_time = created_time = committed_time = time.time()
+    repobytes = 0
+    errors = False
+
     try:
         repo = vcs.GitRepo(repodir)
         repo.init_repo()
@@ -109,15 +116,21 @@ def test_add_file(filebytes, data_gen):
         committed_time = time.time()
 
         repobytes = repo.check_total_size()
-        return TestStats(
-                    filebytes = filebytes,
-                    commit_time = committed_time - created_time,
-                    create_time = created_time - started_time,
-                    repobytes = repobytes,
-                )
+
+    except testutil.CallFailedError as e:
+        print >> sys.stderr, e
+        errors = True
+
     finally:
         shutil.rmtree(repodir)
 
+    return TestStats(
+                filebytes = filebytes,
+                commit_time = committed_time - created_time,
+                create_time = created_time - started_time,
+                repobytes = repobytes,
+                errors = errors,
+            )
 
 def print_aligned(kvs):
     kvdict = kvs if isinstance(kvs,dict) else kvs._asdict()
