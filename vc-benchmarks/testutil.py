@@ -13,7 +13,7 @@ def log(msg):
     print >> sys.stderr, msg
     sys.stderr.flush()
 
-def CallFailedError(RuntimeError):
+class CallFailedError(RuntimeError):
     def __init__(self, cmd, exitcode):
         self.cmd = cmd
         self.exitcode = exitcode
