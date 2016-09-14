@@ -13,12 +13,23 @@ def log(msg):
     print >> sys.stderr, msg
     sys.stderr.flush()
 
+def CallFailedError(RuntimeError):
+    def __init__(self, cmd, exitcode):
+        self.cmd = cmd
+        self.exitcode = exitcode
+
+    def __str__(self):
+        return "Command failed (exit code %s): %s" % (self.exitcode, self.cmd)
+
 def logcall(cmd, cwd=None, shell=False):
     """ Prints and calls the shell command, redirecting all output to stderr """
 
     print >> sys.stderr, "+ %s$ %s" % (cwd, cmd)
     sys.stderr.flush()
 
-    subprocess.call(cmd, stdout=sys.stderr, cwd=cwd, shell=shell)
+    exitcode = subprocess.call(cmd, stdout=sys.stderr, cwd=cwd, shell=shell)
 
     sys.stderr.flush()
+
+    if exitcode!=0:
+        raise CallFailedError(cmd, exitcode)
