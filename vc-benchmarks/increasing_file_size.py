@@ -99,11 +99,6 @@ def test_add_file(filebytes, data_gen):
     filehsize = hsize(filebytes)
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark')
 
-    # Create variables ahead of time in case there is an error
-    started_time = created_time = committed_time = time.time()
-    repobytes = 0
-    errors = False
-
     try:
         repo = vcs.GitRepo(repodir)
         repo.init_repo()
@@ -112,25 +107,27 @@ def test_add_file(filebytes, data_gen):
         create_file(repodir, "test_file", filebytes, data_gen=data_gen)
         created_time = time.time()
 
-        repo.commit_file("test_file")
-        committed_time = time.time()
+        try:
+            errors = False
+            repo.commit_file("test_file")
+        except testutil.CallFailedError as e:
+            print >> sys.stderr, e
+            errors = True
 
+        committed_time = time.time()
         repobytes = repo.check_total_size()
 
-    except testutil.CallFailedError as e:
-        print >> sys.stderr, e
-        errors = True
+        return TestStats(
+                    filebytes = filebytes,
+                    commit_time = committed_time - created_time,
+                    create_time = created_time - started_time,
+                    repobytes = repobytes,
+                    errors = errors,
+                )
 
     finally:
         shutil.rmtree(repodir)
 
-    return TestStats(
-                filebytes = filebytes,
-                commit_time = committed_time - created_time,
-                create_time = created_time - started_time,
-                repobytes = repobytes,
-                errors = errors,
-            )
 
 def print_aligned(kvs):
     kvdict = kvs if isinstance(kvs,dict) else kvs._asdict()
