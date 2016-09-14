@@ -87,7 +87,11 @@ def create_file(directory, name, filebytes, data_gen='sparse'):
         if data_gen=='sparse':
             f.truncate(filebytes)
         elif data_gen=='random':
-            f.write(os.urandom(filebytes))
+            chunksize = 2**20
+            d,m = divmod(filebytes, chunksize)
+            for i in range(0, d):
+                f.write(os.urandom(chunksize))
+            f.write(os.urandom(m))
         else:
             raise "invalid data_gen strategy: " + data_gen
         elapsed = time.time() - starttime
