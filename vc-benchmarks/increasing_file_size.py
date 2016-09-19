@@ -13,7 +13,7 @@ import testenv
 import testutil
 import vcs
 
-from testutil import hsize, log
+from testutil import hsize, comment, log, align_kvs, printheader, printrow
 
 def parse_args():
     parser = argparse.ArgumentParser(description=
@@ -59,24 +59,6 @@ class TestStats(collections.namedtuple(
         self.magnitude = math.frexp(self.filebytes)[1]-1
         self.filehsize = hsize(self.filebytes)
         self.repohsize = hsize(self.repobytes)
-
-    @staticmethod
-    def header():
-        names = []
-        for (name,width,fmt) in TestStats.columns:
-            if len(name) > width:
-                name = name[:width]
-            fmt = "%%%ds" % width
-            names.append(fmt % name)
-
-        return "  ".join(names)
-
-    def row(self):
-        stats = []
-        for (name,width,fmt) in TestStats.columns:
-            stats.append(fmt % getattr(self,name))
-
-        return "  ".join(stats)
 
 
 def create_file(directory, name, filebytes, data_gen='sparse'):
@@ -133,16 +115,6 @@ def test_add_file(filebytes, data_gen):
         shutil.rmtree(repodir)
 
 
-def print_aligned(kvs):
-    kvdict = kvs if isinstance(kvs,dict) else kvs._asdict()
-    maxwidth = max([len(k) for k in kvdict.iterkeys()])
-    for k,v in kvdict.iteritems():
-        if "\n" not in v:
-            print "%-*s %s" % (maxwidth+1,k+':',v)
-        else:
-            print "\n%s:\n%s" % (k,v)
-
-
 if __name__ == "__main__":
 
     args = parse_args()
@@ -151,17 +123,16 @@ if __name__ == "__main__":
             )
     git_version = vcs.GitRepo.check_version()
 
-    print "Committing increasingly large files"
-    print
-    print_aligned({
+    comment("Committing increasingly large files")
+    comment()
+    comment(align_kvs({
             "data_gen": args.data_gen,
             "git_version": git_version,
-        })
-    print
-    print_aligned(env)
-    print
-    print TestStats.header()
-    sys.stdout.flush()
+        }))
+    comment()
+    comment(align_kvs(env))
+    comment()
+    printheader(TestStats.columns)
 
     try:
         for magnitude in range(args.start_mag, args.end_mag):
@@ -169,8 +140,7 @@ if __name__ == "__main__":
                 bytesperstep = 2**magnitude / args.mag_steps
                 numbytes = 2**magnitude + step*bytesperstep
                 result = test_add_file(numbytes, data_gen=args.data_gen)
-                print result.row()
-                sys.stdout.flush()
+                printrow(TestStats.columns, result)
 
     except KeyboardInterrupt:
-        print "Cancelled"
+        comment("Cancelled")
