@@ -4,7 +4,6 @@ import argparse
 import collections
 import math
 import shutil
-import sys
 import tempfile
 import time
 
@@ -76,7 +75,7 @@ def test_add_file(filebytes, data_gen):
             errors = False
             repo.commit_file("test_file")
         except testutil.CallFailedError as e:
-            print >> sys.stderr, e
+            log(e)
             errors = True
 
         committed_time = time.time()
