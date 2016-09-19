@@ -45,11 +45,11 @@ class TestStats(collections.namedtuple(
 
     columns = [
             ("magnitude", 9, "%9d"),
-            ("filebytes", 12, "%12x"),
+            ("filebytes", 12, "0x%010x"),
             ("filehsize", 9, "%9s"),
             ("create_time", 11, "%11.3f"),
             ("commit_time", 11, "%11.3f"),
-            ("repobytes", 12, "%12x"),
+            ("repobytes", 12, "0x%010x"),
             ("repohsize", 9, "%9s"),
             ("errors", 6, "%6s"),
         ]
