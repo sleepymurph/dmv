@@ -3,7 +3,6 @@
 import argparse
 import collections
 import math
-import os
 import shutil
 import sys
 import tempfile
@@ -61,26 +60,6 @@ class TestStats(collections.namedtuple(
         self.repohsize = hsize(self.repobytes)
 
 
-def create_file(directory, name, filebytes, data_gen='sparse'):
-    path = os.path.join(directory, name)
-    with open(path, 'wb') as f:
-        log("Generating %s (%s, %s)" % (name, hsize(filebytes), data_gen))
-        starttime = time.time()
-        if data_gen=='sparse':
-            f.truncate(filebytes)
-        elif data_gen=='random':
-            chunksize = 2**20
-            d,m = divmod(filebytes, chunksize)
-            for i in range(0, d):
-                f.write(os.urandom(chunksize))
-            f.write(os.urandom(m))
-        else:
-            raise "invalid data_gen strategy: " + data_gen
-        elapsed = time.time() - starttime
-        log("Generated  %s (%s, %s) in %5.3f seconds" %
-                (name, hsize(filebytes), data_gen, elapsed))
-
-
 def test_add_file(filebytes, data_gen):
     filehsize = hsize(filebytes)
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark')
@@ -90,7 +69,7 @@ def test_add_file(filebytes, data_gen):
         repo.init_repo()
 
         started_time = time.time()
-        create_file(repodir, "test_file", filebytes, data_gen=data_gen)
+        testutil.create_file(repodir, "test_file", filebytes, data_gen=data_gen)
         created_time = time.time()
 
         try:

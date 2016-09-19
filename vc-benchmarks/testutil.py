@@ -1,5 +1,7 @@
+import os
 import subprocess
 import sys
+import time
 
 def hsize(num, suffix='B'):
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
@@ -123,3 +125,25 @@ def row(columns, values):
         stats.append(fmt % getattr(values,name))
 
     return "  ".join(stats)
+
+
+
+def create_file(directory, name, filebytes, data_gen='sparse'):
+    """ Create a test file of a given size """
+    path = os.path.join(directory, name)
+    with open(path, 'wb') as f:
+        log("Generating %s (%s, %s)" % (name, hsize(filebytes), data_gen))
+        starttime = time.time()
+        if data_gen=='sparse':
+            f.truncate(filebytes)
+        elif data_gen=='random':
+            chunksize = 2**20
+            d,m = divmod(filebytes, chunksize)
+            for i in range(0, d):
+                f.write(os.urandom(chunksize))
+            f.write(os.urandom(m))
+        else:
+            raise "invalid data_gen strategy: " + data_gen
+        elapsed = time.time() - starttime
+        log("Generated  %s (%s, %s) in %5.3f seconds" %
+                (name, hsize(filebytes), data_gen, elapsed))
