@@ -147,3 +147,18 @@ def create_file(directory, name, filebytes, data_gen='sparse'):
         elapsed = time.time() - starttime
         log("Generated  %s (%s, %s) in %5.3f seconds" %
                 (name, hsize(filebytes), data_gen, elapsed))
+
+def make_small_edit(directory, name, filebytes):
+    """ Overwrites a few bytes in the middle of a file """
+    path = os.path.join(directory, name)
+    pos = filebytes * 1/4
+    chunksize = filebytes / (2**10) # KiB in a MiB, MiB in a GiB, and so on
+    log("Overwriting %s of %s (%s) at position 0x%010x" %
+            (hsize(chunksize), name, hsize(filebytes), pos))
+    starttime = time.time()
+    with open(path, 'r+b') as f:
+        f.seek(pos)
+        f.write(os.urandom(chunksize))
+        elapsed = time.time() - starttime
+        log("Overwrote %s of %s (%s) in %5.3f seconds" %
+                (hsize(chunksize), name, hsize(filebytes), elapsed))

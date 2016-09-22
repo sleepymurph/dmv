@@ -28,6 +28,10 @@ class GitRepo:
         self.run_cmd("git commit -m 'Add %s'" % filename)
         log("Commit finished")
 
+    def garbage_collect(self):
+        self.run_cmd("git gc")
+        log("GC finished")
+
     def check_total_size(self):
         du_out = self.check_output("du -s --block-size=1 .")
         bytecount = du_out.strip().split()[0]
