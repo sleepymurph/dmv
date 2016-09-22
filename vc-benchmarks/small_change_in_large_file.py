@@ -52,10 +52,13 @@ class TestStats(collections.namedtuple(
             ("create_time", 11, "%11.3f"),
             ("commit1_time", 11, "%11.3f"),
             ("commit1_size", 12, "0x%010x"),
+            ("commit1_ratio", 13, "%13.2f"),
             ("commit2_time", 11, "%11.3f"),
             ("commit2_size", 12, "0x%010x"),
+            ("commit2_ratio", 13, "%13.2f"),
             ("gc_time", 11, "%11.3f"),
             ("gc_size", 12, "0x%010x"),
+            ("gc_ratio", 8, "%8.2f"),
             ("errors", 6, "%6s"),
         ]
 
@@ -63,6 +66,9 @@ class TestStats(collections.namedtuple(
         super(TestStats, self).__init__(args)
         self.magnitude = math.frexp(self.filebytes)[1]-1
         self.filehsize = hsize(self.filebytes)
+        self.commit1_ratio = float(self.commit1_size) / float(self.filebytes)
+        self.commit2_ratio = float(self.commit2_size) / float(self.filebytes)
+        self.gc_ratio = float(self.gc_size) / float(self.filebytes)
 
 
 def test_add_file(filebytes, data_gen):
