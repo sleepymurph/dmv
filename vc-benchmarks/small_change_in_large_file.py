@@ -3,6 +3,7 @@
 import argparse
 import collections
 import math
+import os.path
 import shutil
 import tempfile
 import time
@@ -29,6 +30,9 @@ def parse_args():
     parser.add_argument("--data-gen",
             choices=['sparse', 'random'], default='sparse',
             help="data generating strategy")
+
+    parser.add_argument("--tmp-dir", default="/tmp",
+            help="directory in which to create and destroy test repos")
 
     args = parser.parse_args()
     if args.end_mag==-1:
@@ -71,9 +75,9 @@ class TestStats(collections.namedtuple(
         self.gc_ratio = float(self.gc_size) / float(self.filebytes)
 
 
-def test_add_file(filebytes, data_gen):
+def test_add_file(filebytes, data_gen, tmpdir="/tmp"):
     filehsize = hsize(filebytes)
-    repodir = tempfile.mkdtemp(prefix='vcs_benchmark')
+    repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
 
     try:
         repo = vcs.GitRepo(repodir)
@@ -155,7 +159,8 @@ if __name__ == "__main__":
             for step in range(0, args.mag_steps):
                 bytesperstep = 2**magnitude / args.mag_steps
                 numbytes = 2**magnitude + step*bytesperstep
-                result = test_add_file(numbytes, data_gen=args.data_gen)
+                result = test_add_file(numbytes, data_gen=args.data_gen,
+                        tmpdir=os.path.expanduser(args.tmp_dir))
                 printrow(TestStats.columns, result)
 
     except KeyboardInterrupt:
