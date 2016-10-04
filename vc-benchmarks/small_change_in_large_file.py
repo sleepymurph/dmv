@@ -18,6 +18,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description=
             "Test VCS performance when making small changes to a large file")
 
+    parser.add_argument("vcs", choices=vcs.vcschoices.keys(),
+            help="vcs to test")
+
     parser.add_argument("start_mag", type=int,
             help="starting magnitude (2^N)")
     parser.add_argument("end_mag", type=int, default=-1, nargs="?",
@@ -75,12 +78,12 @@ class TestStats(collections.namedtuple(
         self.gc_ratio = float(self.gc_size) / float(self.filebytes)
 
 
-def test_add_file(filebytes, data_gen, tmpdir="/tmp"):
+def test_add_file(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
     filehsize = hsize(filebytes)
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
 
     try:
-        repo = vcs.GitRepo(repodir)
+        repo = vcsclass(repodir)
         repo.init_repo()
 
         started_time = time.time()
@@ -89,6 +92,7 @@ def test_add_file(filebytes, data_gen, tmpdir="/tmp"):
 
         try:
             errors = False
+            repo.start_tracking_file("test_file")
             repo.commit_file("test_file")
         except testutil.CallFailedError as e:
             log(e)
@@ -141,13 +145,15 @@ if __name__ == "__main__":
     env = testenv.gather_environment_stats(
                 dirs = [tempfile.gettempdir()],
             )
-    git_version = vcs.GitRepo.check_version()
+    vcsclass = vcs.vcschoices[args.vcs]
+    vcs_version = vcsclass.check_version()
 
     comment("Committing increasingly large files")
     comment()
     comment(align_kvs({
             "data_gen": args.data_gen,
-            "git_version": git_version,
+            "vcs": args.vcs,
+            "vcs_version": vcs_version,
         }))
     comment()
     comment(align_kvs(env))
@@ -159,7 +165,9 @@ if __name__ == "__main__":
             for step in range(0, args.mag_steps):
                 bytesperstep = 2**magnitude / args.mag_steps
                 numbytes = 2**magnitude + step*bytesperstep
-                result = test_add_file(numbytes, data_gen=args.data_gen,
+                result = test_add_file(
+                        vcsclass, numbytes,
+                        data_gen=args.data_gen,
                         tmpdir=os.path.expanduser(args.tmp_dir))
                 printrow(TestStats.columns, result)
 
