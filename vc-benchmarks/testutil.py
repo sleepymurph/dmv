@@ -152,7 +152,7 @@ def make_small_edit(directory, name, filebytes):
     """ Overwrites a few bytes in the middle of a file """
     path = os.path.join(directory, name)
     pos = filebytes * 1/4
-    chunksize = filebytes / (2**10) # KiB in a MiB, MiB in a GiB, and so on
+    chunksize = filebytes / (2**10) or 1 # KiB in a MiB, MiB in a GiB, and so on
     log("Overwriting %s of %s (%s) at position 0x%010x" %
             (hsize(chunksize), name, hsize(filebytes), pos))
     starttime = time.time()
