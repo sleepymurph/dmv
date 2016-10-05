@@ -52,7 +52,8 @@ class TestStats(collections.namedtuple(
         "TestStats",
         ["filecount", "eachbytes", "create_time",
             "commit1_time", "commit1_size",
-            "stat1_time",
+            "stat1_time", "stat2_time",
+            "commit2_time", "commit2_size",
             "errors"])):
 
     columns = [
@@ -67,6 +68,10 @@ class TestStats(collections.namedtuple(
             ("commit1_size", 12, "0x%010x"),
             ("commit1_ratio", 13, "%13.2f"),
             ("stat1_time", 11, "%11.3f"),
+            ("stat2_time", 11, "%11.3f"),
+            ("commit2_time", 11, "%11.3f"),
+            ("commit2_size", 12, "0x%010x"),
+            ("commit2_ratio", 13, "%13.2f"),
             ("errors", 6, "%6s"),
         ]
 
@@ -78,6 +83,7 @@ class TestStats(collections.namedtuple(
         self.totalbytes = self.filecount * self.eachbytes
         self.totalhsize = hsize(self.totalbytes)
         self.commit1_ratio = float(self.commit1_size) / float(self.totalbytes)
+        self.commit2_ratio = float(self.commit2_size) / float(self.totalbytes)
 
 
 def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
@@ -113,6 +119,27 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
 
         stat1_time = time.time()
 
+        testutil.update_many_files(repodir, "test", every_nth_file=16)
+
+        updated_time = time.time()
+
+        try:
+            repo.check_status()
+        except testutil.CallFailedError as e:
+            log(e)
+            errors = True
+
+        stat2_time = time.time()
+
+        try:
+            repo.commit_file("test")
+        except testutil.CallFailedError as e:
+            log(e)
+            errors = True
+
+        committed2_time = time.time()
+        commit2_size = repo.check_total_size()
+
         return TestStats(
                     filecount = numfiles,
                     eachbytes = filebytes,
@@ -120,6 +147,9 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
                     commit1_time = committed1_time - created_time,
                     commit1_size = commit1_size,
                     stat1_time = stat1_time - committed1_time,
+                    stat2_time = stat2_time - updated_time,
+                    commit2_time = committed2_time - stat2_time,
+                    commit2_size = commit2_size,
                     errors = errors,
                 )
 

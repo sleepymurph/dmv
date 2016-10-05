@@ -202,20 +202,26 @@ def create_file(directory, name, filebytes, data_gen='sparse', quiet=False):
             log("Generated  %s (%s, %s) in %5.3f seconds" %
                     (name, hsize(filebytes), data_gen, elapsed))
 
-def make_small_edit(directory, name, filebytes):
+def make_small_edit(directory, name, filebytes=None, quiet=False):
     """ Overwrites a few bytes in the middle of a file """
     path = os.path.join(directory, name)
+    filebytes = os.path.getsize(path)
     pos = filebytes * 1/4
     chunksize = filebytes / (2**10) or 1 # KiB in a MiB, MiB in a GiB, and so on
-    log("Overwriting %s of %s (%s) at position 0x%010x" %
-            (hsize(chunksize), name, hsize(filebytes), pos))
+
+    if not quiet:
+        log("Overwriting %s of %s (%s) at position 0x%010x" %
+                (hsize(chunksize), name, hsize(filebytes), pos))
+
     starttime = time.time()
     with open(path, 'r+b') as f:
         f.seek(pos)
         f.write(os.urandom(chunksize))
         elapsed = time.time() - starttime
-        log("Overwrote %s of %s (%s) in %5.3f seconds" %
-                (hsize(chunksize), name, hsize(filebytes), elapsed))
+
+        if not quiet:
+            log("Overwrote %s of %s (%s) in %5.3f seconds" %
+                    (hsize(chunksize), name, hsize(filebytes), elapsed))
 
 def create_many_files(directory, numfiles, eachfilebytes,
         prefix="test", data_gen="sparse"):
@@ -234,6 +240,28 @@ def create_many_files(directory, numfiles, eachfilebytes,
     log("Generated %s files of %s each in %5.3f seconds"
             % (hsize(numfiles, suffix=''), hsize(eachfilebytes), elapsed))
 
+
+def update_many_files(directory, prefix, every_nth_file=16):
+    """ Update many of the files in a directory """
+
+    log("Updating every %dth file..." % (every_nth_file))
+    starttime = time.time()
+
+    updatedfiles = checkedfiles = 0
+    findprocess = subprocess.Popen(["find", prefix, "-type", "f"],
+                        cwd=directory,
+                        stdout=subprocess.PIPE)
+
+    for line in findprocess.stdout:
+        if checkedfiles % every_nth_file == 0:
+            make_small_edit(directory, line.strip(), quiet=True)
+            updatedfiles += 1
+        checkedfiles += 1
+
+    elapsed = time.time() - starttime
+    log("Updated %s files of %s in %5.3f seconds"
+            % ((hsize(updatedfiles, suffix=''),
+                hsize(checkedfiles, suffix=''), elapsed)))
 
 class TestFileUtils(unittest.TestCase):
 
@@ -314,6 +342,22 @@ class TestFileUtils(unittest.TestCase):
         self.assertEqual(len(findoutput), 1024)
         self.assertEqual(findoutput[0], "./test/00/0")
         self.assertEqual(findoutput[0x3ff], "./test/3f/f")
+
+
+    def test_update_many_files(self):
+        create_many_files(self.tempdir, 16*64, 10, prefix="asdf", data_gen="sparse")
+        update_many_files(self.tempdir, "asdf", every_nth_file=16)
+
+        findoutput = subprocess.check_output(
+                "find -type f | sort", shell=True, cwd=self.tempdir
+                ).strip().split("\n")
+
+        changed_files = 0
+        for i in findoutput:
+            content = self.read_file(i)
+            if content != "\0\0\0\0\0\0\0\0\0\0":
+                changed_files += 1
+        self.assertEqual(changed_files, 64)
 
 
 if __name__ == '__main__':
