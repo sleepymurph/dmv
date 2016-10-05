@@ -31,6 +31,9 @@ class GitRepo:
         self.run_cmd("git commit -m 'Add %s'" % filename)
         log("Commit finished")
 
+    def check_status(self):
+        self.run_cmd("git status")
+
     def garbage_collect(self):
         self.run_cmd("git gc")
         log("GC finished")
@@ -67,6 +70,9 @@ class HgRepo:
     def commit_file(self, filename):
         self.run_cmd("hg commit -m 'Add %s'" % filename)
         log("Commit finished")
+
+    def check_status(self):
+        self.run_cmd("hg status")
 
     def garbage_collect(self):
         pass

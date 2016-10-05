@@ -52,6 +52,7 @@ class TestStats(collections.namedtuple(
         "TestStats",
         ["filecount", "eachbytes", "create_time",
             "commit1_time", "commit1_size",
+            "stat1_time",
             "errors"])):
 
     columns = [
@@ -65,6 +66,7 @@ class TestStats(collections.namedtuple(
             ("commit1_time", 11, "%11.3f"),
             ("commit1_size", 12, "0x%010x"),
             ("commit1_ratio", 13, "%13.2f"),
+            ("stat1_time", 11, "%11.3f"),
             ("errors", 6, "%6s"),
         ]
 
@@ -103,12 +105,21 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         committed1_time = time.time()
         commit1_size = repo.check_total_size()
 
+        try:
+            repo.check_status()
+        except testutil.CallFailedError as e:
+            log(e)
+            errors = True
+
+        stat1_time = time.time()
+
         return TestStats(
                     filecount = numfiles,
                     eachbytes = filebytes,
                     create_time = created_time - started_time,
                     commit1_time = committed1_time - created_time,
                     commit1_size = commit1_size,
+                    stat1_time = stat1_time - committed1_time,
                     errors = errors,
                 )
 
