@@ -58,7 +58,7 @@ class TestStats(collections.namedtuple(
             ("magnitude", 9, "%9d"),
             ("filecount", 12, "0x%010x"),
             ("filehcount", 10, "%10s"),
-            ("eachbytes", 9, "   0x%04x"),
+            ("eachhsize", 10, "%10s"),
             ("totalbytes", 12, "0x%010x"),
             ("totalhsize", 10, "%10s"),
             ("create_time", 11, "%11.3f"),
@@ -72,6 +72,7 @@ class TestStats(collections.namedtuple(
         super(TestStats, self).__init__(args)
         self.magnitude = testutil.log2(self.filecount)
         self.filehcount = hsize(self.filecount, suffix="")
+        self.eachhsize = hsize(self.eachbytes)
         self.totalbytes = self.filecount * self.eachbytes
         self.totalhsize = hsize(self.totalbytes)
         self.commit1_ratio = float(self.commit1_size) / float(self.totalbytes)
