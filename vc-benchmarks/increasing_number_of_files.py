@@ -113,7 +113,11 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
                 )
 
     finally:
+        testutil.log("Cleaning up test files...")
+        rmstart = time.time()
         shutil.rmtree(repodir)
+        rmtime = time.time() - rmstart
+        testutil.log("Removed test files in %5.3f seconds" % rmtime)
 
 
 if __name__ == "__main__":
