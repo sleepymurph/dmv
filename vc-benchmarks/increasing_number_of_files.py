@@ -119,8 +119,10 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
 if __name__ == "__main__":
 
     args = parse_args()
+
+    tmpdir = os.path.expanduser(args.tmp_dir)
     env = testenv.gather_environment_stats(
-                dirs = [tempfile.gettempdir()],
+                dirs = [tmpdir],
             )
     vcsclass = vcs.vcschoices[args.vcs]
     vcs_version = vcsclass.check_version()
@@ -146,7 +148,7 @@ if __name__ == "__main__":
                 result = test_many_files(
                         vcsclass, filecount, eachfilebytes,
                         data_gen=args.data_gen,
-                        tmpdir=os.path.expanduser(args.tmp_dir))
+                        tmpdir=tmpdir)
                 printrow(TestStats.columns, result)
 
     except KeyboardInterrupt:
