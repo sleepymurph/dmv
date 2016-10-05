@@ -1,7 +1,11 @@
+import math
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
+import unittest
 
 def hsize(num, suffix='B'):
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
@@ -9,6 +13,45 @@ def hsize(num, suffix='B'):
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.1f%s%s" % (num, 'Yi', suffix)
+
+def log2(num):
+    """ Returns a log base 2 of the number """
+    return math.frexp(num)[1]-1
+
+def hexlength(num):
+    """ Returns the number of hex digits required to represent a number """
+    return log2(num) / 4 + 1
+
+class TestLog2Functions(unittest.TestCase):
+
+    def test_log2(self):
+        self.assertEqual(log2(1024), 10)
+        self.assertEqual(log2(2**20), 20)
+
+    def test_hexlength(self):
+        self.assertEqual(hexlength(1), 1)
+        self.assertEqual(hexlength(15), 1)
+        self.assertEqual(hexlength(16), 2)
+        self.assertEqual(hexlength(255), 2)
+        self.assertEqual(hexlength(256), 3)
+
+def chunkstring(s, chunklength):
+    """ Breaks a string into fixed-length chunks
+
+    Stolen from http://stackoverflow.com/a/18854817/1888742
+    """
+    return (s[0+i:chunklength+i] for i in range(0, len(s), chunklength))
+
+class TestChunkString(unittest.TestCase):
+
+    def test_even_split(self):
+        self.assertEqual(list(chunkstring("helloworldparty", 5)),
+                ["hello", "world", "party"])
+
+    def test_remainder_split(self):
+        self.assertEqual(list(chunkstring("helloworldpartytime", 5)),
+                ["hello", "world", "party", "time"])
+
 
 # Output functions
 #
@@ -128,11 +171,21 @@ def row(columns, values):
 
 
 
-def create_file(directory, name, filebytes, data_gen='sparse'):
+# File creation functions
+
+
+def create_file(directory, name, filebytes, data_gen='sparse', quiet=False):
     """ Create a test file of a given size """
     path = os.path.join(directory, name)
+
+    # Make subdirectories if necessary
+    head, tail = os.path.split(path)
+    if not os.path.exists(head):
+        os.makedirs(head)
+
     with open(path, 'wb') as f:
-        log("Generating %s (%s, %s)" % (name, hsize(filebytes), data_gen))
+        if not quiet:
+            log("Generating %s (%s, %s)" % (name, hsize(filebytes), data_gen))
         starttime = time.time()
         if data_gen=='sparse':
             f.truncate(filebytes)
@@ -145,8 +198,9 @@ def create_file(directory, name, filebytes, data_gen='sparse'):
         else:
             raise "invalid data_gen strategy: " + data_gen
         elapsed = time.time() - starttime
-        log("Generated  %s (%s, %s) in %5.3f seconds" %
-                (name, hsize(filebytes), data_gen, elapsed))
+        if not quiet:
+            log("Generated  %s (%s, %s) in %5.3f seconds" %
+                    (name, hsize(filebytes), data_gen, elapsed))
 
 def make_small_edit(directory, name, filebytes):
     """ Overwrites a few bytes in the middle of a file """
@@ -162,3 +216,105 @@ def make_small_edit(directory, name, filebytes):
         elapsed = time.time() - starttime
         log("Overwrote %s of %s (%s) in %5.3f seconds" %
                 (hsize(chunksize), name, hsize(filebytes), elapsed))
+
+def create_many_files(directory, numfiles, eachfilebytes,
+        prefix="test", data_gen="sparse"):
+    """ Create a set of many files in the given directory """
+
+    log("Generating %s files of %s each..."
+            % (hsize(numfiles, suffix=''), hsize(eachfilebytes)))
+    starttime = time.time()
+
+    for i in range(0,numfiles):
+        hexrep = "{:0{width}x}".format(i, width=hexlength(numfiles-1))
+        name = prefix + '/' + '/'.join(chunkstring(hexrep, 2))
+        create_file(directory, name, eachfilebytes, data_gen=data_gen, quiet=True)
+
+    elapsed = time.time() - starttime
+    log("Generated %s files of %s each in %5.3f seconds"
+            % (hsize(numfiles, suffix=''), hsize(eachfilebytes), elapsed))
+
+
+class TestFileUtils(unittest.TestCase):
+
+    def setUp(self):
+        self.tempdir = tempfile.mkdtemp(prefix='testutil')
+
+    def tearDown(self):
+        shutil.rmtree(self.tempdir)
+
+    def read_file(self, filename):
+        path = os.path.join(self.tempdir, filename)
+        with open(path, 'r') as f:
+            content = f.read()
+        return content
+
+    def test_create_file_sparse(self):
+        create_file(self.tempdir, "test_file", 10, data_gen="sparse")
+
+        content = self.read_file("test_file")
+        self.assertEqual(len(content), 10)
+        self.assertEqual(content, "\0\0\0\0\0\0\0\0\0\0")
+
+    def test_create_file_random(self):
+        create_file(self.tempdir, "test_file", 10, data_gen="random")
+
+        content = self.read_file("test_file")
+        self.assertEqual(len(content), 10)
+        self.assertNotEqual(content, "\0\0\0\0\0\0\0\0\0\0")
+
+    def test_create_file_subdirectories(self):
+        create_file(self.tempdir, os.path.join("subdir","test_file")
+                , 10, data_gen="sparse")
+        content = self.read_file("subdir/test_file")
+        self.assertEqual(len(content), 10)
+        self.assertEqual(content, "\0\0\0\0\0\0\0\0\0\0")
+
+    def test_make_small_edit(self):
+        create_file(self.tempdir, "test_file", 10, data_gen="sparse")
+        make_small_edit(self.tempdir, "test_file", 4)
+
+        content = self.read_file("test_file")
+        self.assertEqual(len(content), 10)
+        self.assertNotEqual(content, "\0\0\0\0\0\0\0\0\0\0")
+
+    def test_create_many_files_small(self):
+        create_many_files(self.tempdir, 16, 10, prefix="asdf", data_gen="sparse")
+        findoutput = subprocess.check_output(
+                "find -type f | sort", shell=True, cwd=self.tempdir
+                ).strip().split("\n")
+
+        self.assertEqual(len(findoutput), 16)
+        self.assertEqual(findoutput[0], "./asdf/0")
+        self.assertEqual(findoutput[10], "./asdf/a")
+        self.assertEqual(findoutput[15], "./asdf/f")
+
+        for i in findoutput:
+            content = self.read_file(i)
+            self.assertEqual(len(content), 10)
+            self.assertEqual(content, "\0\0\0\0\0\0\0\0\0\0")
+
+    def test_create_many_files_random(self):
+        create_many_files(self.tempdir, 16, 10, data_gen="random")
+        findoutput = subprocess.check_output(
+                "find -type f | sort", shell=True, cwd=self.tempdir
+                ).strip().split("\n")
+
+        for i in findoutput:
+            content = self.read_file(i)
+            self.assertEqual(len(content), 10)
+            self.assertNotEqual(content, "\0\0\0\0\0\0\0\0\0\0")
+
+    def test_create_many_files_many(self):
+        create_many_files(self.tempdir, 1024, 10, prefix="test", data_gen="sparse")
+        findoutput = subprocess.check_output(
+                "find -type f | sort", shell=True, cwd=self.tempdir
+                ).strip().split("\n")
+
+        self.assertEqual(len(findoutput), 1024)
+        self.assertEqual(findoutput[0], "./test/00/0")
+        self.assertEqual(findoutput[0x3ff], "./test/3f/f")
+
+
+if __name__ == '__main__':
+    unittest.main()
