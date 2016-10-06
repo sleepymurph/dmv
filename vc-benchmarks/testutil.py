@@ -93,13 +93,14 @@ class CallFailedError(RuntimeError):
     def __str__(self):
         return "Command failed (exit code %s): %s" % (self.exitcode, self.cmd)
 
-def logcall(cmd, cwd=None, shell=False):
+def logcall(cmd, cwd=None, shell=False, env=None):
     """ Prints and calls the shell command, redirecting all output to stderr """
 
     print >> sys.stderr, "+ %s$ %s" % (cwd, cmd)
     sys.stderr.flush()
 
-    exitcode = subprocess.call(cmd, stdout=sys.stderr, cwd=cwd, shell=shell)
+    exitcode = subprocess.call(cmd, stdout=sys.stderr, cwd=cwd,
+                    shell=shell, env=env)
 
     sys.stderr.flush()
 
