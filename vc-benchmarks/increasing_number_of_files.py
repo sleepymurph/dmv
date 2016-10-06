@@ -112,7 +112,7 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         commit1_size = repo.check_total_size()
 
         try:
-            repo.check_status()
+            repo.check_status("test")
         except testutil.CallFailedError as e:
             log(e)
             errors = True
@@ -124,7 +124,7 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         updated_time = time.time()
 
         try:
-            repo.check_status()
+            repo.check_status("test")
         except testutil.CallFailedError as e:
             log(e)
             errors = True

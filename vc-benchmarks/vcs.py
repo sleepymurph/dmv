@@ -32,8 +32,8 @@ class GitRepo:
         self.run_cmd("git commit -m 'Add %s'" % filename)
         log("Commit finished")
 
-    def check_status(self):
-        self.run_cmd("git status")
+    def check_status(self, filename):
+        self.run_cmd("git status %s" % filename)
 
     def garbage_collect(self):
         self.run_cmd("git gc")
@@ -72,8 +72,8 @@ class HgRepo:
         self.run_cmd("hg commit -m 'Add %s'" % filename)
         log("Commit finished")
 
-    def check_status(self):
-        self.run_cmd("hg status")
+    def check_status(self, filename):
+        self.run_cmd("hg status %s" % filename)
 
     def garbage_collect(self):
         log("HG has no garbage collection")
@@ -114,9 +114,9 @@ class BupRepo:
         self.run_cmd("bup save -n 'test_run' %s" % filename)
         log("Commit finished")
 
-    def check_status(self):
-        self.run_cmd("bup index .")
-        self.run_cmd("bup index --status .")
+    def check_status(self, filename):
+        self.run_cmd("bup index %s" % filename)
+        self.run_cmd("bup index --status %s" % filename)
 
     def garbage_collect(self):
         log("Bup has no garbage collection")
