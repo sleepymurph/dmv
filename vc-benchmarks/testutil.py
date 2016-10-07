@@ -18,9 +18,23 @@ def log2(num):
     """ Returns a log base 2 of the number """
     return math.frexp(num)[1]-1
 
+def hsize10(num, suffix=''):
+    for unit in ['','k','M','G','T','P','E','Z']:
+        if abs(num) < 1000.0:
+            return "%3.1f%s%s" % (num, unit, suffix)
+        num /= 1000.0
+    return "%.1f%s%s" % (num, 'Y', suffix)
+
 def hexlength(num):
     """ Returns the number of hex digits required to represent a number """
     return log2(num) / 4 + 1
+
+def digitlength(num):
+    """ Returns the number of base-ten digits required to represent a number """
+    if num == 0:
+        return 1
+    else:
+        return int(math.log10(num)) + 1
 
 class TestLog2Functions(unittest.TestCase):
 
@@ -34,6 +48,22 @@ class TestLog2Functions(unittest.TestCase):
         self.assertEqual(hexlength(16), 2)
         self.assertEqual(hexlength(255), 2)
         self.assertEqual(hexlength(256), 3)
+
+class TestLog10Functions(unittest.TestCase):
+
+    def test_digitlength(self):
+        self.assertEqual(digitlength(0), 1)
+        self.assertEqual(digitlength(1), 1)
+        self.assertEqual(digitlength(9), 1)
+        self.assertEqual(digitlength(10), 2)
+        self.assertEqual(digitlength(11), 2)
+        self.assertEqual(digitlength(99), 2)
+        self.assertEqual(digitlength(100), 3)
+        self.assertEqual(digitlength(101), 3)
+        self.assertEqual(digitlength(999), 3)
+        self.assertEqual(digitlength(1000), 4)
+        self.assertEqual(digitlength(1001), 4)
+        self.assertEqual(digitlength(9999), 4)
 
 def chunkstring(s, chunklength):
     """ Breaks a string into fixed-length chunks
@@ -233,8 +263,8 @@ def create_many_files(directory, numfiles, eachfilebytes,
     starttime = time.time()
 
     for i in range(0,numfiles):
-        hexrep = "{:0{width}x}".format(i, width=hexlength(numfiles-1))
-        name = prefix + '/' + '/'.join(chunkstring(hexrep, 2))
+        seqrep = "{:0{width}d}".format(i, width=digitlength(numfiles-1))
+        name = prefix + '/' + '/'.join(chunkstring(seqrep, 2))
         create_file(directory, name, eachfilebytes, data_gen=data_gen, quiet=True)
 
     elapsed = time.time() - starttime
@@ -242,7 +272,7 @@ def create_many_files(directory, numfiles, eachfilebytes,
             % (hsize(numfiles, suffix=''), hsize(eachfilebytes), elapsed))
 
 
-def update_many_files(directory, prefix, every_nth_file=16):
+def update_many_files(directory, prefix, every_nth_file=10):
     """ Update many of the files in a directory """
 
     log("Updating every %dth file..." % (every_nth_file))
@@ -307,21 +337,20 @@ class TestFileUtils(unittest.TestCase):
         self.assertEqual(len(content), 10)
         self.assertNotEqual(content, "\0\0\0\0\0\0\0\0\0\0")
 
-    def test_create_many_files_small(self):
-        create_many_files(self.tempdir, 16, 10, prefix="asdf", data_gen="sparse")
+    def test_create_many_files_10(self):
+        create_many_files(self.tempdir, 10, 5, prefix="asdf", data_gen="sparse")
         findoutput = subprocess.check_output(
                 "find -type f | sort", shell=True, cwd=self.tempdir
                 ).strip().split("\n")
 
-        self.assertEqual(len(findoutput), 16)
+        self.assertEqual(len(findoutput), 10)
         self.assertEqual(findoutput[0], "./asdf/0")
-        self.assertEqual(findoutput[10], "./asdf/a")
-        self.assertEqual(findoutput[15], "./asdf/f")
+        self.assertEqual(findoutput[9], "./asdf/9")
 
         for i in findoutput:
             content = self.read_file(i)
-            self.assertEqual(len(content), 10)
-            self.assertEqual(content, "\0\0\0\0\0\0\0\0\0\0")
+            self.assertEqual(len(content), 5)
+            self.assertEqual(content, "\0\0\0\0\0")
 
     def test_create_many_files_random(self):
         create_many_files(self.tempdir, 16, 10, data_gen="random")
@@ -334,20 +363,40 @@ class TestFileUtils(unittest.TestCase):
             self.assertEqual(len(content), 10)
             self.assertNotEqual(content, "\0\0\0\0\0\0\0\0\0\0")
 
-    def test_create_many_files_many(self):
-        create_many_files(self.tempdir, 1024, 10, prefix="test", data_gen="sparse")
+    def test_create_many_files_101(self):
+        create_many_files(self.tempdir, 101, 10, prefix="test", data_gen="sparse")
         findoutput = subprocess.check_output(
                 "find -type f | sort", shell=True, cwd=self.tempdir
                 ).strip().split("\n")
 
-        self.assertEqual(len(findoutput), 1024)
+        self.assertEqual(len(findoutput), 101)
         self.assertEqual(findoutput[0], "./test/00/0")
-        self.assertEqual(findoutput[0x3ff], "./test/3f/f")
+        self.assertEqual(findoutput[100], "./test/10/0")
+
+    def test_create_many_files_1000(self):
+        create_many_files(self.tempdir, 1000, 10, prefix="test", data_gen="sparse")
+        findoutput = subprocess.check_output(
+                "find -type f | sort", shell=True, cwd=self.tempdir
+                ).strip().split("\n")
+
+        self.assertEqual(len(findoutput), 1000)
+        self.assertEqual(findoutput[0], "./test/00/0")
+        self.assertEqual(findoutput[999], "./test/99/9")
+
+    def test_create_many_files_10000(self):
+        create_many_files(self.tempdir, 10000, 10, prefix="test", data_gen="sparse")
+        findoutput = subprocess.check_output(
+                "find -type f | sort", shell=True, cwd=self.tempdir
+                ).strip().split("\n")
+
+        self.assertEqual(len(findoutput), 10000)
+        self.assertEqual(findoutput[0], "./test/00/00")
+        self.assertEqual(findoutput[9999], "./test/99/99")
 
 
     def test_update_many_files(self):
-        create_many_files(self.tempdir, 16*64, 10, prefix="asdf", data_gen="sparse")
-        update_many_files(self.tempdir, "asdf", every_nth_file=16)
+        create_many_files(self.tempdir, 640, 10, prefix="asdf", data_gen="sparse")
+        update_many_files(self.tempdir, "asdf", every_nth_file=10)
 
         findoutput = subprocess.check_output(
                 "find -type f | sort", shell=True, cwd=self.tempdir

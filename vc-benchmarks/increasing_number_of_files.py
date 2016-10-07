@@ -12,7 +12,8 @@ import testenv
 import testutil
 import vcs
 
-from testutil import hsize, comment, log, align_kvs, printheader, printrow
+from testutil import hsize, hsize10, comment, log, align_kvs, \
+        printheader, printrow
 
 def parse_args():
     parser = argparse.ArgumentParser(description=
@@ -22,13 +23,13 @@ def parse_args():
             help="vcs to test")
 
     parser.add_argument("start_mag", type=int,
-            help="starting magnitude (2^N)")
+            help="starting magnitude (10^N)")
     parser.add_argument("end_mag", type=int, default=-1, nargs="?",
-            help="ending magnitude (2^N)")
+            help="ending magnitude (10^N)")
 
     parser.add_argument("--mag-steps", type=int,
             default=1,
-            help="steps per order of magnitude, from 2^N to 2^(N+1)")
+            help="steps per order of magnitude, from 10^N to 10^(N+1)")
 
     parser.add_argument("--each-file-mag", type=int,
             default=10,
@@ -58,7 +59,7 @@ class TestStats(collections.namedtuple(
 
     columns = [
             ("magnitude", 9, "%9d"),
-            ("filecount", 12, "0x%010x"),
+            ("filecount", 12, "%12d"),
             ("filehcount", 10, "%10s"),
             ("eachhsize", 10, "%10s"),
             ("totalbytes", 12, "0x%010x"),
@@ -77,8 +78,8 @@ class TestStats(collections.namedtuple(
 
     def __init__(self, **args):
         super(TestStats, self).__init__(args)
-        self.magnitude = testutil.log2(self.filecount)
-        self.filehcount = hsize(self.filecount, suffix="")
+        self.magnitude = math.log10(self.filecount)
+        self.filehcount = hsize10(self.filecount)
         self.eachhsize = hsize(self.eachbytes)
         self.totalbytes = self.filecount * self.eachbytes
         self.totalhsize = hsize(self.totalbytes)
@@ -187,8 +188,8 @@ if __name__ == "__main__":
     try:
         for magnitude in range(args.start_mag, args.end_mag):
             for step in range(0, args.mag_steps):
-                bytesperstep = 2**magnitude / args.mag_steps
-                filecount = 2**magnitude + step*bytesperstep
+                numperstep = 10**magnitude / args.mag_steps
+                filecount = 10**magnitude + step*numperstep
                 eachfilebytes = 2 ** args.each_file_mag
                 result = test_many_files(
                         vcsclass, filecount, eachfilebytes,
