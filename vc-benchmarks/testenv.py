@@ -14,6 +14,7 @@ class TestEnv(collections.namedtuple(
             'commandline', 'testversion',
             'hostname', 'platform',
             'memtotal', 'memfree',
+            'cpuinfo',
             'fsinfo',
         ])):
     pass
@@ -39,6 +40,11 @@ def gather_environment_stats(dirs=[]):
             v = v.strip()
             meminfo[k] = v
 
+    # CPU information
+    cpuinfo = subprocess.check_output(
+                "cat /proc/cpuinfo | awk '/^processor/; /^model name/; /^cpu MHz/; /^cache size/; /^$/;'",
+                shell=True).strip()
+
     # Filesystem information
     if dirs:
         cmd = ["df", "-h"] + dirs
@@ -55,5 +61,6 @@ def gather_environment_stats(dirs=[]):
             testversion = testversion,
             memtotal = meminfo['MemTotal'],
             memfree = meminfo['MemFree'],
+            cpuinfo = cpuinfo,
             fsinfo = fsinfo,
             )
