@@ -151,7 +151,10 @@ def align_kvs(kvs):
         if "\n" not in v:
             lines.append("%-*s %s" % (maxwidth+1,k+':',v))
         else:
-            lines.append("\n%s:\n%s" % (k,v))
+            lines.append("\n%s:" % (k))
+            sublines = v.split("\n")
+            for subline in sublines:
+                lines.append("    %s" % (subline))
     return "\n".join(lines)
 
 
