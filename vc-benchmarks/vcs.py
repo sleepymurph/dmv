@@ -53,6 +53,8 @@ class GitRepo:
 
     def is_file_in_commit(self, commit_id, filename):
         try:
+            # NOTE: This will only find files in the top level of the tree
+            # TODO: Switch to git ls-files?
             output = self.check_output(
                                 "git ls-tree -r %s | grep '\t%s$'"
                                 % (commit_id, filename)).strip()
@@ -106,6 +108,29 @@ class HgRepo:
         bytecount = du_out.strip().split()[0]
         return int(bytecount)
 
+    def get_last_commit_id(self):
+        revid = self.check_output("hg id -i").strip()
+        if revid=="000000000000":
+            return None
+        else:
+            return revid
+
+    def is_file_in_commit(self, commit_id, filename):
+        try:
+            output = self.check_output(
+                                "hg manifest -r %s | grep '^%s$'"
+                                % (commit_id, filename)).strip()
+            return bool(output)
+        except subprocess.CalledProcessError:
+            return False
+
+    def check_repo_integrity(self):
+        try:
+            self.run_cmd("hg verify")
+            return True
+        except testutil.CallFailedError:
+            return False
+
 
 class BupRepo:
 
@@ -158,6 +183,8 @@ class BupRepo:
 
     def is_file_in_commit(self, commit_id, filename):
         try:
+            # NOTE: This will only find files in the top level of the tree
+            # TODO: Switch to git ls-files?
             output = self.check_output(
                                 "git ls-tree -r %s | grep '/%s$'"
                                 % (commit_id, filename)).strip()
