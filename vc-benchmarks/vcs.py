@@ -118,6 +118,7 @@ class BupRepo:
         self.repodir = os.path.join(workdir, ".bup")
         self.env = os.environ.copy()
         self.env['BUP_DIR'] = self.repodir
+        self.env['GIT_DIR'] = self.repodir
 
     def run_cmd(self, cmd):
         logcall(cmd, cwd=self.workdir, shell=True, env=self.env)
@@ -149,6 +150,27 @@ class BupRepo:
         bytecount = du_out.strip().split()[0]
         return int(bytecount)
 
+    def get_last_commit_id(self):
+        try:
+            return self.check_output("git rev-parse test-run").strip()
+        except subprocess.CalledProcessError:
+            return None
+
+    def is_file_in_commit(self, commit_id, filename):
+        try:
+            output = self.check_output(
+                                "git ls-tree -r %s | grep '/%s$'"
+                                % (commit_id, filename)).strip()
+            return bool(output)
+        except subprocess.CalledProcessError:
+            return False
+
+    def check_repo_integrity(self):
+        try:
+            self.run_cmd("git fsck")
+            return True
+        except testutil.CallFailedError:
+            return False
 
 
 vcschoices = {
