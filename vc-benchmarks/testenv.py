@@ -14,6 +14,7 @@ class TestEnv(collections.namedtuple(
             'commandline', 'testversion',
             'hostname', 'platform',
             'memtotal', 'memfree',
+            'pythonversion',
             'cpuinfo',
             'fsinfo',
         ])):
@@ -61,6 +62,7 @@ def gather_environment_stats(dirs=[]):
             testversion = testversion,
             memtotal = meminfo['MemTotal'],
             memfree = meminfo['MemFree'],
+            pythonversion = sys.version,
             cpuinfo = cpuinfo,
             fsinfo = fsinfo,
             )
