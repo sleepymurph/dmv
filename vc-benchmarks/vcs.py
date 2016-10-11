@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+import testutil
 
 from testutil import log,logcall
 
@@ -43,6 +44,28 @@ class GitRepo:
         du_out = self.check_output("du -s --block-size=1 .")
         bytecount = du_out.strip().split()[0]
         return int(bytecount)
+
+    def get_last_commit_id(self):
+        try:
+            return self.check_output("git rev-parse HEAD").strip()
+        except subprocess.CalledProcessError:
+            return None
+
+    def is_file_in_commit(self, commit_id, filename):
+        try:
+            output = self.check_output(
+                                "git ls-tree -r %s | grep '\t%s$'"
+                                % (commit_id, filename)).strip()
+            return bool(output)
+        except subprocess.CalledProcessError:
+            return False
+
+    def check_repo_integrity(self):
+        try:
+            self.run_cmd("git fsck")
+            return True
+        except testutil.CallFailedError:
+            return False
 
 
 class HgRepo:
