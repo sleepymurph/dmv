@@ -16,7 +16,7 @@ from testutil import hsize, comment, log, align_kvs, printheader, printrow
 
 def parse_args():
     parser = argparse.ArgumentParser(description=
-            "Test VCS performance when making small changes to a large file")
+            "Measure VCS performance when making small changes to a large file")
 
     parser.add_argument("vcs", choices=vcs.vcschoices.keys(),
             help="vcs to test")
@@ -44,7 +44,7 @@ def parse_args():
     return args
 
 
-class TestStats:
+class TrialStats:
 
     columns = [
             ("magnitude", 9, "%9d"),
@@ -82,25 +82,25 @@ class TestStats:
         self.gc_ratio = float(self.gc_size) / float(self.filebytes)
 
 
-def test_add_file(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
+def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
     filehsize = hsize(filebytes)
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
 
     try:
-        trialstats = TestStats()
+        trialstats = TrialStats()
         trialstats.filebytes = filebytes
 
         repo = vcsclass(repodir)
         repo.init_repo()
 
         started_time = time.time()
-        testutil.create_file(repodir, "test_file", filebytes, data_gen=data_gen)
+        testutil.create_file(repodir, "large_file", filebytes, data_gen=data_gen)
         created_time = time.time()
         trialstats.create_time = created_time - started_time
 
         try:
-            repo.start_tracking_file("test_file")
-            repo.commit_file("test_file")
+            repo.start_tracking_file("large_file")
+            repo.commit_file("large_file")
         except testutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
@@ -109,12 +109,12 @@ def test_add_file(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
         trialstats.commit1_time = committed1_time - created_time
         trialstats.commit1_size = repo.check_total_size()
 
-        testutil.make_small_edit(repodir, "test_file", filebytes)
+        testutil.make_small_edit(repodir, "large_file", filebytes)
 
         edited_time = time.time()
 
         try:
-            repo.commit_file("test_file")
+            repo.commit_file("large_file")
         except testutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
@@ -161,18 +161,18 @@ if __name__ == "__main__":
     comment()
     comment(align_kvs(env))
     comment()
-    printheader(TestStats.columns)
+    printheader(TrialStats.columns)
 
     try:
         for magnitude in range(args.start_mag, args.end_mag):
             for step in range(0, args.mag_steps):
                 bytesperstep = 2**magnitude / args.mag_steps
                 numbytes = 2**magnitude + step*bytesperstep
-                result = test_add_file(
+                result = run_trial(
                         vcsclass, numbytes,
                         data_gen=args.data_gen,
                         tmpdir=tmpdir)
-                printrow(TestStats.columns, result)
+                printrow(TrialStats.columns, result)
 
     except KeyboardInterrupt:
         comment("Cancelled")
