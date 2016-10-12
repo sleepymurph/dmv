@@ -49,13 +49,7 @@ def parse_args():
     return args
 
 
-class TestStats(collections.namedtuple(
-        "TestStats",
-        ["filecount", "eachbytes", "create_time",
-            "commit1_time", "commit1_size",
-            "stat1_time", "stat2_time",
-            "commit2_time", "commit2_size",
-            "errors"])):
+class TestStats:
 
     columns = [
             ("magnitude", 9, "%9d"),
@@ -77,7 +71,18 @@ class TestStats(collections.namedtuple(
         ]
 
     def __init__(self, **args):
-        super(TestStats, self).__init__(args)
+        self.filecount = 0
+        self.eachbytes = 0
+        self.create_time = 0
+        self.commit1_time = 0
+        self.commit1_size = 0
+        self.stat1_time = 0
+        self.stat2_time = 0
+        self.commit2_time = 0
+        self.commit2_size = 0
+        self.errors = False
+
+    def calculate_columns(self):
         self.magnitude = math.log10(self.filecount)
         self.filehcount = hsize10(self.filecount)
         self.eachhsize = hsize(self.eachbytes)
@@ -92,6 +97,9 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
 
     try:
+        trialstats = TestStats()
+        trialstats.filecount = numfiles
+        trialstats.eachbytes = filebytes
         repo = vcsclass(repodir)
         repo.init_repo()
 
@@ -100,25 +108,27 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
                 repodir, numfiles, filebytes,
                 prefix="test", data_gen=data_gen)
         created_time = time.time()
+        trialstats.create_time = created_time - started_time
 
         try:
-            errors = False
             repo.start_tracking_file("test")
             repo.commit_file("test")
         except testutil.CallFailedError as e:
             log(e)
-            errors = True
+            trialstats.errors = True
 
         committed1_time = time.time()
-        commit1_size = repo.check_total_size()
+        trialstats.commit1_time = committed1_time - created_time
+        trialstats.commit1_size = repo.check_total_size()
 
         try:
             repo.check_status("test")
         except testutil.CallFailedError as e:
             log(e)
-            errors = True
+            trialstats.errors = True
 
         stat1_time = time.time()
+        trialstats.stat1_time = stat1_time - committed1_time
 
         testutil.update_many_files(repodir, "test", every_nth_file=16)
 
@@ -131,28 +141,20 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
             errors = True
 
         stat2_time = time.time()
+        trialstats.stat2_time = stat2_time - updated_time
 
         try:
             repo.commit_file("test")
         except testutil.CallFailedError as e:
             log(e)
-            errors = True
+            trialstats.errors = True
 
         committed2_time = time.time()
-        commit2_size = repo.check_total_size()
+        trialstats.commit2_time = committed2_time - stat2_time
+        trialstats.commit2_size = repo.check_total_size()
 
-        return TestStats(
-                    filecount = numfiles,
-                    eachbytes = filebytes,
-                    create_time = created_time - started_time,
-                    commit1_time = committed1_time - created_time,
-                    commit1_size = commit1_size,
-                    stat1_time = stat1_time - committed1_time,
-                    stat2_time = stat2_time - updated_time,
-                    commit2_time = committed2_time - stat2_time,
-                    commit2_size = commit2_size,
-                    errors = errors,
-                )
+        trialstats.calculate_columns()
+        return trialstats
 
     finally:
         testutil.log("Cleaning up test files...")
