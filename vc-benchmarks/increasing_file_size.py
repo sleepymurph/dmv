@@ -8,11 +8,11 @@ import shutil
 import tempfile
 import time
 
-import testenv
-import testutil
+import trialenv
+import trialutil
 import vcs
 
-from testutil import hsize, comment, log, align_kvs, printheader, printrow
+from trialutil import hsize, comment, log, align_kvs, printheader, printrow
 
 def parse_args():
     parser = argparse.ArgumentParser(description=
@@ -94,14 +94,14 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
         repo.init_repo()
 
         started_time = time.time()
-        testutil.create_file(repodir, "large_file", filebytes, data_gen=data_gen)
+        trialutil.create_file(repodir, "large_file", filebytes, data_gen=data_gen)
         created_time = time.time()
         trialstats.create_time = created_time - started_time
 
         try:
             repo.start_tracking_file("large_file")
             repo.commit_file("large_file")
-        except testutil.CallFailedError as e:
+        except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
 
@@ -109,13 +109,13 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
         trialstats.commit1_time = committed1_time - created_time
         trialstats.commit1_size = repo.check_total_size()
 
-        testutil.make_small_edit(repodir, "large_file", filebytes)
+        trialutil.make_small_edit(repodir, "large_file", filebytes)
 
         edited_time = time.time()
 
         try:
             repo.commit_file("large_file")
-        except testutil.CallFailedError as e:
+        except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
 
@@ -125,7 +125,7 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
 
         try:
             repo.garbage_collect()
-        except testutil.CallFailedError as e:
+        except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     args = parse_args()
 
     tmpdir = os.path.expanduser(args.tmp_dir)
-    env = testenv.gather_environment_stats(
+    env = trialenv.gather_environment_stats(
                 dirs = [tmpdir],
             )
     vcsclass = vcs.vcschoices[args.vcs]

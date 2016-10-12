@@ -8,11 +8,11 @@ import shutil
 import tempfile
 import time
 
-import testenv
-import testutil
+import trialenv
+import trialutil
 import vcs
 
-from testutil import hsize, hsize10, comment, log, align_kvs, \
+from trialutil import hsize, hsize10, comment, log, align_kvs, \
         printheader, printrow
 
 def parse_args():
@@ -104,7 +104,7 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         repo.init_repo()
 
         started_time = time.time()
-        testutil.create_many_files(
+        trialutil.create_many_files(
                 repodir, numfiles, filebytes,
                 prefix="many_files_dir", data_gen=data_gen)
         created_time = time.time()
@@ -113,7 +113,7 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         try:
             repo.start_tracking_file("many_files_dir")
             repo.commit_file("many_files_dir")
-        except testutil.CallFailedError as e:
+        except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
 
@@ -123,20 +123,20 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
 
         try:
             repo.check_status("many_files_dir")
-        except testutil.CallFailedError as e:
+        except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
 
         stat1_time = time.time()
         trialstats.stat1_time = stat1_time - committed1_time
 
-        testutil.update_many_files(repodir, "many_files_dir", every_nth_file=16)
+        trialutil.update_many_files(repodir, "many_files_dir", every_nth_file=16)
 
         updated_time = time.time()
 
         try:
             repo.check_status("many_files_dir")
-        except testutil.CallFailedError as e:
+        except trialutil.CallFailedError as e:
             log(e)
             errors = True
 
@@ -145,7 +145,7 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
 
         try:
             repo.commit_file("many_files_dir")
-        except testutil.CallFailedError as e:
+        except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
 
@@ -157,11 +157,11 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         return trialstats
 
     finally:
-        testutil.log("Cleaning up trial files...")
+        trialutil.log("Cleaning up trial files...")
         rmstart = time.time()
         shutil.rmtree(repodir)
         rmtime = time.time() - rmstart
-        testutil.log("Removed trial files in %5.3f seconds" % rmtime)
+        trialutil.log("Removed trial files in %5.3f seconds" % rmtime)
 
 
 if __name__ == "__main__":
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     args = parse_args()
 
     tmpdir = os.path.expanduser(args.tmp_dir)
-    env = testenv.gather_environment_stats(
+    env = trialenv.gather_environment_stats(
                 dirs = [tmpdir],
             )
     vcsclass = vcs.vcschoices[args.vcs]

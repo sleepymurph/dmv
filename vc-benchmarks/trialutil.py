@@ -300,7 +300,7 @@ def update_many_files(directory, prefix, every_nth_file=10):
 class TestFileUtils(unittest.TestCase):
 
     def setUp(self):
-        self.tempdir = tempfile.mkdtemp(prefix='testutil')
+        self.tempdir = tempfile.mkdtemp(prefix='trialutil')
 
     def tearDown(self):
         shutil.rmtree(self.tempdir)

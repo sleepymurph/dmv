@@ -5,10 +5,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import testutil
+import trialutil
 import unittest
 
-from testutil import log,logcall
+from trialutil import log,logcall
 
 class AbstractRepo(object):
 
@@ -81,14 +81,14 @@ class GitRepo(AbstractRepo):
         try:
             self.run_cmd("git fsck")
             return True
-        except testutil.CallFailedError:
+        except trialutil.CallFailedError:
             return False
 
     def corrupt_repo(self):
         internal_file = self.check_output(
                             "find .git/objects -type f | head -n1").strip()
         self.run_cmd("chmod u+w %s" % internal_file)
-        testutil.make_small_edit(self.workdir, internal_file, 10)
+        trialutil.make_small_edit(self.workdir, internal_file, 10)
 
 
 class HgRepo(AbstractRepo):
@@ -143,13 +143,13 @@ class HgRepo(AbstractRepo):
         try:
             self.run_cmd("hg verify")
             return True
-        except testutil.CallFailedError:
+        except trialutil.CallFailedError:
             return False
 
     def corrupt_repo(self):
         internal_file = self.check_output(
                             "find .hg/store/data -type f | head -n1").strip()
-        testutil.make_small_edit(self.workdir, internal_file, 10)
+        trialutil.make_small_edit(self.workdir, internal_file, 10)
 
 
 class BupRepo(AbstractRepo):
@@ -218,14 +218,14 @@ class BupRepo(AbstractRepo):
         try:
             self.run_cmd("git fsck")
             return True
-        except testutil.CallFailedError:
+        except trialutil.CallFailedError:
             return False
 
     def corrupt_repo(self):
         internal_file = self.check_output(
                             "find .bup/objects -name '*.pack' | head -n1"
                             ).strip()
-        testutil.make_small_edit(self.workdir, internal_file, 20)
+        trialutil.make_small_edit(self.workdir, internal_file, 20)
 
 
 vcschoices = {
@@ -266,7 +266,7 @@ class AbstractRepoTests(object):
     def test_commit(self):
         repo = self.repo_class(self.tempdir)
         repo.init_repo()
-        testutil.create_file(self.tempdir, "test_file", 10)
+        trialutil.create_file(self.tempdir, "test_file", 10)
         repo.start_tracking_file("test_file")
         repo.commit_file("test_file")
 
@@ -280,7 +280,7 @@ class AbstractRepoTests(object):
     def test_integrity_check(self):
         repo = self.repo_class(self.tempdir)
         repo.init_repo()
-        testutil.create_file(self.tempdir, "test_file", 10)
+        trialutil.create_file(self.tempdir, "test_file", 10)
         repo.start_tracking_file("test_file")
         repo.commit_file("test_file")
 
