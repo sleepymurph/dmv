@@ -17,7 +17,7 @@ from testutil import hsize, hsize10, comment, log, align_kvs, \
 
 def parse_args():
     parser = argparse.ArgumentParser(description=
-            "Test VCS performance when adding a large number of files")
+            "Measure VCS performance when adding a large number of files")
 
     parser.add_argument("vcs", choices=vcs.vcschoices.keys(),
             help="vcs to test")
@@ -49,7 +49,7 @@ def parse_args():
     return args
 
 
-class TestStats:
+class TrialStats:
 
     columns = [
             ("magnitude", 9, "%9d"),
@@ -92,12 +92,12 @@ class TestStats:
         self.commit2_ratio = float(self.commit2_size) / float(self.totalbytes)
 
 
-def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
+def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
     fileshsize = hsize(numfiles * filebytes)
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
 
     try:
-        trialstats = TestStats()
+        trialstats = TrialStats()
         trialstats.filecount = numfiles
         trialstats.eachbytes = filebytes
         repo = vcsclass(repodir)
@@ -106,13 +106,13 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         started_time = time.time()
         testutil.create_many_files(
                 repodir, numfiles, filebytes,
-                prefix="test", data_gen=data_gen)
+                prefix="many_files_dir", data_gen=data_gen)
         created_time = time.time()
         trialstats.create_time = created_time - started_time
 
         try:
-            repo.start_tracking_file("test")
-            repo.commit_file("test")
+            repo.start_tracking_file("many_files_dir")
+            repo.commit_file("many_files_dir")
         except testutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
@@ -122,7 +122,7 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         trialstats.commit1_size = repo.check_total_size()
 
         try:
-            repo.check_status("test")
+            repo.check_status("many_files_dir")
         except testutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
@@ -130,12 +130,12 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         stat1_time = time.time()
         trialstats.stat1_time = stat1_time - committed1_time
 
-        testutil.update_many_files(repodir, "test", every_nth_file=16)
+        testutil.update_many_files(repodir, "many_files_dir", every_nth_file=16)
 
         updated_time = time.time()
 
         try:
-            repo.check_status("test")
+            repo.check_status("many_files_dir")
         except testutil.CallFailedError as e:
             log(e)
             errors = True
@@ -144,7 +144,7 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         trialstats.stat2_time = stat2_time - updated_time
 
         try:
-            repo.commit_file("test")
+            repo.commit_file("many_files_dir")
         except testutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
@@ -157,11 +157,11 @@ def test_many_files(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         return trialstats
 
     finally:
-        testutil.log("Cleaning up test files...")
+        testutil.log("Cleaning up trial files...")
         rmstart = time.time()
         shutil.rmtree(repodir)
         rmtime = time.time() - rmstart
-        testutil.log("Removed test files in %5.3f seconds" % rmtime)
+        testutil.log("Removed trial files in %5.3f seconds" % rmtime)
 
 
 if __name__ == "__main__":
@@ -185,7 +185,7 @@ if __name__ == "__main__":
     comment()
     comment(align_kvs(env))
     comment()
-    printheader(TestStats.columns)
+    printheader(TrialStats.columns)
 
     try:
         for magnitude in range(args.start_mag, args.end_mag):
@@ -193,11 +193,11 @@ if __name__ == "__main__":
                 numperstep = 10**magnitude / args.mag_steps
                 filecount = 10**magnitude + step*numperstep
                 eachfilebytes = 2 ** args.each_file_mag
-                result = test_many_files(
+                result = run_trial(
                         vcsclass, filecount, eachfilebytes,
                         data_gen=args.data_gen,
                         tmpdir=tmpdir)
-                printrow(TestStats.columns, result)
+                printrow(TrialStats.columns, result)
 
     except KeyboardInterrupt:
         comment("Cancelled")
