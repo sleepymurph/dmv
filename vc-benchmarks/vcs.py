@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import testutil
+import unittest
 
 from testutil import log,logcall
 
@@ -69,6 +72,12 @@ class GitRepo:
         except testutil.CallFailedError:
             return False
 
+    def corrupt_repo(self):
+        internal_file = self.check_output(
+                            "find .git/objects -type f | head -n1").strip()
+        self.run_cmd("chmod u+w %s" % internal_file)
+        testutil.make_small_edit(self.workdir, internal_file, 5)
+
 
 class HgRepo:
 
@@ -110,7 +119,7 @@ class HgRepo:
 
     def get_last_commit_id(self):
         revid = self.check_output("hg id -i").strip()
-        if revid=="000000000000":
+        if revid in ["000000000000", "000000000000+"]:
             return None
         else:
             return revid
@@ -131,6 +140,11 @@ class HgRepo:
         except testutil.CallFailedError:
             return False
 
+    def corrupt_repo(self):
+        internal_file = self.check_output(
+                            "find .hg/store/data -type f | head -n1").strip()
+        testutil.make_small_edit(self.workdir, internal_file, 5)
+
 
 class BupRepo:
 
@@ -144,6 +158,7 @@ class BupRepo:
         self.env = os.environ.copy()
         self.env['BUP_DIR'] = self.repodir
         self.env['GIT_DIR'] = self.repodir
+        self.branchname = "test_run"
 
     def run_cmd(self, cmd):
         logcall(cmd, cwd=self.workdir, shell=True, env=self.env)
@@ -160,7 +175,7 @@ class BupRepo:
 
     def commit_file(self, filename):
         self.run_cmd("bup index %s" % filename)
-        self.run_cmd("bup save -n 'test_run' %s" % filename)
+        self.run_cmd("bup save -n '%s' %s" % (self.branchname,filename))
         log("Commit finished")
 
     def check_status(self, filename):
@@ -177,7 +192,7 @@ class BupRepo:
 
     def get_last_commit_id(self):
         try:
-            return self.check_output("git rev-parse test-run").strip()
+            return self.check_output("git rev-parse %s" % self.branchname).strip()
         except subprocess.CalledProcessError:
             return None
 
@@ -199,9 +214,89 @@ class BupRepo:
         except testutil.CallFailedError:
             return False
 
+    def corrupt_repo(self):
+        internal_file = self.check_output(
+                            "find .bup/objects -type f | head -n1").strip()
+        testutil.make_small_edit(self.workdir, internal_file, 5)
+
 
 vcschoices = {
             'git': GitRepo,
             'hg': HgRepo,
             'bup': BupRepo,
         }
+
+
+class AbstractRepoTests(object):
+    """ A set of tests for the repository interfaces
+
+        Subclasses to test actual repo classes should define self.repo_class in
+        their __init__ methods.
+    """
+
+    def setUp(self):
+        self.tempdir = tempfile.mkdtemp(prefix='vcs_py_unittest_')
+
+    def tearDown(self):
+        shutil.rmtree(self.tempdir)
+
+    def test_check_total_size_empty(self):
+        repo = self.repo_class(self.tempdir)
+        size = repo.check_total_size()
+        one_filesystem_block_size = 4096
+        self.assertEqual(size, one_filesystem_block_size)
+
+    def test_init_empty(self):
+        repo = self.repo_class(self.tempdir)
+        repo.init_repo()
+        self.assertEqual(repo.get_last_commit_id(), None)
+
+        size = repo.check_total_size()
+        one_filesystem_block_size = 4096
+        self.assertNotEqual(size, one_filesystem_block_size)
+
+    def test_commit(self):
+        repo = self.repo_class(self.tempdir)
+        repo.init_repo()
+        testutil.create_file(self.tempdir, "test_file", 10)
+        repo.start_tracking_file("test_file")
+        repo.commit_file("test_file")
+
+        commitid = repo.get_last_commit_id()
+
+        self.assertNotEqual(commitid, None)
+        self.assertTrue(repo.is_file_in_commit(commitid, "test_file"))
+        self.assertFalse(repo.is_file_in_commit(commitid, "test_fil"))
+        self.assertFalse(repo.is_file_in_commit(commitid, "est_file"))
+
+    def test_integrity_check(self):
+        repo = self.repo_class(self.tempdir)
+        repo.init_repo()
+        testutil.create_file(self.tempdir, "test_file", 10)
+        repo.start_tracking_file("test_file")
+        repo.commit_file("test_file")
+
+        self.assertTrue(repo.check_repo_integrity())
+
+        repo.corrupt_repo()
+        self.assertFalse(repo.check_repo_integrity())
+
+
+
+class GitTests(AbstractRepoTests, unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(GitTests,self).__init__(*args, **kwargs)
+        self.repo_class = GitRepo
+
+class HgTests(AbstractRepoTests, unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(HgTests,self).__init__(*args, **kwargs)
+        self.repo_class = HgRepo
+
+class BupTests(AbstractRepoTests, unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(BupTests,self).__init__(*args, **kwargs)
+        self.repo_class = BupRepo
+
+if __name__ == '__main__':
+    unittest.main()
