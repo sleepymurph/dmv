@@ -44,13 +44,7 @@ def parse_args():
     return args
 
 
-class TestStats(collections.namedtuple(
-        "TestStats",
-        ["filebytes", "create_time",
-            "commit1_time", "commit1_size",
-            "commit2_time", "commit2_size",
-            "gc_time", "gc_size",
-            "errors"])):
+class TestStats:
 
     columns = [
             ("magnitude", 9, "%9d"),
@@ -69,8 +63,18 @@ class TestStats(collections.namedtuple(
             ("errors", 6, "%6s"),
         ]
 
-    def __init__(self, **args):
-        super(TestStats, self).__init__(args)
+    def __init__(self):
+        self.filebytes = 0
+        self.create_time = 0
+        self.commit1_time = 0
+        self.commit1_size = 0
+        self.commit2_time = 0
+        self.commit2_size = 0
+        self.gc_time = 0
+        self.gc_size = 0
+        self.errors = False
+
+    def calculate_columns(self):
         self.magnitude = math.frexp(self.filebytes)[1]-1
         self.filehsize = hsize(self.filebytes)
         self.commit1_ratio = float(self.commit1_size) / float(self.filebytes)
@@ -83,23 +87,27 @@ def test_add_file(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
 
     try:
+        trialstats = TestStats()
+        trialstats.filebytes = filebytes
+
         repo = vcsclass(repodir)
         repo.init_repo()
 
         started_time = time.time()
         testutil.create_file(repodir, "test_file", filebytes, data_gen=data_gen)
         created_time = time.time()
+        trialstats.create_time = created_time - started_time
 
         try:
-            errors = False
             repo.start_tracking_file("test_file")
             repo.commit_file("test_file")
         except testutil.CallFailedError as e:
             log(e)
-            errors = True
+            trialstats.errors = True
 
         committed1_time = time.time()
-        commit1_size = repo.check_total_size()
+        trialstats.commit1_time = committed1_time - created_time
+        trialstats.commit1_size = repo.check_total_size()
 
         testutil.make_small_edit(repodir, "test_file", filebytes)
 
@@ -109,31 +117,24 @@ def test_add_file(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
             repo.commit_file("test_file")
         except testutil.CallFailedError as e:
             log(e)
-            errors = True
+            trialstats.errors = True
 
         committed2_time = time.time()
-        commit2_size = repo.check_total_size()
+        trialstats.commit2_time = committed2_time - edited_time
+        trialstats.commit2_size = repo.check_total_size()
 
         try:
             repo.garbage_collect()
         except testutil.CallFailedError as e:
             log(e)
-            errors = True
+            trialstats.errors = True
 
         gced_time = time.time()
-        gc_size = repo.check_total_size()
+        trialstats.gc_time = gced_time - committed2_time
+        trialstats.gc_size = repo.check_total_size()
 
-        return TestStats(
-                    filebytes = filebytes,
-                    create_time = created_time - started_time,
-                    commit1_time = committed1_time - created_time,
-                    commit1_size = commit1_size,
-                    commit2_time = committed2_time - edited_time,
-                    commit2_size = commit2_size,
-                    gc_time = gced_time - committed2_time,
-                    gc_size = gc_size,
-                    errors = errors,
-                )
+        trialstats.calculate_columns()
+        return trialstats
 
     finally:
         shutil.rmtree(repodir)
