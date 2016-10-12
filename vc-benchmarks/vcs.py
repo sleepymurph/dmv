@@ -76,7 +76,7 @@ class GitRepo:
         internal_file = self.check_output(
                             "find .git/objects -type f | head -n1").strip()
         self.run_cmd("chmod u+w %s" % internal_file)
-        testutil.make_small_edit(self.workdir, internal_file, 5)
+        testutil.make_small_edit(self.workdir, internal_file, 10)
 
 
 class HgRepo:
@@ -143,7 +143,7 @@ class HgRepo:
     def corrupt_repo(self):
         internal_file = self.check_output(
                             "find .hg/store/data -type f | head -n1").strip()
-        testutil.make_small_edit(self.workdir, internal_file, 5)
+        testutil.make_small_edit(self.workdir, internal_file, 10)
 
 
 class BupRepo:
@@ -216,8 +216,9 @@ class BupRepo:
 
     def corrupt_repo(self):
         internal_file = self.check_output(
-                            "find .bup/objects -type f | head -n1").strip()
-        testutil.make_small_edit(self.workdir, internal_file, 5)
+                            "find .bup/objects -name '*.pack' | head -n1"
+                            ).strip()
+        testutil.make_small_edit(self.workdir, internal_file, 20)
 
 
 vcschoices = {
