@@ -82,14 +82,12 @@ class TrialStats:
 
 
 def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
-    filehsize = hsize(filebytes)
-    repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
+    trialstats = TrialStats()
+    trialstats.filebytes = filebytes
 
     stopwatch = trialutil.StopWatch()
     try:
-        trialstats = TrialStats()
-        trialstats.filebytes = filebytes
-
+        repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
         repo = vcsclass(repodir)
         repo.init_repo()
 
@@ -127,11 +125,14 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
         trialstats.gc_time = stopwatch.stop()
         trialstats.gc_size = repo.check_total_size()
 
-        trialstats.calculate_columns()
-        return trialstats
+    except Exception as e:
+        trialstats.errors = True
+        raise e
 
     finally:
         shutil.rmtree(repodir)
+        trialstats.calculate_columns()
+        return trialstats
 
 
 if __name__ == "__main__":

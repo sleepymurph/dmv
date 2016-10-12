@@ -66,6 +66,7 @@ class TrialStats:
             ("commit2_time", 11, "%11.3f"),
             ("commit2_size", 12, "0x%010x"),
             ("commit2_ratio", 13, "%13.2f"),
+            ("cleanup_time", 11, "%11.3f"),
             ("errors", 6, "%6s"),
         ]
 
@@ -79,6 +80,7 @@ class TrialStats:
         self.stat2_time = 0
         self.commit2_time = 0
         self.commit2_size = 0
+        self.cleanup_time = 0
         self.errors = False
 
     def calculate_columns(self):
@@ -92,15 +94,13 @@ class TrialStats:
 
 
 def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
-    fileshsize = hsize(numfiles * filebytes)
-    repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
+    trialstats = TrialStats()
+    trialstats.filecount = numfiles
+    trialstats.eachbytes = filebytes
 
     stopwatch = trialutil.StopWatch()
     try:
-        trialstats = TrialStats()
-        trialstats.filecount = numfiles
-        trialstats.eachbytes = filebytes
-
+        repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
         repo = vcsclass(repodir)
         repo.init_repo()
 
@@ -147,15 +147,20 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         trialstats.commit2_time = stopwatch.stop()
         trialstats.commit2_size = repo.check_total_size()
 
-        trialstats.calculate_columns()
-        return trialstats
+    except Exception as e:
+        trialstats.errors = True
+        raise e
 
     finally:
         trialutil.log("Cleaning up trial files...")
         stopwatch.start()
         shutil.rmtree(repodir)
-        rmtime = stopwatch.stop()
-        trialutil.log("Removed trial files in %5.3f seconds" % rmtime)
+        trialstats.cleanup_time = stopwatch.stop()
+        trialutil.log("Removed trial files in %5.3f seconds"
+                % trialstats.cleanup_time)
+
+        trialstats.calculate_columns()
+        return trialstats
 
 
 if __name__ == "__main__":
