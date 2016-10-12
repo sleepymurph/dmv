@@ -6,7 +6,6 @@ import math
 import os.path
 import shutil
 import tempfile
-import time
 
 import trialenv
 import trialutil
@@ -96,61 +95,56 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
     fileshsize = hsize(numfiles * filebytes)
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
 
+    stopwatch = trialutil.StopWatch()
     try:
         trialstats = TrialStats()
         trialstats.filecount = numfiles
         trialstats.eachbytes = filebytes
+
         repo = vcsclass(repodir)
         repo.init_repo()
 
-        started_time = time.time()
+        stopwatch.start()
         trialutil.create_many_files(
                 repodir, numfiles, filebytes,
                 prefix="many_files_dir", data_gen=data_gen)
-        created_time = time.time()
-        trialstats.create_time = created_time - started_time
+        trialstats.create_time = stopwatch.stop()
 
+        stopwatch.start()
         try:
             repo.start_tracking_file("many_files_dir")
             repo.commit_file("many_files_dir")
         except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
-
-        committed1_time = time.time()
-        trialstats.commit1_time = committed1_time - created_time
+        trialstats.commit1_time = stopwatch.stop()
         trialstats.commit1_size = repo.check_total_size()
 
+        stopwatch.start()
         try:
             repo.check_status("many_files_dir")
         except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
-
-        stat1_time = time.time()
-        trialstats.stat1_time = stat1_time - committed1_time
+        trialstats.stat1_time = stopwatch.stop()
 
         trialutil.update_many_files(repodir, "many_files_dir", every_nth_file=16)
 
-        updated_time = time.time()
-
+        stopwatch.start()
         try:
             repo.check_status("many_files_dir")
         except trialutil.CallFailedError as e:
             log(e)
             errors = True
+        trialstats.stat2_time = stopwatch.stop()
 
-        stat2_time = time.time()
-        trialstats.stat2_time = stat2_time - updated_time
-
+        stopwatch.start()
         try:
             repo.commit_file("many_files_dir")
         except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
-
-        committed2_time = time.time()
-        trialstats.commit2_time = committed2_time - stat2_time
+        trialstats.commit2_time = stopwatch.stop()
         trialstats.commit2_size = repo.check_total_size()
 
         trialstats.calculate_columns()
@@ -158,9 +152,9 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
 
     finally:
         trialutil.log("Cleaning up trial files...")
-        rmstart = time.time()
+        stopwatch.start()
         shutil.rmtree(repodir)
-        rmtime = time.time() - rmstart
+        rmtime = stopwatch.stop()
         trialutil.log("Removed trial files in %5.3f seconds" % rmtime)
 
 

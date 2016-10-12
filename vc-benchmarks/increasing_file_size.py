@@ -6,7 +6,6 @@ import math
 import os.path
 import shutil
 import tempfile
-import time
 
 import trialenv
 import trialutil
@@ -86,6 +85,7 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
     filehsize = hsize(filebytes)
     repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
 
+    stopwatch = trialutil.StopWatch()
     try:
         trialstats = TrialStats()
         trialstats.filebytes = filebytes
@@ -93,44 +93,38 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
         repo = vcsclass(repodir)
         repo.init_repo()
 
-        started_time = time.time()
+        stopwatch.start()
         trialutil.create_file(repodir, "large_file", filebytes, data_gen=data_gen)
-        created_time = time.time()
-        trialstats.create_time = created_time - started_time
+        trialstats.create_time = stopwatch.stop()
 
+        stopwatch.start()
         try:
             repo.start_tracking_file("large_file")
             repo.commit_file("large_file")
         except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
-
-        committed1_time = time.time()
-        trialstats.commit1_time = committed1_time - created_time
+        trialstats.commit1_time = stopwatch.stop()
         trialstats.commit1_size = repo.check_total_size()
 
         trialutil.make_small_edit(repodir, "large_file", filebytes)
 
-        edited_time = time.time()
-
+        stopwatch.start()
         try:
             repo.commit_file("large_file")
         except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
-
-        committed2_time = time.time()
-        trialstats.commit2_time = committed2_time - edited_time
+        trialstats.commit2_time = stopwatch.stop()
         trialstats.commit2_size = repo.check_total_size()
 
+        stopwatch.start()
         try:
             repo.garbage_collect()
         except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
-
-        gced_time = time.time()
-        trialstats.gc_time = gced_time - committed2_time
+        trialstats.gc_time = stopwatch.stop()
         trialstats.gc_size = repo.check_total_size()
 
         trialstats.calculate_columns()

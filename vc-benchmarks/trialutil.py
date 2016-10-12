@@ -83,6 +83,25 @@ class TestChunkString(unittest.TestCase):
                 ["hello", "world", "party", "time"])
 
 
+class StopWatch(object):
+
+    def __init__(self):
+        self.start()
+
+    def start(self):
+        self.start_moment = time.time()
+        self.stop_moment = None
+
+    def stop(self):
+        if self.stop_moment:
+            raise Exception("StopWatch.stop() called without starting first")
+        self.stop_moment = time.time()
+        return self.elapsed()
+
+    def elapsed(self):
+        return self.stop_moment - self.start_moment
+
+
 # Output functions
 #
 # The target output format here is a table suitable to be input to GNUPlot.
