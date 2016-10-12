@@ -10,14 +10,26 @@ import unittest
 
 from testutil import log,logcall
 
-class GitRepo:
+class AbstractRepo(object):
+
+    def __init__(self, workdir):
+        self.workdir = workdir
+
+    def run_cmd(self, cmd):
+        logcall(cmd, cwd=self.workdir, shell=True)
+
+    def check_output(self, cmd):
+        return subprocess.check_output( cmd, cwd=self.workdir, shell=True)
+
+
+class GitRepo(AbstractRepo):
 
     @staticmethod
     def check_version():
         return subprocess.check_output("git --version", shell=True).strip()
 
     def __init__(self, workdir):
-        self.workdir = workdir
+        super(GitRepo, self).__init__(workdir)
 
     def run_cmd(self, cmd):
         logcall(cmd, cwd=self.workdir, shell=True)
@@ -79,7 +91,7 @@ class GitRepo:
         testutil.make_small_edit(self.workdir, internal_file, 10)
 
 
-class HgRepo:
+class HgRepo(AbstractRepo):
 
     @staticmethod
     def check_version():
@@ -87,13 +99,7 @@ class HgRepo:
                 ).strip()
 
     def __init__(self, workdir):
-        self.workdir = workdir
-
-    def run_cmd(self, cmd):
-        logcall(cmd, cwd=self.workdir, shell=True)
-
-    def check_output(self, cmd):
-        return subprocess.check_output( cmd, cwd=self.workdir, shell=True)
+        super(HgRepo, self).__init__(workdir)
 
     def init_repo(self):
         self.run_cmd("hg init")
@@ -146,13 +152,14 @@ class HgRepo:
         testutil.make_small_edit(self.workdir, internal_file, 10)
 
 
-class BupRepo:
+class BupRepo(AbstractRepo):
 
     @staticmethod
     def check_version():
         return subprocess.check_output("bup --version", shell=True).strip()
 
     def __init__(self, workdir):
+        super(BupRepo, self).__init__(workdir)
         self.workdir = workdir
         self.repodir = os.path.join(workdir, ".bup")
         self.env = os.environ.copy()
