@@ -53,19 +53,14 @@ class TrialStats:
     columns = [
             ("magnitude", 9, "%9d"),
             ("filecount", 12, "%12d"),
-            ("filehcount", 10, "%10s"),
-            ("eachhsize", 10, "%10s"),
             ("totalbytes", 12, "0x%010x"),
-            ("totalhsize", 10, "%10s"),
             ("create_time", 11, "%11.3f"),
             ("commit1_time", 11, "%11.3f"),
             ("commit1_size", 12, "0x%010x"),
-            ("commit1_ratio", 13, "%13.2f"),
             ("stat1_time", 11, "%11.3f"),
             ("stat2_time", 11, "%11.3f"),
             ("commit2_time", 11, "%11.3f"),
             ("commit2_size", 12, "0x%010x"),
-            ("commit2_ratio", 13, "%13.2f"),
             ("cleanup_time", 11, "%11.3f"),
             ("errors", 6, "%6s"),
         ]
@@ -85,12 +80,7 @@ class TrialStats:
 
     def calculate_columns(self):
         self.magnitude = math.log10(self.filecount)
-        self.filehcount = hsize10(self.filecount)
-        self.eachhsize = hsize(self.eachbytes)
         self.totalbytes = self.filecount * self.eachbytes
-        self.totalhsize = hsize(self.totalbytes)
-        self.commit1_ratio = float(self.commit1_size) / float(self.totalbytes)
-        self.commit2_ratio = float(self.commit2_size) / float(self.totalbytes)
 
 
 def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
@@ -166,6 +156,7 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
 if __name__ == "__main__":
 
     args = parse_args()
+    eachfilebytes = 2 ** args.each_file_mag
 
     tmpdir = os.path.expanduser(args.tmp_dir)
     env = trialenv.gather_environment_stats(
@@ -178,6 +169,8 @@ if __name__ == "__main__":
     comment()
     comment(align_kvs({
             "data_gen": args.data_gen,
+            "each_file_size": "0x%x bytes (%s)" \
+                    % (eachfilebytes, hsize(eachfilebytes)),
             "vcs": args.vcs,
             "vcs_version": vcs_version,
         }))
@@ -191,7 +184,6 @@ if __name__ == "__main__":
             for step in range(0, args.mag_steps):
                 numperstep = 10**magnitude / args.mag_steps
                 filecount = 10**magnitude + step*numperstep
-                eachfilebytes = 2 ** args.each_file_mag
                 result = run_trial(
                         vcsclass, filecount, eachfilebytes,
                         data_gen=args.data_gen,

@@ -167,13 +167,13 @@ def align_kvs(kvs):
     maxwidth = max([len(k) for k in kvdict.iterkeys()])
     lines = []
     for k,v in kvdict.iteritems():
-        if "\n" not in v:
-            lines.append("%-*s %s" % (maxwidth+1,k+':',v))
-        else:
+        if isinstance(v, basestring) and "\n" in v:
             lines.append("\n%s:" % (k))
             sublines = v.split("\n")
             for subline in sublines:
                 lines.append("    %s" % (subline))
+        else:
+            lines.append("%-*s %s" % (maxwidth+1,k+':',v))
     return "\n".join(lines)
 
 
