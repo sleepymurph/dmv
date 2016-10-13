@@ -102,6 +102,101 @@ class StopWatch(object):
         return self.stop_moment - self.start_moment
 
 
+SuccessStatus = frozenset(
+        ['unchecked', 'assumed_ok', 'ok', 'failed', 'not_applicable'])
+
+SuccessStatusChars = {
+            'unchecked': ' ',
+            'assumed_ok': '.',
+            'ok': '/',
+            'failed': 'x',
+            'not_applicable': '-',
+        }
+
+
+class CommandSuccessStatus(object):
+    description = """
+Legend for CommandSuccessStatus columns:
+    /   = ok                Got expected result
+    x   = failed            Failure or error
+    .   = assumed_ok        Not verified, but assumed ok due to earlier success
+    -   = not_applicable    Not relevant in this situation
+        = unchecked         Not checked yet
+
+    First slot: exit_code. Did the command report success?
+    Second slot: expected_result. Can we verify that the command completed?
+    Third slot: repo_integrity. Is the repo self-check ok?
+""".lstrip()
+
+    statuses = ['exit_code', 'expected_result', 'repo_integrity']
+
+    def __init__(self, set_all='unchecked'):
+        self.set_all(set_all)
+
+    def __setattr__(self, name, value):
+        if name in self.statuses:
+            if value in SuccessStatus:
+                super(CommandSuccessStatus, self).__setattr__(name, value)
+            elif value is True:  self.__setattr__(name, 'ok')
+            elif value is False: self.__setattr__(name, 'failed')
+            else:
+                raise ValueError(
+                        "Tried to assign invalid SuccessStatus: %s = '%s'"
+                        % (name,value))
+        else:
+            super(CommandSuccessStatus, self).__setattr__(name, value)
+
+    def __str__(self):
+        return SuccessStatusChars[self.exit_code] \
+                + SuccessStatusChars[self.expected_result] \
+                + SuccessStatusChars[self.repo_integrity]
+
+    def set_all(self, value):
+        for name in self.statuses:
+            setattr(self,name,value)
+
+    def exit_ok(self):
+        self.exit_code = 'ok'
+        self.expected_result = 'assumed_ok'
+        self.repo_integrity = 'assumed_ok'
+
+    def exit_failed(self):
+        self.exit_code = 'failed'
+
+    def acceptable(self):
+        for attr in ['exit_code', 'expected_result', 'repo_integrity']:
+            if getattr(self,attr) not in ['ok', 'assumed_ok']:
+                return False
+        return True
+
+class CommandSuccessStatusTests(unittest.TestCase):
+    def test_setattr(self):
+        success = CommandSuccessStatus()
+        success.exit_code = "assumed_ok"
+
+        with self.assertRaises(ValueError) as cm:
+            success.expected_result = "asdf"
+
+        self.assertIn("expected_result", str(cm.exception))
+        self.assertIn("asdf", str(cm.exception))
+
+    def test_str(self):
+        success = CommandSuccessStatus()
+        self.assertEqual(str(success), '   ')
+        success.exit_code = 'ok'
+        success.expected_result = 'failed'
+        success.repo_integrity = 'not_applicable'
+        self.assertEqual(str(success), '/x-')
+
+    def test_true_false(self):
+        success = CommandSuccessStatus()
+        success.exit_code = True
+        self.assertEqual(success.exit_code, 'ok')
+
+        success.expected_result = False
+        self.assertEqual(success.expected_result, 'failed')
+
+
 # Output functions
 #
 # The target output format here is a table suitable to be input to GNUPlot.
