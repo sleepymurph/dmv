@@ -271,7 +271,7 @@ def align_kvs(kvs):
     for k,v in kvdict.iteritems():
         if isinstance(v, basestring) and "\n" in v:
             lines.append("\n%s:" % (k))
-            sublines = v.split("\n")
+            sublines = v.rstrip().split("\n")
             for subline in sublines:
                 lines.append("    %s" % (subline))
         else:

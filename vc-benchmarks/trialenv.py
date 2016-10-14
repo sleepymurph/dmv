@@ -2,6 +2,7 @@
 
 import collections
 import datetime
+import glob
 import os
 import platform
 import socket
@@ -17,6 +18,7 @@ class TestEnv(collections.namedtuple(
             'pythonversion',
             'cpuinfo',
             'fsinfo',
+            'diskinfo',
         ])):
     pass
 
@@ -54,6 +56,19 @@ def gather_environment_stats(dirs=[]):
     else:
         fsinfo = None
 
+    # Physical disk information
+    diskinfo = ""
+    for sysdiskdir in glob.glob("/sys/block/sd?"):
+        diskname = os.path.basename(sysdiskdir)
+        with open(os.path.join(sysdiskdir, "device/vendor")) as vf:
+            vendor = vf.read().strip()
+        with open(os.path.join(sysdiskdir, "device/model")) as mf:
+            model = mf.read().strip()
+        with open(os.path.join(sysdiskdir, "queue/scheduler")) as sf:
+            scheduler = sf.read().strip()
+        diskinfo += "%s\tvendor: %s, model: %s\tscheduler: %s\n" \
+                        % (diskname, vendor, model, scheduler)
+
     return TestEnv(
             hostname = hostname,
             platform = platforminfo,
@@ -65,4 +80,5 @@ def gather_environment_stats(dirs=[]):
             pythonversion = sys.version,
             cpuinfo = cpuinfo,
             fsinfo = fsinfo,
+            diskinfo = diskinfo,
             )
