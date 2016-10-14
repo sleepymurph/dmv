@@ -7,6 +7,12 @@ import tempfile
 import time
 import unittest
 
+# --------------------------------------------------------------------------
+# Logarithmic functions
+#
+# For converting between large numbers and human-readable prfixes
+#
+
 def hsize(num, suffix='B'):
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
         if abs(num) < 1024.0:
@@ -65,6 +71,10 @@ class TestLog10Functions(unittest.TestCase):
         self.assertEqual(digitlength(1001), 4)
         self.assertEqual(digitlength(9999), 4)
 
+# --------------------------------------------------------------------------
+# Misc Utility Functions
+#
+
 def chunkstring(s, chunklength):
     """ Breaks a string into fixed-length chunks
 
@@ -106,6 +116,10 @@ class SetAttrOrKeyTests(unittest.TestCase):
         set_attr_or_key(d, 'k', True)
         self.assertEqual(d['k'], True)
 
+
+# --------------------------------------------------------------------------
+# StopWatch - For timing commands
+#
 
 class StopWatch(object):
 
@@ -151,99 +165,37 @@ class StopWatchTests(unittest.TestCase):
         self.assertNotEqual(obj.elapsed_time, 0)
 
 
-SuccessStatus = frozenset(
-        ['unchecked', 'assumed_ok', 'ok', 'failed','error_while_checking', 'not_applicable'])
+# --------------------------------------------------------------------------
+# Success Statuses - For recording results of commands
+#
 
-SuccessStatusChars = {
-            'unchecked': ' ',
-            'assumed_ok': '.',
-            'ok': '/',
-            'failed': 'x',
-            'not_applicable': '-',
-        }
-
-
-class CommandSuccessStatus(object):
-    description = """
-Legend for CommandSuccessStatus columns:
-    /   = ok                Got expected result
-    x   = failed            Failure or error
-    .   = assumed_ok        Not verified, but assumed ok due to earlier success
-    -   = not_applicable    Not relevant in this situation
-        = unchecked         Not checked yet
-
-    First slot: exit_code. Did the command report success?
-    Second slot: expected_result. Can we verify that the command completed?
-    Third slot: repo_integrity. Is the repo self-check ok?
-""".lstrip()
-
-    statuses = ['exit_code', 'expected_result', 'repo_integrity']
-
-    def __init__(self, set_all='unchecked'):
-        self.set_all(set_all)
-
-    def __setattr__(self, name, value):
-        if name in self.statuses:
-            if value in SuccessStatus:
-                super(CommandSuccessStatus, self).__setattr__(name, value)
-            elif value is True:  self.__setattr__(name, 'ok')
-            elif value is False: self.__setattr__(name, 'failed')
-            else:
-                raise ValueError(
-                        "Tried to assign invalid SuccessStatus: %s = '%s'"
-                        % (name,value))
+class ResultSet(object):
+    def __init__(self, name, val_desc_dict):
+        self.name = name
+        self.descs = val_desc_dict
+        self.values = frozenset(self.descs.keys())
+    def __contains__(self, value):
+        return value in self.values
+    def value(self,value):
+        if not value in self:
+            raise ValueError("Not a valid %s value: '%s'"
+                    % (self.name, value))
         else:
-            super(CommandSuccessStatus, self).__setattr__(name, value)
+            return value
 
-    def __str__(self):
-        return SuccessStatusChars[self.exit_code] \
-                + SuccessStatusChars[self.expected_result] \
-                + SuccessStatusChars[self.repo_integrity]
+CmdResults = ResultSet("CmdResults", {
+                'not_executed': "Command was never executed",
+                'ok' : "Command completed successfully",
+                'failed': "Command failed",
+            })
 
-    def set_all(self, value):
-        for name in self.statuses:
-            setattr(self,name,value)
-
-    def exit_ok(self):
-        self.exit_code = 'ok'
-        self.expected_result = 'assumed_ok'
-        self.repo_integrity = 'assumed_ok'
-
-    def exit_failed(self):
-        self.exit_code = 'failed'
-
-    def acceptable(self):
-        for attr in ['exit_code', 'expected_result', 'repo_integrity']:
-            if getattr(self,attr) not in ['ok', 'assumed_ok']:
-                return False
-        return True
-
-class CommandSuccessStatusTests(unittest.TestCase):
-    def test_setattr(self):
-        success = CommandSuccessStatus()
-        success.exit_code = "assumed_ok"
-
-        with self.assertRaises(ValueError) as cm:
-            success.expected_result = "asdf"
-
-        self.assertIn("expected_result", str(cm.exception))
-        self.assertIn("asdf", str(cm.exception))
-
-    def test_str(self):
-        success = CommandSuccessStatus()
-        self.assertEqual(str(success), '   ')
-        success.exit_code = 'ok'
-        success.expected_result = 'failed'
-        success.repo_integrity = 'not_applicable'
-        self.assertEqual(str(success), '/x-')
-
-    def test_true_false(self):
-        success = CommandSuccessStatus()
-        success.exit_code = True
-        self.assertEqual(success.exit_code, 'ok')
-
-        success.expected_result = False
-        self.assertEqual(success.expected_result, 'failed')
+VerificationResults = ResultSet("VerificationResults", {
+                'not_verified': "Verification was never performed",
+                'assumed_ok': "Assumed ok because dependent commands successful",
+                'verified': "Verified OK",
+                'corrupt': "Verification discovered an error",
+                'error_during': "Could not verify due to error during verification",
+            })
 
 
 # Output functions
@@ -589,8 +541,24 @@ class TestFileUtils(unittest.TestCase):
         self.assertEqual(changed_files, 64)
 
 
-
 # Trial context managers
+
+class CmdResult(object):
+    def __init__(self, obj=None, attr=None):
+        self.obj = obj
+        self.attr = attr
+        self.result = CmdResults.value("not_executed")
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type:
+            self.result = CmdResults.value('failed')
+        else:
+            self.result = CmdResults.value('ok')
+        if self.obj and self.attr:
+            set_attr_or_key(self.obj, self.attr, self.result)
 
 class CommitVerifier(object):
     def __init__(self, repo, must_contain_file = None, obj=None, attr=None):
@@ -598,30 +566,31 @@ class CommitVerifier(object):
         self.must_contain_file = must_contain_file
         self.obj = obj
         self.attr = attr
-        self.result = "unchecked"
+        self.result = VerificationResults.value("not_verified")
 
     def __enter__(self):
         self.previous_commit = self.repo.get_last_commit_id()
 
     def __exit__(self, exc_type, exc_value, traceback):
         if not exc_type:
-            self.result = 'assumed_ok'
+            self.result = VerificationResults.value('assumed_ok')
         else:
             try:
                 new_commit = self.repo.get_last_commit_id()
                 if new_commit == self.previous_commit:
-                    self.result = 'failed'
+                    self.result = VerificationResults.value('corrupt')
                 elif self.must_contain_file and not self.repo.is_file_in_commit(
                             new_commit, self.must_contain_file):
-                    self.result = 'failed'
+                    self.result = VerificationResults.value('corrupt')
                     comment(("Commit '%s' was created, "
                             + "but does not contain expected file '%s'")
                             % (new_commit, self.must_contain_file))
                 else:
-                    self.result = 'ok'
+                    comment("Commit command gave an error but commit was created successfully")
+                    self.result = 'verified'
             except Exception as e:
                 comment(e)
-                self.result = 'error_while_checking'
+                self.result = VerificationResults.value('error_while_checking')
 
         if self.obj and self.attr:
             set_attr_or_key(self.obj, self.attr, self.result)
@@ -630,7 +599,7 @@ class CommitVerifier(object):
         # This is specifically to handle the situation where, if Git tries to
         # commit a file larger than it can fit in memory, the commit will
         # report an error but still complete successfully.
-        return self.result=='ok'
+        return self.result == VerificationResults.value('verified')
 
 class CommitVerifierTests(unittest.TestCase):
     class DummyObj: pass
@@ -657,8 +626,8 @@ class CommitVerifierTests(unittest.TestCase):
                 raise Exception('dummy')
         except:
             pass
-        self.assertEqual(cv.result, 'failed')
-        self.assertEqual(result.verify, 'failed')
+        self.assertEqual(cv.result, 'corrupt')
+        self.assertEqual(result.verify, 'corrupt')
 
     def test_commit_exception_new_commit_no_file_to_check(self):
         repo = self.DummyObj()
@@ -669,8 +638,8 @@ class CommitVerifierTests(unittest.TestCase):
         with cv:
             repo.get_last_commit_id = lambda: 'abcde'
             raise Exception('dummy')
-        self.assertEqual(cv.result, 'ok')
-        self.assertEqual(result.verify, 'ok')
+        self.assertEqual(cv.result, 'verified')
+        self.assertEqual(result.verify, 'verified')
 
     def test_commit_exception_new_commit_missing_file(self):
         repo = self.DummyObj()
@@ -685,8 +654,8 @@ class CommitVerifierTests(unittest.TestCase):
                 raise Exception('dummy')
         except:
             pass
-        self.assertEqual(cv.result, 'failed')
-        self.assertEqual(result.verify, 'failed')
+        self.assertEqual(cv.result, 'corrupt')
+        self.assertEqual(result.verify, 'corrupt')
 
     def test_commit_exception_new_commit_has_file(self):
         repo = self.DummyObj()
@@ -698,8 +667,8 @@ class CommitVerifierTests(unittest.TestCase):
             repo.get_last_commit_id = lambda: 'abcde'
             repo.is_file_in_commit = lambda c,f: True
             raise Exception('dummy')
-        self.assertEqual(cv.result, 'ok')
-        self.assertEqual(result.verify, 'ok')
+        self.assertEqual(cv.result, 'verified')
+        self.assertEqual(result.verify, 'verified')
 
 
 class RepoVerifier(object):
@@ -707,24 +676,24 @@ class RepoVerifier(object):
         self.repo = repo
         self.obj = obj
         self.attr = attr
-        self.result = "unchecked"
+        self.result = VerificationResults.value("not_verified")
 
     def __enter__(self):
         self.previous_commit = self.repo.get_last_commit_id()
 
     def __exit__(self, exc_type, exc_value, traceback):
         if not exc_type:
-            self.result = 'assumed_ok'
+            self.result = VerificationResults.value('assumed_ok')
         else:
             try:
-                integrity_verified = repo.check_repo_integrity()
+                integrity_verified = self.repo.check_repo_integrity()
                 if integrity_verified:
-                    self.result = 'ok'
+                    self.result = VerificationResults.value('verified')
                 else:
-                    self.result = 'failed'
+                    self.result = VerificationResults.value('corrupt')
             except Exception as e:
                 comment(e)
-                self.result = 'error_while_checking'
+                self.result = VerificationResults.value('error_during')
 
         if self.obj and self.attr:
             set_attr_or_key(self.obj, self.attr, self.result)
@@ -733,7 +702,7 @@ class RepoVerifier(object):
         # This is specifically to handle the situation where, if Git tries to
         # commit a file larger than it can fit in memory, the commit will
         # report an error but still complete successfully.
-        return self.result=='ok'
+        return self.result=='verified'
 
 
 if __name__ == '__main__':

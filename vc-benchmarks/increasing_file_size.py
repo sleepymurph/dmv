@@ -50,29 +50,45 @@ class TrialStats:
             ("filebytes", 12, "0x%010x"),
             ("filehsize", 9, "%9s"),
             ("create_time", 11, "%11.3f"),
+
             ("c1_time", 11, "%11.3f"),
             ("c1_size", 12, "0x%010x"),
-            ("c1_succ", 12, "%12s"),
+            ("c1_cmd", 12, "%12s"),
+            ("c1_ver", 12, "%12s"),
+            ("c1_repo", 12, "%12s"),
+
             ("c2_time", 11, "%11.3f"),
             ("c2_size", 12, "0x%010x"),
-            ("c2_succ", 12, "%12s"),
+            ("c2_cmd", 12, "%12s"),
+            ("c2_ver", 12, "%12s"),
+            ("c2_repo", 12, "%12s"),
+
             ("gc_time", 11, "%11.3f"),
             ("gc_size", 12, "0x%010x"),
-            ("gc_succ", 7, "%7s"),
+            ("gc_cmd", 7, "%7s"),
+            ("gc_repo", 12, "%12s"),
         ]
 
     def __init__(self):
         self.filebytes = 0
         self.create_time = 0
+
         self.c1_time = 0
         self.c1_size = 0
-        self.c1_succ = trialutil.CommandSuccessStatus()
+        self.c1_cmd = 'not_executed'
+        self.c1_ver = 'not_verified'
+        self.c1_repo = 'not_verified'
+
         self.c2_time = 0
         self.c2_size = 0
-        self.c2_succ = trialutil.CommandSuccessStatus("not_applicable")
+        self.c2_cmd = 'not_executed'
+        self.c2_ver = 'not_verified'
+        self.c2_repo = 'not_verified'
+
         self.gc_time = 0
         self.gc_size = 0
-        self.gc_succ = trialutil.CommandSuccessStatus("not_applicable")
+        self.gc_cmd = 'not_executed'
+        self.gc_repo = 'not_verified'
 
     def calculate_columns(self):
         self.magnitude = math.frexp(self.filebytes)[1]-1
@@ -81,21 +97,6 @@ class TrialStats:
 
 
 def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
-    def check_commit(repo, last_commit_id, commit_succ):
-        new_commit = repo.get_last_commit_id()
-        if commit_succ.exit_code == 'failed':
-            if new_commit == last_commit_id \
-                    or not repo.is_file_in_commit(new_commit,"large_file"):
-                commit_succ.expected_result = 'failed'
-            else:
-                commit_succ.expected_result = 'ok'
-            commit_succ.repo_integrity = repo.check_repo_integrity()
-        return new_commit
-
-    def check_gc(repo, gc_succ):
-        if gc_succ.exit_code == 'failed':
-            gc_succ.repo_integrity = repo.check_repo_integrity()
-
 
     ts = TrialStats()
     ts.filebytes = filebytes
@@ -111,50 +112,43 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
             trialutil.create_file(
                     repodir, "large_file", filebytes, data_gen=data_gen)
 
-        rv = trialutil.RepoVerifier(repo, ts.c1_succ, 'repo_integrity')
-        cv = trialutil.CommitVerifier(repo, "large_file",
-                ts.c1_succ, 'expected_result')
+        rv = trialutil.RepoVerifier(repo, ts, 'c1_repo')
+        cv = trialutil.CommitVerifier(repo, "large_file", ts, 'c1_ver')
+        cr = trialutil.CmdResult(ts, 'c1_cmd')
         sr = trialutil.StopWatch(ts, 'c1_time')
         try:
-            with rv, cv, sr:
+            with rv, cv, cr, sr:
                 repo.start_tracking_file("large_file")
                 repo.commit_file("large_file")
-                # raise trialutil.CallFailedError("dummy fail", 1)
-                ts.c1_succ.exit_ok()
         except trialutil.CallFailedError as e:
             comment(e)
-            ts.c1_succ.exit_failed()
-        ts.c1_size = repo.check_total_size()
-
-        if not ts.c1_succ.acceptable():
             return ts
+        ts.c1_size = repo.check_total_size()
 
         trialutil.make_small_edit(repodir, "large_file", filebytes)
 
+        rv = trialutil.RepoVerifier(repo, ts, 'c2_repo')
+        cv = trialutil.CommitVerifier(repo, "large_file", ts, 'c2_ver')
+        cr = trialutil.CmdResult(ts, 'c2_cmd')
+        sr = trialutil.StopWatch(ts, 'c2_time')
         try:
-            with trialutil.StopWatch(ts, 'c2_time'):
+            with rv, cv, cr, sr:
                 repo.commit_file("large_file")
-            ts.c2_succ.exit_ok()
         except trialutil.CallFailedError as e:
             comment(e)
-            ts.c2_succ.exit_failed()
+            return ts
         ts.c2_size = repo.check_total_size()
 
-        last_commit = check_commit(repo, last_commit, ts.c2_succ)
-        if not ts.c2_succ.acceptable():
-            return ts
-
+        rv = trialutil.RepoVerifier(repo, ts, 'gc_repo')
+        cr = trialutil.CmdResult(ts, 'gc_cmd')
+        sr = trialutil.StopWatch(ts, 'gc_time')
         try:
-            with trialutil.StopWatch(ts, 'gc_time'):
+            with rv, cr, sr:
                 repo.garbage_collect()
-            ts.gc_succ.exit_ok()
         except trialutil.CallFailedError as e:
             comment(e)
-            ts.gc_succ.exit_failed()
-
+            return ts
         ts.gc_size = repo.check_total_size()
-
-        check_gc(repo, ts.gc_succ)
 
     except Exception as e:
         comment(e)
@@ -188,7 +182,11 @@ if __name__ == "__main__":
     comment()
     comment(align_kvs(env))
     comment()
-    comment(trialutil.CommandSuccessStatus.description)
+    comment("Command results:")
+    comment(align_kvs(trialutil.CmdResults.descs))
+    comment()
+    comment("Verification results:")
+    comment(align_kvs(trialutil.VerificationResults.descs))
     comment()
     printheader(TrialStats.columns)
 
