@@ -48,7 +48,7 @@ class TrialStats:
     vermax = VerificationResults.max_width()
 
     columns = [
-            Column("magnitude", "%9d", sample=0),
+            Column("mag", "%3d", sample=0),
             Column("filebytes", "0x%010x", sample=0),
             Column("filehsize", "%9s", sample=0),
             Column("create_time", "%11.3f", sample=0),
@@ -73,7 +73,7 @@ class TrialStats:
 
     def __init__(self, filebytes):
         self.filebytes = filebytes
-        self.magnitude = math.frexp(self.filebytes)[1]-1
+        self.mag = math.frexp(self.filebytes)[1]-1
         self.filehsize = hsize(self.filebytes)
 
         self.create_time = None
@@ -167,10 +167,10 @@ if __name__ == "__main__":
     comment()
     printheader(TrialStats.columns)
 
-    for magnitude in range(args.start_mag, args.end_mag):
+    for mag in range(args.start_mag, args.end_mag):
         for step in range(0, args.mag_steps):
-            bytesperstep = 2**magnitude / args.mag_steps
-            filebytes = 2**magnitude + step*bytesperstep
+            bytesperstep = 2**mag / args.mag_steps
+            filebytes = 2**mag + step*bytesperstep
             result = TrialStats(filebytes)
             try:
                 run_trial(
