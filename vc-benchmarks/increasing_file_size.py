@@ -107,19 +107,18 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
         repo.init_repo()
         last_commit = None
 
-        stopwatch.start()
-        trialutil.create_file(repodir, "large_file", filebytes, data_gen=data_gen)
-        trialstats.create_time = stopwatch.stop()
+        with trialutil.StopWatchRecorder(trialstats, 'create_time'):
+            trialutil.create_file(
+                    repodir, "large_file", filebytes, data_gen=data_gen)
 
-        stopwatch.start()
         try:
-            repo.start_tracking_file("large_file")
-            repo.commit_file("large_file")
+            with trialutil.StopWatchRecorder(trialstats, 'commit1_time'):
+                repo.start_tracking_file("large_file")
+                repo.commit_file("large_file")
             trialstats.commit1_succ.exit_ok()
         except trialutil.CallFailedError as e:
             comment(e)
             trialstats.commit1_succ.exit_failed()
-        trialstats.commit1_time = stopwatch.stop()
         trialstats.commit1_size = repo.check_total_size()
 
         last_commit = check_commit(repo, last_commit, trialstats.commit1_succ)
@@ -128,28 +127,26 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
 
         trialutil.make_small_edit(repodir, "large_file", filebytes)
 
-        stopwatch.start()
         try:
-            repo.commit_file("large_file")
+            with trialutil.StopWatchRecorder(trialstats, 'commit2_time'):
+                repo.commit_file("large_file")
             trialstats.commit2_succ.exit_ok()
         except trialutil.CallFailedError as e:
             comment(e)
             trialstats.commit2_succ.exit_failed()
-        trialstats.commit2_time = stopwatch.stop()
         trialstats.commit2_size = repo.check_total_size()
 
         last_commit = check_commit(repo, last_commit, trialstats.commit2_succ)
         if not trialstats.commit2_succ.acceptable():
             return trialstats
 
-        stopwatch.start()
         try:
-            repo.garbage_collect()
+            with trialutil.StopWatchRecorder(trialstats, 'gc_time'):
+                repo.garbage_collect()
             trialstats.gc_succ.exit_ok()
         except trialutil.CallFailedError as e:
             comment(e)
             trialstats.gc_succ.exit_failed()
-        trialstats.gc_time = stopwatch.stop()
         trialstats.gc_size = repo.check_total_size()
 
         check_gc(repo, trialstats.gc_succ)
@@ -159,8 +156,8 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
 
     finally:
         shutil.rmtree(repodir)
+        trialstats.calculate_columns()
 
-    trialstats.calculate_columns()
     return trialstats
 
 

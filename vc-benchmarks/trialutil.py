@@ -107,6 +107,26 @@ class StopWatch(object):
     def __exit__(self, exception_type, exception_value, traceback):
         self.stop()
 
+class StopWatchRecorder(object):
+    """ A context manager that times an action and saves that time to an object acttribute """
+    def __init__(self, obj, attr):
+        self.obj = obj
+        self.attr = attr
+
+    def __enter__(self):
+        self.stopwatch = StopWatch()
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        time = self.stopwatch.stop()
+        if isinstance(self.obj, dict):
+            self.obj[self.attr] = time
+        elif isinstance(self.obj, object):
+            setattr(self.obj, self.attr, time)
+        else:
+            raise NotImplementedError(
+                    "Do not know how to set attribute '%s' on %r"
+                    % (self.attr, self.obj))
+
 
 class StopWatchTests(unittest.TestCase):
     def test_with_block(self):
@@ -114,6 +134,20 @@ class StopWatchTests(unittest.TestCase):
         with stopwatch:
             time.sleep(.002)
         self.assertNotEqual(stopwatch.elapsed(), 0)
+
+    def test_recorder_block_obj(self):
+        class DummyObj:
+            pass
+        obj = DummyObj()
+        with StopWatchRecorder(obj, "elapsed_time"):
+            time.sleep(.002)
+        self.assertNotEqual(obj.elapsed_time, 0)
+
+    def test_recorder_block_dict(self):
+        obj = {}
+        with StopWatchRecorder(obj, "elapsed_time"):
+            time.sleep(.002)
+        self.assertNotEqual(obj['elapsed_time'], 0)
 
 
 SuccessStatus = frozenset(
