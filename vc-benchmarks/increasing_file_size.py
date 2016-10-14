@@ -72,39 +72,33 @@ class TrialStats:
             trialutil.Column("gc_repo", "%s", max_w=vermax),
         ]
 
-    def __init__(self):
-        self.filebytes = 0
-        self.create_time = 0
+    def __init__(self, filebytes):
+        self.filebytes = filebytes
+        self.magnitude = math.frexp(self.filebytes)[1]-1
+        self.filehsize = hsize(self.filebytes)
 
-        self.c1_time = 0
-        self.c1_size = 0
+        self.create_time = None
+
+        self.c1_time = None
+        self.c1_size = None
         self.c1_cmd = 'not_executed'
         self.c1_ver = 'not_verified'
         self.c1_repo = 'not_verified'
 
-        self.c2_time = 0
-        self.c2_size = 0
+        self.c2_time = None
+        self.c2_size = None
         self.c2_cmd = 'not_executed'
         self.c2_ver = 'not_verified'
         self.c2_repo = 'not_verified'
 
-        self.gc_time = 0
-        self.gc_size = 0
+        self.gc_time = None
+        self.gc_size = None
         self.gc_cmd = 'not_executed'
         self.gc_repo = 'not_verified'
 
-    def calculate_columns(self):
-        self.magnitude = math.frexp(self.filebytes)[1]-1
-        self.filehsize = hsize(self.filebytes)
 
+def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
 
-
-def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
-
-    ts = TrialStats()
-    ts.filebytes = filebytes
-
-    stopwatch = trialutil.StopWatch()
     try:
         repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
         repo = vcsclass(repodir)
@@ -119,13 +113,9 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
         cv = trialutil.CommitVerifier(repo, "large_file", ts, 'c1_ver')
         cr = trialutil.CmdResult(ts, 'c1_cmd')
         sr = trialutil.StopWatch(ts, 'c1_time')
-        try:
-            with rv, cv, cr, sr:
-                repo.start_tracking_file("large_file")
-                repo.commit_file("large_file")
-        except trialutil.CallFailedError as e:
-            comment(e)
-            return ts
+        with rv, cv, cr, sr:
+            repo.start_tracking_file("large_file")
+            repo.commit_file("large_file")
         ts.c1_size = repo.check_total_size()
 
         trialutil.make_small_edit(repodir, "large_file", filebytes)
@@ -134,34 +124,19 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
         cv = trialutil.CommitVerifier(repo, "large_file", ts, 'c2_ver')
         cr = trialutil.CmdResult(ts, 'c2_cmd')
         sr = trialutil.StopWatch(ts, 'c2_time')
-        try:
-            with rv, cv, cr, sr:
-                repo.commit_file("large_file")
-        except trialutil.CallFailedError as e:
-            comment(e)
-            return ts
+        with rv, cv, cr, sr:
+            repo.commit_file("large_file")
         ts.c2_size = repo.check_total_size()
 
         rv = trialutil.RepoVerifier(repo, ts, 'gc_repo')
         cr = trialutil.CmdResult(ts, 'gc_cmd')
         sr = trialutil.StopWatch(ts, 'gc_time')
-        try:
-            with rv, cr, sr:
-                repo.garbage_collect()
-        except trialutil.CallFailedError as e:
-            comment(e)
-            return ts
+        with rv, cr, sr:
+            repo.garbage_collect()
         ts.gc_size = repo.check_total_size()
-
-    except Exception as e:
-        comment(e)
-        raise
 
     finally:
         shutil.rmtree(repodir)
-        ts.calculate_columns()
-
-    return ts
 
 
 if __name__ == "__main__":
@@ -197,11 +172,16 @@ if __name__ == "__main__":
         for magnitude in range(args.start_mag, args.end_mag):
             for step in range(0, args.mag_steps):
                 bytesperstep = 2**magnitude / args.mag_steps
-                numbytes = 2**magnitude + step*bytesperstep
-                result = run_trial(
-                        vcsclass, numbytes,
-                        data_gen=args.data_gen,
-                        tmpdir=tmpdir)
+                filebytes = 2**magnitude + step*bytesperstep
+                result = TrialStats(filebytes)
+                try:
+                    run_trial(
+                            result,
+                            vcsclass,
+                            data_gen=args.data_gen,
+                            tmpdir=tmpdir)
+                except Exception as e:
+                    comment(e)
                 printrow(TrialStats.columns, result)
 
     except KeyboardInterrupt:
