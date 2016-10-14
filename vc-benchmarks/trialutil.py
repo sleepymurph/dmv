@@ -109,8 +109,10 @@ class SetAttrOrKeyTests(unittest.TestCase):
 
 class StopWatch(object):
 
-    def __init__(self):
+    def __init__(self, obj=None, attr=None):
         self.start()
+        self.obj = obj
+        self.attr = attr
 
     def start(self):
         self.start_moment = time.time()
@@ -130,19 +132,8 @@ class StopWatch(object):
 
     def __exit__(self, exception_type, exception_value, traceback):
         self.stop()
-
-class StopWatchRecorder(object):
-    """ A context manager that times an action and saves that time to an object acttribute """
-    def __init__(self, obj, attr):
-        self.obj = obj
-        self.attr = attr
-
-    def __enter__(self):
-        self.stopwatch = StopWatch()
-
-    def __exit__(self, exception_type, exception_value, traceback):
-        set_attr_or_key(self.obj, self.attr, self.stopwatch.stop())
-
+        if self.obj and self.attr:
+            set_attr_or_key(self.obj, self.attr, self.elapsed())
 
 class StopWatchTests(unittest.TestCase):
     def test_with_block(self):
@@ -155,7 +146,7 @@ class StopWatchTests(unittest.TestCase):
         class DummyObj:
             pass
         obj = DummyObj()
-        with StopWatchRecorder(obj, "elapsed_time"):
+        with StopWatch(obj, "elapsed_time"):
             time.sleep(.002)
         self.assertNotEqual(obj.elapsed_time, 0)
 

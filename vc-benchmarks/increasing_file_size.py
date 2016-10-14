@@ -107,7 +107,7 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
         repo.init_repo()
         last_commit = None
 
-        with trialutil.StopWatchRecorder(trialstats, 'create_time'):
+        with trialutil.StopWatch(trialstats, 'create_time'):
             trialutil.create_file(
                     repodir, "large_file", filebytes, data_gen=data_gen)
 
@@ -115,7 +115,7 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
                 trialstats.commit1_succ, 'repo_integrity')
         cv = trialutil.CommitVerifier(repo, "large_file",
                 trialstats.commit1_succ, 'expected_result')
-        sr = trialutil.StopWatchRecorder(trialstats, 'commit1_time')
+        sr = trialutil.StopWatch(trialstats, 'commit1_time')
         try:
             with rv, cv, sr:
                 repo.start_tracking_file("large_file")
@@ -133,7 +133,7 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
         trialutil.make_small_edit(repodir, "large_file", filebytes)
 
         try:
-            with trialutil.StopWatchRecorder(trialstats, 'commit2_time'):
+            with trialutil.StopWatch(trialstats, 'commit2_time'):
                 repo.commit_file("large_file")
             trialstats.commit2_succ.exit_ok()
         except trialutil.CallFailedError as e:
@@ -146,7 +146,7 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
             return trialstats
 
         try:
-            with trialutil.StopWatchRecorder(trialstats, 'gc_time'):
+            with trialutil.StopWatch(trialstats, 'gc_time'):
                 repo.garbage_collect()
             trialstats.gc_succ.exit_ok()
         except trialutil.CallFailedError as e:
