@@ -8,10 +8,9 @@ import shutil
 import tempfile
 
 import trialenv
-import trialutil
 import vcs
 
-from trialutil import hsize, comment, log, align_kvs, printheader, printrow
+from trialutil import *
 
 def parse_args():
     parser = argparse.ArgumentParser(description=
@@ -45,31 +44,31 @@ def parse_args():
 
 class TrialStats:
 
-    cmdmax = trialutil.CmdResults.max_width()
-    vermax = trialutil.VerificationResults.max_width()
+    cmdmax = CmdResults.max_width()
+    vermax = VerificationResults.max_width()
 
     columns = [
-            trialutil.Column("magnitude", "%9d", sample=0),
-            trialutil.Column("filebytes", "0x%010x", sample=0),
-            trialutil.Column("filehsize", "%9s", sample=0),
-            trialutil.Column("create_time", "%11.3f", sample=0),
+            Column("magnitude", "%9d", sample=0),
+            Column("filebytes", "0x%010x", sample=0),
+            Column("filehsize", "%9s", sample=0),
+            Column("create_time", "%11.3f", sample=0),
 
-            trialutil.Column("c1_time", "%11.3f", sample=0),
-            trialutil.Column("c1_size", "0x%010x", sample=0),
-            trialutil.Column("c1_cmd", "%s", max_w=cmdmax),
-            trialutil.Column("c1_ver", "%s", max_w=vermax),
-            trialutil.Column("c1_repo", "%s", max_w=vermax),
+            Column("c1_time", "%11.3f", sample=0),
+            Column("c1_size", "0x%010x", sample=0),
+            Column("c1_cmd", "%s", max_w=cmdmax),
+            Column("c1_ver", "%s", max_w=vermax),
+            Column("c1_repo", "%s", max_w=vermax),
 
-            trialutil.Column("c2_time", "%11.3f", sample=0),
-            trialutil.Column("c2_size", "0x%010x", sample=0),
-            trialutil.Column("c2_cmd", "%s", max_w=cmdmax),
-            trialutil.Column("c2_ver", "%s", max_w=vermax),
-            trialutil.Column("c2_repo", "%s", max_w=vermax),
+            Column("c2_time", "%11.3f", sample=0),
+            Column("c2_size", "0x%010x", sample=0),
+            Column("c2_cmd", "%s", max_w=cmdmax),
+            Column("c2_ver", "%s", max_w=vermax),
+            Column("c2_repo", "%s", max_w=vermax),
 
-            trialutil.Column("gc_time", "%11.3f", sample=0),
-            trialutil.Column("gc_size", "0x%010x", sample=0),
-            trialutil.Column("gc_cmd", "%s", max_w=cmdmax),
-            trialutil.Column("gc_repo", "%s", max_w=vermax),
+            Column("gc_time", "%11.3f", sample=0),
+            Column("gc_size", "0x%010x", sample=0),
+            Column("gc_cmd", "%s", max_w=cmdmax),
+            Column("gc_repo", "%s", max_w=vermax),
         ]
 
     def __init__(self, filebytes):
@@ -105,33 +104,33 @@ def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
         repo.init_repo()
         last_commit = None
 
-        with trialutil.StopWatch(ts, 'create_time'):
-            trialutil.create_file(
+        with StopWatch(ts, 'create_time'):
+            create_file(
                     repodir, "large_file", filebytes, data_gen=data_gen)
 
-        rv = trialutil.RepoVerifier(repo, ts, 'c1_repo')
-        cv = trialutil.CommitVerifier(repo, "large_file", ts, 'c1_ver')
-        cr = trialutil.CmdResult(ts, 'c1_cmd')
-        sr = trialutil.StopWatch(ts, 'c1_time')
-        with rv, cv, cr, sr:
+        with \
+                RepoVerifier(repo, ts, 'c1_repo'), \
+                CommitVerifier(repo, "large_file", ts, 'c1_ver'), \
+                CmdResult(ts, 'c1_cmd'), \
+                StopWatch(ts, 'c1_time'):
             repo.start_tracking_file("large_file")
             repo.commit_file("large_file")
         ts.c1_size = repo.check_total_size()
 
-        trialutil.make_small_edit(repodir, "large_file", filebytes)
+        make_small_edit(repodir, "large_file", filebytes)
 
-        rv = trialutil.RepoVerifier(repo, ts, 'c2_repo')
-        cv = trialutil.CommitVerifier(repo, "large_file", ts, 'c2_ver')
-        cr = trialutil.CmdResult(ts, 'c2_cmd')
-        sr = trialutil.StopWatch(ts, 'c2_time')
-        with rv, cv, cr, sr:
+        with \
+                RepoVerifier(repo, ts, 'c2_repo'), \
+                CommitVerifier(repo, "large_file", ts, 'c2_ver'), \
+                CmdResult(ts, 'c2_cmd'), \
+                StopWatch(ts, 'c2_time'):
             repo.commit_file("large_file")
         ts.c2_size = repo.check_total_size()
 
-        rv = trialutil.RepoVerifier(repo, ts, 'gc_repo')
-        cr = trialutil.CmdResult(ts, 'gc_cmd')
-        sr = trialutil.StopWatch(ts, 'gc_time')
-        with rv, cr, sr:
+        with \
+                RepoVerifier(repo, ts, 'gc_repo'), \
+                CmdResult(ts, 'gc_cmd'), \
+                StopWatch(ts, 'gc_time'):
             repo.garbage_collect()
         ts.gc_size = repo.check_total_size()
 
@@ -161,10 +160,10 @@ if __name__ == "__main__":
     comment(align_kvs(env))
     comment()
     comment("Command results:")
-    comment(align_kvs(trialutil.CmdResults.descs))
+    comment(align_kvs(CmdResults.descs))
     comment()
     comment("Verification results:")
-    comment(align_kvs(trialutil.VerificationResults.descs))
+    comment(align_kvs(VerificationResults.descs))
     comment()
     printheader(TrialStats.columns)
 
