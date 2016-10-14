@@ -51,18 +51,18 @@ def parse_args():
 class TrialStats:
 
     columns = [
-            ("magnitude", 9, "%9d"),
-            ("filecount", 12, "%12d"),
-            ("totalbytes", 12, "0x%010x"),
-            ("create_time", 11, "%11.3f"),
-            ("commit1_time", 11, "%11.3f"),
-            ("commit1_size", 12, "0x%010x"),
-            ("stat1_time", 11, "%11.3f"),
-            ("stat2_time", 11, "%11.3f"),
-            ("commit2_time", 11, "%11.3f"),
-            ("commit2_size", 12, "0x%010x"),
-            ("cleanup_time", 11, "%11.3f"),
-            ("errors", 6, "%6s"),
+            trialutil.Column("magnitude", "%9d", sample=0),
+            trialutil.Column("filecount", "%12d", sample=0),
+            trialutil.Column("totalbytes", "0x%010x", sample=0),
+            trialutil.Column("create_time", "%11.3f", sample=0),
+            trialutil.Column("commit1_time", "%11.3f", sample=0),
+            trialutil.Column("commit1_size", "0x%010x", sample=0),
+            trialutil.Column("stat1_time", "%11.3f", sample=0),
+            trialutil.Column("stat2_time", "%11.3f", sample=0),
+            trialutil.Column("commit2_time", "%11.3f", sample=0),
+            trialutil.Column("commit2_size", "0x%010x", sample=0),
+            trialutil.Column("cleanup_time", "%11.3f", sample=0),
+            trialutil.Column("errors", "%6s", sample=False),
         ]
 
     def __init__(self, **args):

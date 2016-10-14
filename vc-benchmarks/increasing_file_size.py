@@ -45,28 +45,31 @@ def parse_args():
 
 class TrialStats:
 
+    cmdmax = trialutil.CmdResults.max_width()
+    vermax = trialutil.VerificationResults.max_width()
+
     columns = [
-            ("magnitude", 9, "%9d"),
-            ("filebytes", 12, "0x%010x"),
-            ("filehsize", 9, "%9s"),
-            ("create_time", 11, "%11.3f"),
+            trialutil.Column("magnitude", "%9d", sample=0),
+            trialutil.Column("filebytes", "0x%010x", sample=0),
+            trialutil.Column("filehsize", "%9s", sample=0),
+            trialutil.Column("create_time", "%11.3f", sample=0),
 
-            ("c1_time", 11, "%11.3f"),
-            ("c1_size", 12, "0x%010x"),
-            ("c1_cmd", 12, "%12s"),
-            ("c1_ver", 12, "%12s"),
-            ("c1_repo", 12, "%12s"),
+            trialutil.Column("c1_time", "%11.3f", sample=0),
+            trialutil.Column("c1_size", "0x%010x", sample=0),
+            trialutil.Column("c1_cmd", "%s", max_w=cmdmax),
+            trialutil.Column("c1_ver", "%s", max_w=vermax),
+            trialutil.Column("c1_repo", "%s", max_w=vermax),
 
-            ("c2_time", 11, "%11.3f"),
-            ("c2_size", 12, "0x%010x"),
-            ("c2_cmd", 12, "%12s"),
-            ("c2_ver", 12, "%12s"),
-            ("c2_repo", 12, "%12s"),
+            trialutil.Column("c2_time", "%11.3f", sample=0),
+            trialutil.Column("c2_size", "0x%010x", sample=0),
+            trialutil.Column("c2_cmd", "%s", max_w=cmdmax),
+            trialutil.Column("c2_ver", "%s", max_w=vermax),
+            trialutil.Column("c2_repo", "%s", max_w=vermax),
 
-            ("gc_time", 11, "%11.3f"),
-            ("gc_size", 12, "0x%010x"),
-            ("gc_cmd", 7, "%7s"),
-            ("gc_repo", 12, "%12s"),
+            trialutil.Column("gc_time", "%11.3f", sample=0),
+            trialutil.Column("gc_size", "0x%010x", sample=0),
+            trialutil.Column("gc_cmd", "%s", max_w=cmdmax),
+            trialutil.Column("gc_repo", "%s", max_w=vermax),
         ]
 
     def __init__(self):

@@ -174,8 +174,10 @@ class ResultSet(object):
         self.name = name
         self.descs = val_desc_dict
         self.values = frozenset(self.descs.keys())
+
     def __contains__(self, value):
         return value in self.values
+
     def value(self,value):
         if not value in self:
             raise ValueError("Not a valid %s value: '%s'"
@@ -183,18 +185,21 @@ class ResultSet(object):
         else:
             return value
 
+    def max_width(self):
+        return max( [len(value) for value in self.values] )
+
 CmdResults = ResultSet("CmdResults", {
-                'not_executed': "Command was never executed",
+                'no_exec': "Command was never executed",
                 'ok' : "Command completed successfully",
                 'failed': "Command failed",
             })
 
 VerificationResults = ResultSet("VerificationResults", {
-                'not_verified': "Verification was never performed",
-                'assumed_ok': "Assumed ok because dependent commands successful",
+                'no_ver': "Verification was never performed",
+                'assumed': "Assumed ok because dependent commands successful",
                 'verified': "Verified OK",
-                'corrupt': "Verification discovered an error",
-                'error_during': "Could not verify due to error during verification",
+                'bad': "Verification discovered an error",
+                'ver_err': "Could not verify due to error during verification",
             })
 
 
@@ -292,6 +297,13 @@ def align_kvs(kvs):
 #            ("errors", 6, "%6s"),
 #        ]
 
+class Column(object):
+    def __init__(self, name, pattern, max_w=None, sample=None):
+        self.name = name
+        self.pattern = pattern
+        fsample = pattern % sample
+        self.width = max(max_w, len(name), len(fsample))
+
 def printheader(columns):
     print header(columns)
     sys.stdout.flush()
@@ -303,19 +315,16 @@ def printrow(columns, values):
 def header(columns):
     """ Given a list of column definitions, returns a header row as a string """
     names = []
-    for (name,width,fmt) in columns:
-        if len(name) > width:
-            name = name[:width]
-        fmt = "%%%ds" % width
-        names.append(fmt % name)
+    for c in columns:
+        names.append('%%%ds' % c.width % c.name)
 
     return "  ".join(names)
 
 def row(columns, values):
     """ Given a list of column definitions, returns a data row as a string """
     stats = []
-    for (name,width,fmt) in columns:
-        stats.append(fmt % getattr(values,name))
+    for c in columns:
+        stats.append('%%%ss' % c.width % (c.pattern % getattr(values, c.name)))
 
     return "  ".join(stats)
 
@@ -547,7 +556,7 @@ class CmdResult(object):
     def __init__(self, obj=None, attr=None):
         self.obj = obj
         self.attr = attr
-        self.result = CmdResults.value("not_executed")
+        self.result = CmdResults.value("no_exec")
 
     def __enter__(self):
         pass
@@ -566,22 +575,22 @@ class CommitVerifier(object):
         self.must_contain_file = must_contain_file
         self.obj = obj
         self.attr = attr
-        self.result = VerificationResults.value("not_verified")
+        self.result = VerificationResults.value("no_ver")
 
     def __enter__(self):
         self.previous_commit = self.repo.get_last_commit_id()
 
     def __exit__(self, exc_type, exc_value, traceback):
         if not exc_type:
-            self.result = VerificationResults.value('assumed_ok')
+            self.result = VerificationResults.value('assumed')
         else:
             try:
                 new_commit = self.repo.get_last_commit_id()
                 if new_commit == self.previous_commit:
-                    self.result = VerificationResults.value('corrupt')
+                    self.result = VerificationResults.value('bad')
                 elif self.must_contain_file and not self.repo.is_file_in_commit(
                             new_commit, self.must_contain_file):
-                    self.result = VerificationResults.value('corrupt')
+                    self.result = VerificationResults.value('bad')
                     comment(("Commit '%s' was created, "
                             + "but does not contain expected file '%s'")
                             % (new_commit, self.must_contain_file))
@@ -612,8 +621,8 @@ class CommitVerifierTests(unittest.TestCase):
         cv = CommitVerifier(repo, obj=result, attr='verify')
         with cv:
             pass
-        self.assertEqual(cv.result, 'assumed_ok')
-        self.assertEqual(result.verify, 'assumed_ok')
+        self.assertEqual(cv.result, 'assumed')
+        self.assertEqual(result.verify, 'assumed')
 
     def test_commit_exception_no_new_commit(self):
         repo = self.DummyObj()
@@ -626,8 +635,8 @@ class CommitVerifierTests(unittest.TestCase):
                 raise Exception('dummy')
         except:
             pass
-        self.assertEqual(cv.result, 'corrupt')
-        self.assertEqual(result.verify, 'corrupt')
+        self.assertEqual(cv.result, 'bad')
+        self.assertEqual(result.verify, 'bad')
 
     def test_commit_exception_new_commit_no_file_to_check(self):
         repo = self.DummyObj()
@@ -654,8 +663,8 @@ class CommitVerifierTests(unittest.TestCase):
                 raise Exception('dummy')
         except:
             pass
-        self.assertEqual(cv.result, 'corrupt')
-        self.assertEqual(result.verify, 'corrupt')
+        self.assertEqual(cv.result, 'bad')
+        self.assertEqual(result.verify, 'bad')
 
     def test_commit_exception_new_commit_has_file(self):
         repo = self.DummyObj()
@@ -676,24 +685,24 @@ class RepoVerifier(object):
         self.repo = repo
         self.obj = obj
         self.attr = attr
-        self.result = VerificationResults.value("not_verified")
+        self.result = VerificationResults.value("no_ver")
 
     def __enter__(self):
         self.previous_commit = self.repo.get_last_commit_id()
 
     def __exit__(self, exc_type, exc_value, traceback):
         if not exc_type:
-            self.result = VerificationResults.value('assumed_ok')
+            self.result = VerificationResults.value('assumed')
         else:
             try:
                 integrity_verified = self.repo.check_repo_integrity()
                 if integrity_verified:
                     self.result = VerificationResults.value('verified')
                 else:
-                    self.result = VerificationResults.value('corrupt')
+                    self.result = VerificationResults.value('bad')
             except Exception as e:
                 comment(e)
-                self.result = VerificationResults.value('error_during')
+                self.result = VerificationResults.value('ver_err')
 
         if self.obj and self.attr:
             set_attr_or_key(self.obj, self.attr, self.result)
