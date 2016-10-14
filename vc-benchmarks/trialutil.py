@@ -413,7 +413,19 @@ def make_small_edit(directory, name, filebytes=None, quiet=False):
     starttime = time.time()
     with open(path, 'r+b') as f:
         f.seek(pos)
-        f.write(os.urandom(chunksize))
+        if chunksize <= 256:
+            # If the chunk size is small (especially just 1 or 2 bytes) there
+            # is a risk of randomly generating exactly the same sequence as
+            # before and not actually changing the file. So for those cases,
+            # read the chunk we're overwriting first, and make sure the new
+            # chunk is different.
+            newchunk = existing = f.read(chunksize)
+            f.seek(pos)
+        else:
+            newchunk = existing = '\0'
+        while newchunk == existing:
+            newchunk = os.urandom(chunksize)
+        f.write(newchunk)
         elapsed = time.time() - starttime
 
         if not quiet:
