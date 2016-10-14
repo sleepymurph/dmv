@@ -324,10 +324,37 @@ def row(columns, values):
     """ Given a list of column definitions, returns a data row as a string """
     stats = []
     for c in columns:
-        stats.append('%%%ss' % c.width % (c.pattern % getattr(values, c.name)))
+        try:
+            fval = c.pattern % getattr(values, c.name)
+        except TypeError:
+            fval = '(%s)' % str(getattr(values, c.name))
+        stats.append('%%%ss' % c.width % fval)
 
     return "  ".join(stats)
 
+
+class TableTests(unittest.TestCase):
+    def test_columns(self):
+        class DummyObj: pass
+        columns = [
+                Column('string', '%12s', sample="str"),
+                Column('numeric', '%9d', sample=0),
+                ]
+        rowstats = DummyObj()
+        rowstats.string = "hello!"
+        rowstats.numeric = 100
+        headstr = header(columns)
+        rowstr = row(columns, rowstats)
+        self.assertEqual(headstr, '      string    numeric')
+        self.assertEqual(rowstr,  '      hello!        100')
+
+    def test_unexpected_value(self):
+        class DummyObj: pass
+        columns = [Column('numeric', '%9d', sample=0)]
+        rowstats = DummyObj()
+        rowstats.numeric = None
+        rowstr = row(columns, rowstats)
+        self.assertEqual(rowstr, '   (None)')
 
 
 # File creation functions
