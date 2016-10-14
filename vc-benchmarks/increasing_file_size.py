@@ -167,21 +167,21 @@ if __name__ == "__main__":
     comment()
     printheader(TrialStats.columns)
 
-    try:
-        for magnitude in range(args.start_mag, args.end_mag):
-            for step in range(0, args.mag_steps):
-                bytesperstep = 2**magnitude / args.mag_steps
-                filebytes = 2**magnitude + step*bytesperstep
-                result = TrialStats(filebytes)
-                try:
-                    run_trial(
-                            result,
-                            vcsclass,
-                            data_gen=args.data_gen,
-                            tmpdir=tmpdir)
-                except Exception as e:
-                    comment(e)
+    for magnitude in range(args.start_mag, args.end_mag):
+        for step in range(0, args.mag_steps):
+            bytesperstep = 2**magnitude / args.mag_steps
+            filebytes = 2**magnitude + step*bytesperstep
+            result = TrialStats(filebytes)
+            try:
+                run_trial(
+                        result,
+                        vcsclass,
+                        data_gen=args.data_gen,
+                        tmpdir=tmpdir)
+            except KeyboardInterrupt:
+                comment("Cancelled")
+                raise
+            except Exception as e:
+                comment(e)
+            finally:
                 printrow(TrialStats.columns, result)
-
-    except KeyboardInterrupt:
-        comment("Cancelled")
