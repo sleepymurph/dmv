@@ -50,8 +50,9 @@ class TrialStats:
     columns = [
             Column("mag", "%3d", sample=0),
             Column("filebytes", "0x%010x", sample=0),
-            Column("filehsize", "%9s", sample=0),
-            Column("create_time", "%11.3f", sample=0),
+            Column("filesize", "%8s", sample=0),
+
+            Column("cre_time", "%8.3f", sample=0),
 
             Column("c1_time", "%8.3f", sample=0),
             Column("c1_size", "0x%010x", sample=0),
@@ -74,9 +75,9 @@ class TrialStats:
     def __init__(self, filebytes):
         self.filebytes = filebytes
         self.mag = math.frexp(self.filebytes)[1]-1
-        self.filehsize = hsize(self.filebytes)
+        self.filesize = hsize(self.filebytes)
 
-        self.create_time = None
+        self.cre_time = None
 
         self.c1_time = None
         self.c1_size = None
@@ -104,7 +105,7 @@ def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
         repo.init_repo()
         last_commit = None
 
-        with StopWatch(ts, 'create_time'):
+        with StopWatch(ts, 'cre_time'):
             create_file(
                     repodir, "large_file", filebytes, data_gen=data_gen)
 
