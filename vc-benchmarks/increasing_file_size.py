@@ -59,7 +59,6 @@ class TrialStats:
             ("gc_time", 11, "%11.3f"),
             ("gc_size", 12, "0x%010x"),
             ("gc_succ", 7, "%7s"),
-            ("errors", 6, "%6s"),
         ]
 
     def __init__(self):
@@ -74,14 +73,30 @@ class TrialStats:
         self.gc_time = 0
         self.gc_size = 0
         self.gc_succ = trialutil.CommandSuccessStatus("not_applicable")
-        self.errors = False
 
     def calculate_columns(self):
         self.magnitude = math.frexp(self.filebytes)[1]-1
         self.filehsize = hsize(self.filebytes)
 
 
+
 def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
+    def check_commit(repo, last_commit_id, commit_succ):
+        new_commit = repo.get_last_commit_id()
+        if commit_succ.exit_code == 'failed':
+            if new_commit == last_commit_id \
+                    or not repo.is_file_in_commit(new_commit,"large_file"):
+                commit_succ.expected_result = 'failed'
+            else:
+                commit_succ.expected_result = 'ok'
+            commit_succ.repo_integrity = repo.check_repo_integrity()
+        return new_commit
+
+    def check_gc(repo, gc_succ):
+        if gc_succ.exit_code == 'failed':
+            gc_succ.repo_integrity = repo.check_repo_integrity()
+
+
     trialstats = TrialStats()
     trialstats.filebytes = filebytes
 
@@ -102,20 +117,12 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
             repo.commit_file("large_file")
             trialstats.commit1_succ.exit_ok()
         except trialutil.CallFailedError as e:
-            log(e)
+            comment(e)
             trialstats.commit1_succ.exit_failed()
         trialstats.commit1_time = stopwatch.stop()
         trialstats.commit1_size = repo.check_total_size()
 
-        if trialstats.commit1_succ.exit_code == 'failed':
-            new_commit = repo.get_last_commit_id()
-            if new_commit == last_commit \
-                    or not repo.is_file_in_commit(new_commit,"large_file"):
-                trialstats.commit1_succ.expected_result = 'failed'
-            else:
-                trialstats.commit1_succ.expected_result = 'ok'
-            trialstats.commit1_succ.repo_integrity = repo.check_repo_integrity()
-
+        last_commit = check_commit(repo, last_commit, trialstats.commit1_succ)
         if not trialstats.commit1_succ.acceptable():
             return trialstats
 
@@ -126,49 +133,35 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
             repo.commit_file("large_file")
             trialstats.commit2_succ.exit_ok()
         except trialutil.CallFailedError as e:
-            log(e)
+            comment(e)
             trialstats.commit2_succ.exit_failed()
         trialstats.commit2_time = stopwatch.stop()
         trialstats.commit2_size = repo.check_total_size()
 
-        if trialstats.commit2_succ.exit_code == 'failed':
-            new_commit = repo.get_last_commit_id()
-            if new_commit == last_commit \
-                    or not repo.is_file_in_commit(new_commit,"large_file"):
-                trialstats.commit2_succ.expected_result = 'failed'
-            else:
-                trialstats.commit2_succ.expected_result = 'ok'
-            trialstats.commit2_succ.repo_integrity = repo.check_repo_integrity()
-
+        last_commit = check_commit(repo, last_commit, trialstats.commit2_succ)
         if not trialstats.commit2_succ.acceptable():
             return trialstats
 
         stopwatch.start()
         try:
             repo.garbage_collect()
+            trialstats.gc_succ.exit_ok()
         except trialutil.CallFailedError as e:
-            log(e)
-            trialstats.errors = True
+            comment(e)
+            trialstats.gc_succ.exit_failed()
         trialstats.gc_time = stopwatch.stop()
         trialstats.gc_size = repo.check_total_size()
 
-        if trialstats.gc_succ.exit_code == 'failed':
-            new_commit = repo.get_last_commit_id()
-            if new_commit == last_commit \
-                    or not repo.is_file_in_commit(new_commit,"large_file"):
-                trialstats.gc_succ.expected_result = 'failed'
-            else:
-                trialstats.gc_succ.expected_result = 'ok'
-            trialstats.gc_succ.repo_integrity = repo.check_repo_integrity()
+        check_gc(repo, trialstats.gc_succ)
 
-        return trialstats
     except Exception as e:
-        trialstats.errors = True
-        raise e
+        comment(e)
 
     finally:
         shutil.rmtree(repodir)
-        trialstats.calculate_columns()
+
+    trialstats.calculate_columns()
+    return trialstats
 
 
 if __name__ == "__main__":

@@ -101,6 +101,20 @@ class StopWatch(object):
     def elapsed(self):
         return self.stop_moment - self.start_moment
 
+    def __enter__(self):
+        self.start()
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        self.stop()
+
+
+class StopWatchTests(unittest.TestCase):
+    def test_with_block(self):
+        stopwatch = StopWatch()
+        with stopwatch:
+            time.sleep(.002)
+        self.assertNotEqual(stopwatch.elapsed(), 0)
+
 
 SuccessStatus = frozenset(
         ['unchecked', 'assumed_ok', 'ok', 'failed', 'not_applicable'])
@@ -219,6 +233,7 @@ class CommandSuccessStatusTests(unittest.TestCase):
 
 def comment(s=""):
     """ Print to stdout with a leading comment marker """
+    s = str(s)
     for line in s.split("\n"):
         print >> sys.stdout, "#", line
     sys.stdout.flush()
