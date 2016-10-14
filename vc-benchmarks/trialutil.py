@@ -83,6 +83,30 @@ class TestChunkString(unittest.TestCase):
                 ["hello", "world", "party", "time"])
 
 
+def set_attr_or_key(obj, attr, val):
+    if isinstance(obj, dict):
+        obj[attr] = val
+    elif isinstance(obj, object):
+        setattr(obj, attr, val)
+    else:
+        raise NotImplementedError(
+                "Do not know how to set attribute '%s' on %r"
+                % (attr, obj))
+
+class SetAttrOrKeyTests(unittest.TestCase):
+    def test_set_attr_on_obj(self):
+        class DummyObj:
+            pass
+        obj = DummyObj()
+        set_attr_or_key(obj, 'k', True)
+        self.assertEqual(obj.k, True)
+
+    def test_set_key_on_dict(self):
+        d = {}
+        set_attr_or_key(d, 'k', True)
+        self.assertEqual(d['k'], True)
+
+
 class StopWatch(object):
 
     def __init__(self):
@@ -117,15 +141,7 @@ class StopWatchRecorder(object):
         self.stopwatch = StopWatch()
 
     def __exit__(self, exception_type, exception_value, traceback):
-        time = self.stopwatch.stop()
-        if isinstance(self.obj, dict):
-            self.obj[self.attr] = time
-        elif isinstance(self.obj, object):
-            setattr(self.obj, self.attr, time)
-        else:
-            raise NotImplementedError(
-                    "Do not know how to set attribute '%s' on %r"
-                    % (self.attr, self.obj))
+        set_attr_or_key(self.obj, self.attr, self.stopwatch.stop())
 
 
 class StopWatchTests(unittest.TestCase):
@@ -143,15 +159,9 @@ class StopWatchTests(unittest.TestCase):
             time.sleep(.002)
         self.assertNotEqual(obj.elapsed_time, 0)
 
-    def test_recorder_block_dict(self):
-        obj = {}
-        with StopWatchRecorder(obj, "elapsed_time"):
-            time.sleep(.002)
-        self.assertNotEqual(obj['elapsed_time'], 0)
-
 
 SuccessStatus = frozenset(
-        ['unchecked', 'assumed_ok', 'ok', 'failed', 'not_applicable'])
+        ['unchecked', 'assumed_ok', 'ok', 'failed','error_while_checking', 'not_applicable'])
 
 SuccessStatusChars = {
             'unchecked': ' ',
@@ -586,6 +596,153 @@ class TestFileUtils(unittest.TestCase):
             if content != "\0\0\0\0\0\0\0\0\0\0":
                 changed_files += 1
         self.assertEqual(changed_files, 64)
+
+
+
+# Trial context managers
+
+class CommitVerifier(object):
+    def __init__(self, repo, must_contain_file = None, obj=None, attr=None):
+        self.repo = repo
+        self.must_contain_file = must_contain_file
+        self.obj = obj
+        self.attr = attr
+        self.result = "unchecked"
+
+    def __enter__(self):
+        self.previous_commit = self.repo.get_last_commit_id()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if not exc_type:
+            self.result = 'assumed_ok'
+        else:
+            try:
+                new_commit = self.repo.get_last_commit_id()
+                if new_commit == self.previous_commit:
+                    self.result = 'failed'
+                elif self.must_contain_file and not self.repo.is_file_in_commit(
+                            new_commit, self.must_contain_file):
+                    self.result = 'failed'
+                    comment(("Commit '%s' was created, "
+                            + "but does not contain expected file '%s'")
+                            % (new_commit, self.must_contain_file))
+                else:
+                    self.result = 'ok'
+            except Exception as e:
+                comment(e)
+                self.result = 'error_while_checking'
+
+        if self.obj and self.attr:
+            set_attr_or_key(self.obj, self.attr, self.result)
+
+        # Supress the exception if it turns out the commit was ok.
+        # This is specifically to handle the situation where, if Git tries to
+        # commit a file larger than it can fit in memory, the commit will
+        # report an error but still complete successfully.
+        return self.result=='ok'
+
+class CommitVerifierTests(unittest.TestCase):
+    class DummyObj: pass
+
+    def test_commit_ok(self):
+        repo = self.DummyObj()
+        result = self.DummyObj()
+        repo.get_last_commit_id = lambda: None
+
+        cv = CommitVerifier(repo, obj=result, attr='verify')
+        with cv:
+            pass
+        self.assertEqual(cv.result, 'assumed_ok')
+        self.assertEqual(result.verify, 'assumed_ok')
+
+    def test_commit_exception_no_new_commit(self):
+        repo = self.DummyObj()
+        result = self.DummyObj()
+        repo.get_last_commit_id = lambda: '12345'
+
+        cv = CommitVerifier(repo, obj=result, attr='verify')
+        try:
+            with cv:
+                raise Exception('dummy')
+        except:
+            pass
+        self.assertEqual(cv.result, 'failed')
+        self.assertEqual(result.verify, 'failed')
+
+    def test_commit_exception_new_commit_no_file_to_check(self):
+        repo = self.DummyObj()
+        result = self.DummyObj()
+        repo.get_last_commit_id = lambda: '12345'
+
+        cv = CommitVerifier(repo, obj=result, attr='verify')
+        with cv:
+            repo.get_last_commit_id = lambda: 'abcde'
+            raise Exception('dummy')
+        self.assertEqual(cv.result, 'ok')
+        self.assertEqual(result.verify, 'ok')
+
+    def test_commit_exception_new_commit_missing_file(self):
+        repo = self.DummyObj()
+        result = self.DummyObj()
+        repo.get_last_commit_id = lambda: '12345'
+
+        cv = CommitVerifier(repo, must_contain_file='f', obj=result, attr='verify')
+        try:
+            with cv:
+                repo.get_last_commit_id = lambda: 'abcde'
+                repo.is_file_in_commit = lambda c,f: False
+                raise Exception('dummy')
+        except:
+            pass
+        self.assertEqual(cv.result, 'failed')
+        self.assertEqual(result.verify, 'failed')
+
+    def test_commit_exception_new_commit_has_file(self):
+        repo = self.DummyObj()
+        result = self.DummyObj()
+        repo.get_last_commit_id = lambda: '12345'
+
+        cv = CommitVerifier(repo, must_contain_file='f', obj=result, attr='verify')
+        with cv:
+            repo.get_last_commit_id = lambda: 'abcde'
+            repo.is_file_in_commit = lambda c,f: True
+            raise Exception('dummy')
+        self.assertEqual(cv.result, 'ok')
+        self.assertEqual(result.verify, 'ok')
+
+
+class RepoVerifier(object):
+    def __init__(self, repo, obj=None, attr=None):
+        self.repo = repo
+        self.obj = obj
+        self.attr = attr
+        self.result = "unchecked"
+
+    def __enter__(self):
+        self.previous_commit = self.repo.get_last_commit_id()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if not exc_type:
+            self.result = 'assumed_ok'
+        else:
+            try:
+                integrity_verified = repo.check_repo_integrity()
+                if integrity_verified:
+                    self.result = 'ok'
+                else:
+                    self.result = 'failed'
+            except Exception as e:
+                comment(e)
+                self.result = 'error_while_checking'
+
+        if self.obj and self.attr:
+            set_attr_or_key(self.obj, self.attr, self.result)
+
+        # Supress the exception if it turns out the commit was ok.
+        # This is specifically to handle the situation where, if Git tries to
+        # commit a file larger than it can fit in memory, the commit will
+        # report an error but still complete successfully.
+        return self.result=='ok'
 
 
 if __name__ == '__main__':

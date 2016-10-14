@@ -111,17 +111,22 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
             trialutil.create_file(
                     repodir, "large_file", filebytes, data_gen=data_gen)
 
+        rv = trialutil.RepoVerifier(repo,
+                trialstats.commit1_succ, 'repo_integrity')
+        cv = trialutil.CommitVerifier(repo, "large_file",
+                trialstats.commit1_succ, 'expected_result')
+        sr = trialutil.StopWatchRecorder(trialstats, 'commit1_time')
         try:
-            with trialutil.StopWatchRecorder(trialstats, 'commit1_time'):
+            with rv, cv, sr:
                 repo.start_tracking_file("large_file")
                 repo.commit_file("large_file")
-            trialstats.commit1_succ.exit_ok()
+                raise trialutil.CallFailedError("dummy fail", 1)
+                trialstats.commit1_succ.exit_ok()
         except trialutil.CallFailedError as e:
             comment(e)
             trialstats.commit1_succ.exit_failed()
         trialstats.commit1_size = repo.check_total_size()
 
-        last_commit = check_commit(repo, last_commit, trialstats.commit1_succ)
         if not trialstats.commit1_succ.acceptable():
             return trialstats
 
@@ -147,12 +152,14 @@ def run_trial(vcsclass, filebytes, data_gen, tmpdir="/tmp"):
         except trialutil.CallFailedError as e:
             comment(e)
             trialstats.gc_succ.exit_failed()
+
         trialstats.gc_size = repo.check_total_size()
 
         check_gc(repo, trialstats.gc_succ)
 
     except Exception as e:
         comment(e)
+        raise
 
     finally:
         shutil.rmtree(repodir)
