@@ -53,19 +53,19 @@ class TrialStats:
             Column("filehsize", "%9s", sample=0),
             Column("create_time", "%11.3f", sample=0),
 
-            Column("c1_time", "%11.3f", sample=0),
+            Column("c1_time", "%8.3f", sample=0),
             Column("c1_size", "0x%010x", sample=0),
             Column("c1_cmd", "%s", max_w=cmdmax),
             Column("c1_ver", "%s", max_w=vermax),
             Column("c1_repo", "%s", max_w=vermax),
 
-            Column("c2_time", "%11.3f", sample=0),
+            Column("c2_time", "%8.3f", sample=0),
             Column("c2_size", "0x%010x", sample=0),
             Column("c2_cmd", "%s", max_w=cmdmax),
             Column("c2_ver", "%s", max_w=vermax),
             Column("c2_repo", "%s", max_w=vermax),
 
-            Column("gc_time", "%11.3f", sample=0),
+            Column("gc_time", "%8.3f", sample=0),
             Column("gc_size", "0x%010x", sample=0),
             Column("gc_cmd", "%s", max_w=cmdmax),
             Column("gc_repo", "%s", max_w=vermax),
