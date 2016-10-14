@@ -734,12 +734,6 @@ class RepoVerifier(object):
         if self.obj and self.attr:
             set_attr_or_key(self.obj, self.attr, self.result)
 
-        # Supress the exception if it turns out the commit was ok.
-        # This is specifically to handle the situation where, if Git tries to
-        # commit a file larger than it can fit in memory, the commit will
-        # report an error but still complete successfully.
-        return self.result=='verified'
-
 
 if __name__ == '__main__':
     unittest.main()
