@@ -628,7 +628,7 @@ class CommitVerifier(object):
             else:
                 self.result = 'verified'
         except Exception as e:
-            comment(e)
+            comment("Could not verify commit: " + repr(e))
             self.result = VerificationResults.value('ver_err')
 
         if self.obj and self.attr:
@@ -723,15 +723,28 @@ class CommitVerifierTests(unittest.TestCase):
         self.assertEqual(cv.result, 'verified')
         self.assertEqual(result.verify, 'verified')
 
-    def test_commit_exception_error_during_verification(self):
+    def test_commit_exception_error_during_commit_id_verification(self):
         repo = self.DummyObj()
         result = self.DummyObj()
         repo.get_last_commit_id = lambda: '12345'
 
-        cv = CommitVerifier(repo, obj=result, attr='verify')
+        cv = CommitVerifier(repo, must_contain_file='f', obj=result, attr='verify')
         with self.assertRaises(self.DummyException), cv:
-            repo.get_last_commit_id = 'abcde'
-            def raises(*args, **kwargs): raise Exception()
+            def raises(*args, **kwargs): raise Exception("Dummy error during verification")
+            repo.get_last_commit_id = raises
+            raise self.DummyException()
+        self.assertEqual(cv.result, 'ver_err')
+        self.assertEqual(result.verify, 'ver_err')
+
+    def test_commit_exception_error_during_is_file_verification(self):
+        repo = self.DummyObj()
+        result = self.DummyObj()
+        repo.get_last_commit_id = lambda: '12345'
+
+        cv = CommitVerifier(repo, must_contain_file='f', obj=result, attr='verify')
+        with self.assertRaises(self.DummyException), cv:
+            repo.get_last_commit_id = lambda: 'abcde'
+            def raises(*args, **kwargs): raise Exception("Dummy error during verification")
             repo.is_file_in_commit = raises
             raise self.DummyException()
         self.assertEqual(cv.result, 'ver_err')
@@ -760,7 +773,7 @@ class RepoVerifier(object):
                 else:
                     self.result = VerificationResults.value('bad')
             except Exception as e:
-                comment(e)
+                comment("Could not verify repo: " + repr(e))
                 self.result = VerificationResults.value('ver_err')
 
         if self.obj and self.attr:
@@ -824,7 +837,7 @@ class RepoVerifierTests(unittest.TestCase):
     def test_command_exception_repo_verification_fail(self):
         repo = self.DummyObj()
         repo.get_last_commit_id = lambda: 'asdf'
-        def raises(*args, **kwargs): raise Exception()
+        def raises(*args, **kwargs): raise Exception("Dummy error during verification")
         repo.check_repo_integrity = raises
         result = self.DummyObj()
 
