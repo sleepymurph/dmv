@@ -46,6 +46,7 @@ class TrialStats:
 
     cmdmax = CmdResults.max_width()
     vermax = VerificationResults.max_width()
+    cpupat = '%10d'
 
     columns = [
             Column("mag", "%3d", sample=0),
@@ -60,16 +61,34 @@ class TrialStats:
             Column("c1_ver", "%s", max_w=vermax),
             Column("c1_repo", "%s", max_w=vermax),
 
+            Column("c1_user", cpupat, sample=0),
+            Column("c1_nice", cpupat, sample=0),
+            Column("c1_system", cpupat, sample=0),
+            Column("c1_idle", cpupat, sample=0),
+            Column("c1_iowait", cpupat, sample=0),
+
             Column("c2_time", "%8.3f", sample=0),
             Column("c2_size", "0x%010x", sample=0),
             Column("c2_cmd", "%s", max_w=cmdmax),
             Column("c2_ver", "%s", max_w=vermax),
             Column("c2_repo", "%s", max_w=vermax),
 
+            Column("c2_user", cpupat, sample=0),
+            Column("c2_nice", cpupat, sample=0),
+            Column("c2_system", cpupat, sample=0),
+            Column("c2_idle", cpupat, sample=0),
+            Column("c2_iowait", cpupat, sample=0),
+
             Column("gc_time", "%8.3f", sample=0),
             Column("gc_size", "0x%010x", sample=0),
             Column("gc_cmd", "%s", max_w=cmdmax),
             Column("gc_repo", "%s", max_w=vermax),
+
+            Column("gc_user", cpupat, sample=0),
+            Column("gc_nice", cpupat, sample=0),
+            Column("gc_system", cpupat, sample=0),
+            Column("gc_idle", cpupat, sample=0),
+            Column("gc_iowait", cpupat, sample=0),
         ]
 
     def __init__(self, filebytes):
@@ -113,6 +132,8 @@ def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
                 RepoVerifier(repo, ts, 'c1_repo'), \
                 CommitVerifier(repo, "large_file", ts, 'c1_ver'), \
                 CmdResult(ts, 'c1_cmd'), \
+                CpuUsageMeasurer(ts, user='c1_user', nice='c1_nice',
+                        system='c1_system', idle='c1_idle', iowait='c1_iowait'), \
                 StopWatch(ts, 'c1_time'):
             repo.start_tracking_file("large_file")
             repo.commit_file("large_file")
@@ -124,6 +145,8 @@ def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
                 RepoVerifier(repo, ts, 'c2_repo'), \
                 CommitVerifier(repo, "large_file", ts, 'c2_ver'), \
                 CmdResult(ts, 'c2_cmd'), \
+                CpuUsageMeasurer(ts, user='c2_user', nice='c2_nice',
+                        system='c2_system', idle='c2_idle', iowait='c2_iowait'), \
                 StopWatch(ts, 'c2_time'):
             repo.commit_file("large_file")
         ts.c2_size = repo.check_total_size()
@@ -131,6 +154,8 @@ def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
         with \
                 RepoVerifier(repo, ts, 'gc_repo'), \
                 CmdResult(ts, 'gc_cmd'), \
+                CpuUsageMeasurer(ts, user='gc_user', nice='gc_nice',
+                        system='gc_system', idle='gc_idle', iowait='gc_iowait'), \
                 StopWatch(ts, 'gc_time'):
             repo.garbage_collect()
         ts.gc_size = repo.check_total_size()

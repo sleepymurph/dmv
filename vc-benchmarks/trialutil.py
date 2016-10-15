@@ -803,7 +803,6 @@ class RepoVerifier(object):
                         "Commit command failed. Commit written. Repo corrupt."
                         + " Original commit error: " + repr(exc_value.original_exc))
 
-
 class RepoVerifierTests(unittest.TestCase):
     class DummyObj: pass
     class DummyException(Exception): pass
@@ -880,6 +879,68 @@ class RepoVerifierTests(unittest.TestCase):
         self.assertEqual(rv.result, 'bad')
         self.assertEqual(result.verify, 'bad')
 
+class CpuUsageMeasurer(object):
+    statcols = ("user nice system idle iowait"
+                    + " irq softirq"
+                    + " steal guest guest_nice").split()
+    def __init__(self, obj=None, lst=None, dct=None, **kwargs):
+        self.obj = obj
+        self.assignlist = lst
+        self.assigndict = dct
+        self.assign = { key: kwargs[key]
+                        for key in set(self.statcols) & set(kwargs.keys()) }
+
+    def read_cpu_stats(self):
+        return subprocess.check_output(['grep','^cpu ','/proc/stat'])
+
+    def __enter__(self):
+        self.start_stats = self.read_cpu_stats()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.end_stats = self.read_cpu_stats()
+        self.start_stats = self.start_stats.split()
+        self.end_stats = self.end_stats.split()
+        self.statlist = [ int(self.end_stats[i])-int(self.start_stats[i])
+                            for i in range(1,len(self.end_stats)) ]
+        self.statdict = { self.statcols[i]: self.statlist[i]
+                            for i in range(0,len(self.statlist)) }
+
+        if self.obj:
+            for (stat,attr) in self.assign.iteritems():
+                set_attr_or_key(self.obj, attr, self.statdict[stat])
+
+            if self.assignlist:
+                set_attr_or_key(self.obj, self.assignlist, self.statlist)
+
+            if self.assigndict:
+                set_attr_or_key(self.obj, self.assigndict, self.statdict)
+
+class CpuUsageMeasurerTests(unittest.TestCase):
+    class DummyObj: pass
+
+    def test_simple_case(self):
+        cm = CpuUsageMeasurer()
+        with cm:
+            time.sleep(.1)
+        self.assertIsInstance(cm.statlist, list)
+        self.assertTrue(len(cm.statlist) >= 5)
+        self.assertIn('user', cm.statdict)
+        self.assertIn('iowait', cm.statdict)
+
+    def test_assign_fields(self):
+        obj = self.DummyObj()
+        with CpuUsageMeasurer(obj=obj, user="user1", iowait="iowait1"):
+            time.sleep(.1)
+        self.assertTrue(hasattr(obj, "user1"))
+        self.assertTrue(hasattr(obj, "iowait1"))
+
+    def test_assign_list(self):
+        obj = self.DummyObj()
+        with CpuUsageMeasurer(obj=obj, lst="cpustatslist", dct="cpustatsdict"):
+            time.sleep(.1)
+
+        self.assertIsInstance(obj.cpustatslist, list)
+        self.assertIsInstance(obj.cpustatsdict, dict)
 
 if __name__ == '__main__':
     unittest.main()
