@@ -596,8 +596,8 @@ class CmdResult(object):
         if self.obj and self.attr:
             set_attr_or_key(self.obj, self.attr, self.result)
 
-class CommitFailedButVerifiedException(Exception):
-    pass
+class CommitFailedButVerifiedException(Exception): pass
+class CommitFalsePositiveException(Exception): pass
 
 class CommitVerifier(object):
     def __init__(self, repo, must_contain_file = None, obj=None, attr=None):
@@ -611,24 +611,25 @@ class CommitVerifier(object):
         self.previous_commit = self.repo.get_last_commit_id()
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if not exc_type:
-            self.result = VerificationResults.value('assumed')
-        else:
-            try:
-                new_commit = self.repo.get_last_commit_id()
-                if new_commit == self.previous_commit:
-                    self.result = VerificationResults.value('bad')
-                elif self.must_contain_file and not self.repo.is_file_in_commit(
-                            new_commit, self.must_contain_file):
-                    self.result = VerificationResults.value('bad')
-                    comment(("Commit '%s' was created, "
-                            + "but does not contain expected file '%s'")
-                            % (new_commit, self.must_contain_file))
-                else:
-                    self.result = 'verified'
-            except Exception as e:
-                comment(e)
-                self.result = VerificationResults.value('ver_err')
+        reason = ''
+        try:
+            new_commit = self.repo.get_last_commit_id()
+            if new_commit == self.previous_commit:
+                self.result = VerificationResults.value('bad')
+                reason = (("No new commit recorded. "
+                            + "Latest commit id same as before: '%s'")
+                            % (new_commit))
+            elif self.must_contain_file and not self.repo.is_file_in_commit(
+                        new_commit, self.must_contain_file):
+                self.result = VerificationResults.value('bad')
+                reason = (("Commit '%s' was created, "
+                        + "but does not contain expected file '%s'")
+                        % (new_commit, self.must_contain_file))
+            else:
+                self.result = 'verified'
+        except Exception as e:
+            comment(e)
+            self.result = VerificationResults.value('ver_err')
 
         if self.obj and self.attr:
             set_attr_or_key(self.obj, self.attr, self.result)
@@ -641,8 +642,10 @@ class CommitVerifier(object):
         # This is specifically to handle the situation where, if Git tries to
         # commit a file larger than it can fit in memory, the commit will
         # report an error but still complete successfully.
-        if self.result == VerificationResults.value('verified'):
+        if exc_type and self.result == VerificationResults.value('verified'):
             raise CommitFailedButVerifiedException()
+        if not exc_type and self.result == VerificationResults.value('bad'):
+            raise CommitFalsePositiveException(reason)
 
 class CommitVerifierTests(unittest.TestCase):
     class DummyObj: pass
@@ -655,9 +658,21 @@ class CommitVerifierTests(unittest.TestCase):
 
         cv = CommitVerifier(repo, obj=result, attr='verify')
         with cv:
+            repo.get_last_commit_id = lambda: '12345'
             pass
-        self.assertEqual(cv.result, 'assumed')
-        self.assertEqual(result.verify, 'assumed')
+        self.assertEqual(cv.result, 'verified')
+        self.assertEqual(result.verify, 'verified')
+
+    def test_commit_false_positive(self):
+        repo = self.DummyObj()
+        result = self.DummyObj()
+        repo.get_last_commit_id = lambda: None
+
+        cv = CommitVerifier(repo, obj=result, attr='verify')
+        with self.assertRaises(CommitFalsePositiveException), cv:
+            pass
+        self.assertEqual(cv.result, 'bad')
+        self.assertEqual(result.verify, 'bad')
 
     def test_commit_exception_no_new_commit(self):
         repo = self.DummyObj()
@@ -809,7 +824,7 @@ class RepoVerifierTests(unittest.TestCase):
     def test_command_exception_repo_verification_fail(self):
         repo = self.DummyObj()
         repo.get_last_commit_id = lambda: 'asdf'
-        def raises(self): raise Exception()
+        def raises(*args, **kwargs): raise Exception()
         repo.check_repo_integrity = raises
         result = self.DummyObj()
 
