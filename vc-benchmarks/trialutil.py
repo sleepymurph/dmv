@@ -596,6 +596,9 @@ class CmdResult(object):
         if self.obj and self.attr:
             set_attr_or_key(self.obj, self.attr, self.result)
 
+class CommitFailedButVerifiedException(Exception):
+    pass
+
 class CommitVerifier(object):
     def __init__(self, repo, must_contain_file = None, obj=None, attr=None):
         self.repo = repo
@@ -622,23 +625,28 @@ class CommitVerifier(object):
                             + "but does not contain expected file '%s'")
                             % (new_commit, self.must_contain_file))
                 else:
-                    comment("Commit command gave an error but commit was created successfully")
                     self.result = 'verified'
             except Exception as e:
                 comment(e)
-                self.result = VerificationResults.value('error_while_checking')
+                self.result = VerificationResults.value('ver_err')
 
         if self.obj and self.attr:
             set_attr_or_key(self.obj, self.attr, self.result)
 
         # Supress the exception if it turns out the commit was ok.
+        #
+        # Instead, raise a CommitFailedButVerifiedException to notify the other
+        # code of this situation. (So repo can be checked, for example)
+        #
         # This is specifically to handle the situation where, if Git tries to
         # commit a file larger than it can fit in memory, the commit will
         # report an error but still complete successfully.
-        return self.result == VerificationResults.value('verified')
+        if self.result == VerificationResults.value('verified'):
+            raise CommitFailedButVerifiedException()
 
 class CommitVerifierTests(unittest.TestCase):
     class DummyObj: pass
+    class DummyException(Exception): pass
 
     def test_commit_ok(self):
         repo = self.DummyObj()
@@ -657,11 +665,8 @@ class CommitVerifierTests(unittest.TestCase):
         repo.get_last_commit_id = lambda: '12345'
 
         cv = CommitVerifier(repo, obj=result, attr='verify')
-        try:
-            with cv:
-                raise Exception('dummy')
-        except:
-            pass
+        with self.assertRaises(self.DummyException), cv:
+            raise self.DummyException()
         self.assertEqual(cv.result, 'bad')
         self.assertEqual(result.verify, 'bad')
 
@@ -671,9 +676,9 @@ class CommitVerifierTests(unittest.TestCase):
         repo.get_last_commit_id = lambda: '12345'
 
         cv = CommitVerifier(repo, obj=result, attr='verify')
-        with cv:
+        with self.assertRaises(CommitFailedButVerifiedException), cv:
             repo.get_last_commit_id = lambda: 'abcde'
-            raise Exception('dummy')
+            raise self.DummyException()
         self.assertEqual(cv.result, 'verified')
         self.assertEqual(result.verify, 'verified')
 
@@ -683,13 +688,10 @@ class CommitVerifierTests(unittest.TestCase):
         repo.get_last_commit_id = lambda: '12345'
 
         cv = CommitVerifier(repo, must_contain_file='f', obj=result, attr='verify')
-        try:
-            with cv:
-                repo.get_last_commit_id = lambda: 'abcde'
-                repo.is_file_in_commit = lambda c,f: False
-                raise Exception('dummy')
-        except:
-            pass
+        with self.assertRaises(self.DummyException), cv:
+            repo.get_last_commit_id = lambda: 'abcde'
+            repo.is_file_in_commit = lambda c,f: False
+            raise self.DummyException()
         self.assertEqual(cv.result, 'bad')
         self.assertEqual(result.verify, 'bad')
 
@@ -699,13 +701,28 @@ class CommitVerifierTests(unittest.TestCase):
         repo.get_last_commit_id = lambda: '12345'
 
         cv = CommitVerifier(repo, must_contain_file='f', obj=result, attr='verify')
-        with cv:
+        with self.assertRaises(CommitFailedButVerifiedException), cv:
             repo.get_last_commit_id = lambda: 'abcde'
             repo.is_file_in_commit = lambda c,f: True
-            raise Exception('dummy')
+            raise self.DummyException()
         self.assertEqual(cv.result, 'verified')
         self.assertEqual(result.verify, 'verified')
 
+    def test_commit_exception_error_during_verification(self):
+        repo = self.DummyObj()
+        result = self.DummyObj()
+        repo.get_last_commit_id = lambda: '12345'
+
+        cv = CommitVerifier(repo, obj=result, attr='verify')
+        with self.assertRaises(self.DummyException), cv:
+            repo.get_last_commit_id = 'abcde'
+            def raises(*args, **kwargs): raise Exception()
+            repo.is_file_in_commit = raises
+            raise self.DummyException()
+        self.assertEqual(cv.result, 'ver_err')
+        self.assertEqual(result.verify, 'ver_err')
+
+class CorruptRepoException(Exception): pass
 
 class RepoVerifier(object):
     def __init__(self, repo, obj=None, attr=None):
@@ -733,6 +750,98 @@ class RepoVerifier(object):
 
         if self.obj and self.attr:
             set_attr_or_key(self.obj, self.attr, self.result)
+
+        if exc_type == CommitFailedButVerifiedException:
+            # If the commit failed, but was then verified, and the repo was
+            # also verified, then suppress the exception so the trial can
+            # continue.
+            if self.result == VerificationResults.value('verified'):
+                comment("Commit command gave an error but commit was created successfully and repo integrity is verified")
+                return True
+            # If the commit failed, but was then verified, and now the repo is
+            # corrupt, then raise a new exception to notify the calling code of
+            # the situation.
+            elif self.result == VerificationResults.value('bad'):
+                raise CorruptRepoException(
+                        "Commit command failed, but commit was written. "
+                        + "However, repository is corrupt.")
+
+
+class RepoVerifierTests(unittest.TestCase):
+    class DummyObj: pass
+    class DummyException(Exception): pass
+
+    def test_command_ok(self):
+        repo = self.DummyObj()
+        repo.get_last_commit_id = lambda: 'asdf'
+        result = self.DummyObj()
+
+        rv = RepoVerifier(repo, obj=result, attr='verify')
+        with rv:
+            pass
+        self.assertEqual(rv.result, 'assumed')
+        self.assertEqual(result.verify, 'assumed')
+
+    def test_command_exception_repo_ok(self):
+        repo = self.DummyObj()
+        repo.get_last_commit_id = lambda: 'asdf'
+        repo.check_repo_integrity = lambda: True
+        result = self.DummyObj()
+
+        rv = RepoVerifier(repo, obj=result, attr='verify')
+        with self.assertRaises(self.DummyException), rv:
+            raise self.DummyException()
+        self.assertEqual(rv.result, 'verified')
+        self.assertEqual(result.verify, 'verified')
+
+    def test_command_exception_repo_bad(self):
+        repo = self.DummyObj()
+        repo.get_last_commit_id = lambda: 'asdf'
+        repo.check_repo_integrity = lambda: False
+        result = self.DummyObj()
+
+        rv = RepoVerifier(repo, obj=result, attr='verify')
+        with self.assertRaises(self.DummyException), rv:
+            raise self.DummyException()
+        self.assertEqual(rv.result, 'bad')
+        self.assertEqual(result.verify, 'bad')
+
+    def test_command_exception_repo_verification_fail(self):
+        repo = self.DummyObj()
+        repo.get_last_commit_id = lambda: 'asdf'
+        def raises(self): raise Exception()
+        repo.check_repo_integrity = raises
+        result = self.DummyObj()
+
+        rv = RepoVerifier(repo, obj=result, attr='verify')
+        with self.assertRaises(self.DummyException), rv:
+            raise self.DummyException()
+        self.assertEqual(rv.result, 'ver_err')
+        self.assertEqual(result.verify, 'ver_err')
+
+    def test_commit_failed_but_verified_repo_ok(self):
+        repo = self.DummyObj()
+        repo.get_last_commit_id = lambda: 'asdf'
+        repo.check_repo_integrity = lambda: True
+        result = self.DummyObj()
+
+        rv = RepoVerifier(repo, obj=result, attr='verify')
+        with rv:
+            raise CommitFailedButVerifiedException()
+        self.assertEqual(rv.result, 'verified')
+        self.assertEqual(result.verify, 'verified')
+
+    def test_commit_failed_but_verified_repo_bad(self):
+        repo = self.DummyObj()
+        repo.get_last_commit_id = lambda: 'asdf'
+        repo.check_repo_integrity = lambda: False
+        result = self.DummyObj()
+
+        rv = RepoVerifier(repo, obj=result, attr='verify')
+        with self.assertRaises(CorruptRepoException), rv:
+            raise CommitFailedButVerifiedException()
+        self.assertEqual(rv.result, 'bad')
+        self.assertEqual(result.verify, 'bad')
 
 
 if __name__ == '__main__':

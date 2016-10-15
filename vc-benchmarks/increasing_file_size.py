@@ -183,6 +183,6 @@ if __name__ == "__main__":
                 comment("Cancelled")
                 raise
             except Exception as e:
-                comment(e)
+                comment(repr(e))
             finally:
                 printrow(TrialStats.columns, result)
