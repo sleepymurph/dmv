@@ -205,10 +205,14 @@ class BupRepo(AbstractRepo):
 
     def is_file_in_commit(self, commit_id, filename):
         try:
-            # NOTE: This will only find files in the top level of the tree
-            # TODO: Switch to git ls-files?
+            # We're using `git ls-tree` here because `bup ls` does not take
+            # commit ids, only paths like <backup_name>/<date>/<rest_of_path>.
+            # However, by using a Git util we're going to see Git's view of the
+            # data, where Bup has split files into chunks named
+            # <file_name>.bup/<hex_chunk_ids>. So we have to account for that
+            # in the grep regex.
             output = self.check_output(
-                                "git ls-tree -r %s | grep '/%s$'"
+                                "git ls-tree -r %s | grep -E '/%s(\.bup/[0-9a-f/]+)?$'"
                                 % (commit_id, filename)).strip()
             return bool(output)
         except subprocess.CalledProcessError:
@@ -267,6 +271,20 @@ class AbstractRepoTests(object):
         repo = self.repo_class(self.tempdir)
         repo.init_repo()
         trialutil.create_file(self.tempdir, "test_file", 10)
+        repo.start_tracking_file("test_file")
+        repo.commit_file("test_file")
+
+        commitid = repo.get_last_commit_id()
+
+        self.assertNotEqual(commitid, None)
+        self.assertTrue(repo.is_file_in_commit(commitid, "test_file"))
+        self.assertFalse(repo.is_file_in_commit(commitid, "test_fil"))
+        self.assertFalse(repo.is_file_in_commit(commitid, "est_file"))
+
+    def test_commit_large_file(self):
+        repo = self.repo_class(self.tempdir)
+        repo.init_repo()
+        trialutil.create_file(self.tempdir, "test_file", 128 * 2**10)
         repo.start_tracking_file("test_file")
         repo.commit_file("test_file")
 
