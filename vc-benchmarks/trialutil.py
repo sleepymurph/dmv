@@ -637,7 +637,7 @@ class CommitVerifier(object):
         if self.obj and self.attr:
             set_attr_or_key(self.obj, self.attr, self.result)
 
-        # Supress the exception if it turns out the commit was ok.
+        # Suppress the exception if it turns out the commit was ok.
         #
         # Instead, raise a CommitFailedButVerifiedException to notify the other
         # code of this situation. (So repo can be checked, for example)
