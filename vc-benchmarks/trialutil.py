@@ -244,6 +244,10 @@ class CallFailedError(RuntimeError):
     def __str__(self):
         return "Command failed (exit code %s): %s" % (self.exitcode, self.cmd)
 
+    def __repr__(self):
+        return ("%s(cmd='%s', exitcode='%s')"
+                % (self.__class__.__name__, self.cmd, self.exitcode))
+
 def logcall(cmd, cwd=None, shell=False, env=None):
     """ Prints and calls the shell command, redirecting all output to stderr """
 
