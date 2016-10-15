@@ -100,20 +100,20 @@ class TrialStats:
 
         self.c1_time = None
         self.c1_size = None
-        self.c1_cmd = 'not_executed'
-        self.c1_ver = 'not_verified'
-        self.c1_repo = 'not_verified'
+        self.c1_cmd = CmdResults.value('no_exec')
+        self.c1_ver = VerificationResults.value('no_ver')
+        self.c1_repo = VerificationResults.value('no_ver')
 
         self.c2_time = None
         self.c2_size = None
-        self.c2_cmd = 'not_executed'
-        self.c2_ver = 'not_verified'
-        self.c2_repo = 'not_verified'
+        self.c2_cmd = CmdResults.value('no_exec')
+        self.c2_ver = VerificationResults.value('no_ver')
+        self.c2_repo = VerificationResults.value('no_ver')
 
         self.gc_time = None
         self.gc_size = None
-        self.gc_cmd = 'not_executed'
-        self.gc_repo = 'not_verified'
+        self.gc_cmd = CmdResults.value('no_exec')
+        self.gc_repo = VerificationResults.value('no_ver')
 
 
 def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
