@@ -596,7 +596,10 @@ class CmdResult(object):
         if self.obj and self.attr:
             set_attr_or_key(self.obj, self.attr, self.result)
 
-class CommitFailedButVerifiedException(Exception): pass
+class CommitFailedButVerifiedException(Exception):
+    def __init__(self, original_exc):
+        self.original_exc = original_exc
+
 class CommitFalsePositiveException(Exception): pass
 
 class CommitVerifier(object):
@@ -643,7 +646,7 @@ class CommitVerifier(object):
         # commit a file larger than it can fit in memory, the commit will
         # report an error but still complete successfully.
         if exc_type and self.result == VerificationResults.value('verified'):
-            raise CommitFailedButVerifiedException()
+            raise CommitFailedButVerifiedException(exc_value)
         if not exc_type and self.result == VerificationResults.value('bad'):
             raise CommitFalsePositiveException(reason)
 
@@ -784,15 +787,17 @@ class RepoVerifier(object):
             # also verified, then suppress the exception so the trial can
             # continue.
             if self.result == VerificationResults.value('verified'):
-                comment("Commit command gave an error but commit was created successfully and repo integrity is verified")
+                comment(
+                        "Commit error, however commit seems ok and repo intact."
+                        + " Original Error: " + repr(exc_value.original_exc))
                 return True
             # If the commit failed, but was then verified, and now the repo is
             # corrupt, then raise a new exception to notify the calling code of
             # the situation.
             elif self.result == VerificationResults.value('bad'):
                 raise CorruptRepoException(
-                        "Commit command failed, but commit was written. "
-                        + "However, repository is corrupt.")
+                        "Commit command failed. Commit written. Repo corrupt."
+                        + " Original commit error: " + repr(exc_value.original_exc))
 
 
 class RepoVerifierTests(unittest.TestCase):
@@ -855,7 +860,7 @@ class RepoVerifierTests(unittest.TestCase):
 
         rv = RepoVerifier(repo, obj=result, attr='verify')
         with rv:
-            raise CommitFailedButVerifiedException()
+            raise CommitFailedButVerifiedException(self.DummyException())
         self.assertEqual(rv.result, 'verified')
         self.assertEqual(result.verify, 'verified')
 
@@ -867,7 +872,7 @@ class RepoVerifierTests(unittest.TestCase):
 
         rv = RepoVerifier(repo, obj=result, attr='verify')
         with self.assertRaises(CorruptRepoException), rv:
-            raise CommitFailedButVerifiedException()
+            raise CommitFailedButVerifiedException(self.DummyException())
         self.assertEqual(rv.result, 'bad')
         self.assertEqual(result.verify, 'bad')
 
