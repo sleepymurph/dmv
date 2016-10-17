@@ -103,17 +103,32 @@ class TrialStats:
         self.c1_cmd = CmdResults.value('no_exec')
         self.c1_ver = VerificationResults.value('no_ver')
         self.c1_repo = VerificationResults.value('no_ver')
+        self.c1_user = None
+        self.c1_nice = None
+        self.c1_system = None
+        self.c1_idle = None
+        self.c1_iowait = None
 
         self.c2_time = None
         self.c2_size = None
         self.c2_cmd = CmdResults.value('no_exec')
         self.c2_ver = VerificationResults.value('no_ver')
         self.c2_repo = VerificationResults.value('no_ver')
+        self.c2_user = None
+        self.c2_nice = None
+        self.c2_system = None
+        self.c2_idle = None
+        self.c2_iowait = None
 
         self.gc_time = None
         self.gc_size = None
         self.gc_cmd = CmdResults.value('no_exec')
         self.gc_repo = VerificationResults.value('no_ver')
+        self.gc_user = None
+        self.gc_nice = None
+        self.gc_system = None
+        self.gc_idle = None
+        self.gc_iowait = None
 
 
 def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
