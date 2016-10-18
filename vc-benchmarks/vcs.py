@@ -21,6 +21,60 @@ class AbstractRepo(object):
     def check_output(self, cmd):
         return subprocess.check_output( cmd, cwd=self.workdir, shell=True)
 
+    def check_total_size(self):
+        du_out = self.check_output("du -s --block-size=1 .")
+        bytecount = du_out.strip().split()[0]
+        return int(bytecount)
+
+
+class SimpleCopyRepo(AbstractRepo):
+
+    @staticmethod
+    def check_version():
+        return "Dummy copy repo -- version 1"
+
+    def __init__(self, workdir):
+        super(SimpleCopyRepo, self).__init__(workdir)
+
+    def init_repo(self):
+        self.run_cmd("mkdir .backup")
+
+    def start_tracking_file(self, filename):
+        pass
+
+    def commit_file(self, filename):
+        commit_id = self.get_last_commit_id()
+        self.run_cmd("cp -r %s .backup/" % filename)
+        if not commit_id:
+            commit_id = 1
+        else:
+            commit_id = int(commit_id)+1
+        with open(os.path.join(self.workdir,".backup/_commit_id"), "w") as f:
+            f.write(str(commit_id))
+
+    def check_status(self, filename):
+        log("Status check not implemented for dummy repo.")
+
+    def garbage_collect(self):
+        log("Dummy repo has no garbage collection.")
+
+    def get_last_commit_id(self):
+        try:
+            with open(os.path.join(self.workdir,".backup/_commit_id")) as f:
+                commit_id = f.read()
+            return commit_id
+        except IOError:
+            return None
+
+    def is_file_in_commit(self, commit_id, filename):
+        return os.path.exists(os.path.join(self.workdir, filename))
+
+    def check_repo_integrity(self):
+        return not os.path.exists(os.path.join(self.workdir, ".backup/_assume_repo_corrupt"))
+
+    def corrupt_repo(self):
+        self.run_cmd("touch .backup/_assume_repo_corrupt")
+
 
 class GitRepo(AbstractRepo):
 
@@ -233,6 +287,7 @@ class BupRepo(AbstractRepo):
 
 
 vcschoices = {
+            'copy': SimpleCopyRepo,
             'git': GitRepo,
             'hg': HgRepo,
             'bup': BupRepo,
@@ -308,6 +363,10 @@ class AbstractRepoTests(object):
         self.assertFalse(repo.check_repo_integrity())
 
 
+class SimpleCopyRepoTests(AbstractRepoTests, unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(SimpleCopyRepoTests,self).__init__(*args, **kwargs)
+        self.repo_class = SimpleCopyRepo
 
 class GitTests(AbstractRepoTests, unittest.TestCase):
     def __init__(self, *args, **kwargs):
