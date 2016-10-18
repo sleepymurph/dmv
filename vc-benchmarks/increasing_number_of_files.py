@@ -78,9 +78,13 @@ class TrialStats:
             Column("cleanup_time", "%11.3f", sample=0),
         ]
 
-    def __init__(self, **args):
-        self.filecount = 0
-        self.eachbytes = 0
+    def __init__(self, filecount, eachbytes, **args):
+        self.filecount = filecount
+        self.eachbytes = eachbytes
+
+        self.magnitude = math.log10(self.filecount)
+        self.totalbytes = self.filecount * self.eachbytes
+
         self.create_time = 0
 
         self.c1_time = 0
@@ -102,15 +106,8 @@ class TrialStats:
 
         self.cleanup_time = 0
 
-    def calculate_columns(self):
-        self.magnitude = math.log10(self.filecount)
-        self.totalbytes = self.filecount * self.eachbytes
 
-
-def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
-    ts = TrialStats()
-    ts.filecount = numfiles
-    ts.eachbytes = filebytes
+def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
 
     try:
         repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
@@ -120,7 +117,7 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         with \
                 StopWatch(ts, "create_time"):
             create_many_files(
-                    repodir, numfiles, filebytes,
+                    repodir, ts.filecount, ts.eachbytes,
                     prefix="many_files_dir", data_gen=data_gen)
 
         with \
@@ -152,17 +149,11 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
             repo.commit_file("many_files_dir")
         ts.c2_size = repo.check_total_size()
 
-    except Exception as e:
-        log(repr(e))
-
     finally:
         log("Cleaning up trial files...")
         with StopWatch(ts, 'cleanup_time'):
             shutil.rmtree(repodir)
         log("Removed trial files in %5.3f seconds" % ts.cleanup_time)
-
-        ts.calculate_columns()
-        return ts
 
 
 if __name__ == "__main__":
@@ -191,16 +182,21 @@ if __name__ == "__main__":
     comment()
     printheader(TrialStats.columns)
 
-    try:
-        for magnitude in range(args.start_mag, args.end_mag):
-            for step in range(0, args.mag_steps):
-                numperstep = 10**magnitude / args.mag_steps
-                filecount = 10**magnitude + step*numperstep
-                result = run_trial(
-                        vcsclass, filecount, eachfilebytes,
+    for magnitude in range(args.start_mag, args.end_mag):
+        for step in range(0, args.mag_steps):
+            numperstep = 10**magnitude / args.mag_steps
+            filecount = 10**magnitude + step*numperstep
+            result = TrialStats(filecount, eachfilebytes)
+            try:
+                run_trial(
+                        result,
+                        vcsclass,
                         data_gen=args.data_gen,
                         tmpdir=tmpdir)
+            except KeyboardInterrupt:
+                comment("Cancelled")
+                raise
+            except Exception as e:
+                comment(repr(e))
+            finally:
                 printrow(TrialStats.columns, result)
-
-    except KeyboardInterrupt:
-        comment("Cancelled")
