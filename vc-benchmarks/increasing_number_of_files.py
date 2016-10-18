@@ -99,10 +99,10 @@ class TrialStats:
         self.mag = math.log10(self.filecount)
         self.totalbytes = self.filecount * self.eachbytes
 
-        self.cre_time = 0
+        self.cre_time = None
 
-        self.c1_time = 0
-        self.c1_size = 0
+        self.c1_time = None
+        self.c1_size = None
         self.c1_cmd = CmdResults.value('no_exec')
         self.c1_ver = VerificationResults.value('no_ver')
         self.c1_repo = VerificationResults.value('no_ver')
@@ -113,13 +113,13 @@ class TrialStats:
         self.c1_idle = None
         self.c1_iowait = None
 
-        self.stat1_time = 0
+        self.stat1_time = None
         self.stat1_cmd = CmdResults.value('no_exec')
-        self.stat2_time = 0
+        self.stat2_time = None
         self.stat2_cmd = CmdResults.value('no_exec')
 
-        self.c2_time = 0
-        self.c2_size = 0
+        self.c2_time = None
+        self.c2_size = None
         self.c2_cmd = CmdResults.value('no_exec')
         self.c2_ver = VerificationResults.value('no_ver')
         self.c2_repo = VerificationResults.value('no_ver')
@@ -130,7 +130,7 @@ class TrialStats:
         self.c2_idle = None
         self.c2_iowait = None
 
-        self.cleanup_time = 0
+        self.cleanup_time = None
 
 
 def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
