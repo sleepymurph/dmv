@@ -11,8 +11,7 @@ import trialenv
 import trialutil
 import vcs
 
-from trialutil import hsize, hsize10, comment, log, align_kvs, \
-        printheader, printrow
+from trialutil import *
 
 def parse_args():
     parser = argparse.ArgumentParser(description=
@@ -51,18 +50,18 @@ def parse_args():
 class TrialStats:
 
     columns = [
-            trialutil.Column("magnitude", "%9d", sample=0),
-            trialutil.Column("filecount", "%12d", sample=0),
-            trialutil.Column("totalbytes", "0x%010x", sample=0),
-            trialutil.Column("create_time", "%11.3f", sample=0),
-            trialutil.Column("c1_time", "%11.3f", sample=0),
-            trialutil.Column("c1_size", "0x%010x", sample=0),
-            trialutil.Column("stat1_time", "%11.3f", sample=0),
-            trialutil.Column("stat2_time", "%11.3f", sample=0),
-            trialutil.Column("c2_time", "%11.3f", sample=0),
-            trialutil.Column("c2_size", "0x%010x", sample=0),
-            trialutil.Column("cleanup_time", "%11.3f", sample=0),
-            trialutil.Column("errors", "%6s", sample=False),
+            Column("magnitude", "%9d", sample=0),
+            Column("filecount", "%12d", sample=0),
+            Column("totalbytes", "0x%010x", sample=0),
+            Column("create_time", "%11.3f", sample=0),
+            Column("c1_time", "%11.3f", sample=0),
+            Column("c1_size", "0x%010x", sample=0),
+            Column("stat1_time", "%11.3f", sample=0),
+            Column("stat2_time", "%11.3f", sample=0),
+            Column("c2_time", "%11.3f", sample=0),
+            Column("c2_size", "0x%010x", sample=0),
+            Column("cleanup_time", "%11.3f", sample=0),
+            Column("errors", "%6s", sample=False),
         ]
 
     def __init__(self, **args):
@@ -88,14 +87,14 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
     trialstats.filecount = numfiles
     trialstats.eachbytes = filebytes
 
-    stopwatch = trialutil.StopWatch()
+    stopwatch = StopWatch()
     try:
         repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
         repo = vcsclass(repodir)
         repo.init_repo()
 
         stopwatch.start()
-        trialutil.create_many_files(
+        create_many_files(
                 repodir, numfiles, filebytes,
                 prefix="many_files_dir", data_gen=data_gen)
         trialstats.create_time = stopwatch.stop()
@@ -104,7 +103,7 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         try:
             repo.start_tracking_file("many_files_dir")
             repo.commit_file("many_files_dir")
-        except trialutil.CallFailedError as e:
+        except CallFailedError as e:
             log(e)
             trialstats.errors = True
         trialstats.c1_time = stopwatch.stop()
@@ -113,17 +112,17 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         stopwatch.start()
         try:
             repo.check_status("many_files_dir")
-        except trialutil.CallFailedError as e:
+        except CallFailedError as e:
             log(e)
             trialstats.errors = True
         trialstats.stat1_time = stopwatch.stop()
 
-        trialutil.update_many_files(repodir, "many_files_dir", every_nth_file=16)
+        update_many_files(repodir, "many_files_dir", every_nth_file=16)
 
         stopwatch.start()
         try:
             repo.check_status("many_files_dir")
-        except trialutil.CallFailedError as e:
+        except CallFailedError as e:
             log(e)
             errors = True
         trialstats.stat2_time = stopwatch.stop()
@@ -131,7 +130,7 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         stopwatch.start()
         try:
             repo.commit_file("many_files_dir")
-        except trialutil.CallFailedError as e:
+        except CallFailedError as e:
             log(e)
             trialstats.errors = True
         trialstats.c2_time = stopwatch.stop()
@@ -142,11 +141,11 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         raise e
 
     finally:
-        trialutil.log("Cleaning up trial files...")
+        log("Cleaning up trial files...")
         stopwatch.start()
         shutil.rmtree(repodir)
         trialstats.cleanup_time = stopwatch.stop()
-        trialutil.log("Removed trial files in %5.3f seconds"
+        log("Removed trial files in %5.3f seconds"
                 % trialstats.cleanup_time)
 
         trialstats.calculate_columns()
