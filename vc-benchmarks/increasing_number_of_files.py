@@ -87,53 +87,47 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
     ts.filecount = numfiles
     ts.eachbytes = filebytes
 
-    stopwatch = StopWatch()
     try:
         repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
         repo = vcsclass(repodir)
         repo.init_repo()
 
-        stopwatch.start()
-        create_many_files(
-                repodir, numfiles, filebytes,
-                prefix="many_files_dir", data_gen=data_gen)
-        ts.create_time = stopwatch.stop()
+        with StopWatch(ts, "create_time"):
+            create_many_files(
+                    repodir, numfiles, filebytes,
+                    prefix="many_files_dir", data_gen=data_gen)
 
-        stopwatch.start()
         try:
-            repo.start_tracking_file("many_files_dir")
-            repo.commit_file("many_files_dir")
+            with StopWatch(ts, "c1_time"):
+                repo.start_tracking_file("many_files_dir")
+                repo.commit_file("many_files_dir")
         except CallFailedError as e:
             log(e)
             ts.errors = True
-        ts.c1_time = stopwatch.stop()
         ts.c1_size = repo.check_total_size()
 
-        stopwatch.start()
         try:
-            repo.check_status("many_files_dir")
+            with StopWatch(ts, 'stat1_time'):
+                repo.check_status("many_files_dir")
         except CallFailedError as e:
             log(e)
             ts.errors = True
-        ts.stat1_time = stopwatch.stop()
 
         update_many_files(repodir, "many_files_dir", every_nth_file=16)
 
-        stopwatch.start()
         try:
-            repo.check_status("many_files_dir")
+            with StopWatch(ts, 'stat2_time'):
+                repo.check_status("many_files_dir")
         except CallFailedError as e:
             log(e)
             errors = True
-        ts.stat2_time = stopwatch.stop()
 
-        stopwatch.start()
         try:
-            repo.commit_file("many_files_dir")
+            with StopWatch(ts, 'c2_time'):
+                repo.commit_file("many_files_dir")
         except CallFailedError as e:
             log(e)
             ts.errors = True
-        ts.c2_time = stopwatch.stop()
         ts.c2_size = repo.check_total_size()
 
     except Exception as e:
@@ -142,11 +136,9 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
 
     finally:
         log("Cleaning up trial files...")
-        stopwatch.start()
-        shutil.rmtree(repodir)
-        ts.cleanup_time = stopwatch.stop()
-        log("Removed trial files in %5.3f seconds"
-                % ts.cleanup_time)
+        with StopWatch(ts, 'cleanup_time'):
+            shutil.rmtree(repodir)
+        log("Removed trial files in %5.3f seconds" % ts.cleanup_time)
 
         ts.calculate_columns()
         return ts
