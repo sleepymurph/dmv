@@ -85,12 +85,6 @@ class GitRepo(AbstractRepo):
     def __init__(self, workdir):
         super(GitRepo, self).__init__(workdir)
 
-    def run_cmd(self, cmd):
-        logcall(cmd, cwd=self.workdir, shell=True)
-
-    def check_output(self, cmd):
-        return subprocess.check_output( cmd, cwd=self.workdir, shell=True)
-
     def init_repo(self):
         self.run_cmd("git init")
 
@@ -108,11 +102,6 @@ class GitRepo(AbstractRepo):
     def garbage_collect(self):
         self.run_cmd("git gc")
         log("GC finished")
-
-    def check_total_size(self):
-        du_out = self.check_output("du -s --block-size=1 .")
-        bytecount = du_out.strip().split()[0]
-        return int(bytecount)
 
     def get_last_commit_id(self):
         try:
@@ -171,11 +160,6 @@ class HgRepo(AbstractRepo):
 
     def garbage_collect(self):
         log("HG has no garbage collection")
-
-    def check_total_size(self):
-        du_out = self.check_output("du -s --block-size=1 .")
-        bytecount = du_out.strip().split()[0]
-        return int(bytecount)
 
     def get_last_commit_id(self):
         revid = self.check_output("hg id -i").strip()
@@ -245,11 +229,6 @@ class BupRepo(AbstractRepo):
 
     def garbage_collect(self):
         log("Bup has no garbage collection")
-
-    def check_total_size(self):
-        du_out = self.check_output("du -s --block-size=1 .")
-        bytecount = du_out.strip().split()[0]
-        return int(bytecount)
 
     def get_last_commit_id(self):
         try:
