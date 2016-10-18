@@ -180,6 +180,12 @@ if __name__ == "__main__":
     comment()
     comment(align_kvs(env))
     comment()
+    comment("Command results:")
+    comment(align_kvs(CmdResults.descs))
+    comment()
+    comment("Verification results:")
+    comment(align_kvs(VerificationResults.descs))
+    comment()
     printheader(TrialStats.columns)
 
     for magnitude in range(args.start_mag, args.end_mag):
