@@ -42,6 +42,16 @@ def digitlength(num):
     else:
         return int(math.log10(num)) + 1
 
+def base10trials(start_mag, end_mag, mag_steps=1):
+    trials = []
+    for mag in range(start_mag, end_mag):
+        trials.append(10**mag)
+        for step in range(1, mag_steps):
+            trial = 10**(mag+1) / mag_steps * step
+            if trial != 10**mag:
+                trials.append(trial)
+    return trials
+
 class TestLog2Functions(unittest.TestCase):
 
     def test_log2(self):
@@ -70,6 +80,18 @@ class TestLog10Functions(unittest.TestCase):
         self.assertEqual(digitlength(1000), 4)
         self.assertEqual(digitlength(1001), 4)
         self.assertEqual(digitlength(9999), 4)
+
+    def test_base10trials(self):
+        self.assertEqual(list(base10trials(0,2)), [1, 10])
+        self.assertEqual(list(base10trials(0,3)), [1, 10, 100])
+        self.assertEqual(list(base10trials(0,4)), [1, 10, 100, 1000])
+
+        self.assertEqual(list(base10trials(0,2, mag_steps=2)), [1, 5, 10, 50])
+        self.assertEqual(list(base10trials(1,3, mag_steps=4)),
+                [10, 25, 50, 75, 100, 250, 500, 750])
+
+        self.assertEqual(list(base10trials(0,2, mag_steps=10)),
+                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90])
 
 # --------------------------------------------------------------------------
 # Misc Utility Functions

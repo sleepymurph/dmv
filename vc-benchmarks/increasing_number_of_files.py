@@ -225,22 +225,19 @@ if __name__ == "__main__":
     comment()
     printheader(TrialStats.columns)
 
-    for mag in range(args.start_mag, args.end_mag):
-        for step in range(0, args.mag_steps):
-            numperstep = 10**mag / args.mag_steps
-            filecount = 10**mag + step*numperstep
-            result = TrialStats(filecount, eachfilebytes)
-            try:
-                run_trial(
-                        result,
-                        vcsclass,
-                        data_gen=args.data_gen,
-                        tmpdir=tmpdir,
-                        reformat_partition=args.reformat_partition)
-            except KeyboardInterrupt:
-                comment("Cancelled")
-                raise
-            except Exception as e:
-                comment(repr(e))
-            finally:
-                printrow(TrialStats.columns, result)
+    for filecount in base10trials(args.start_mag, args.end_mag, args.mag_steps):
+        result = TrialStats(filecount, eachfilebytes)
+        try:
+            run_trial(
+                    result,
+                    vcsclass,
+                    data_gen=args.data_gen,
+                    tmpdir=tmpdir,
+                    reformat_partition=args.reformat_partition)
+        except KeyboardInterrupt:
+            comment("Cancelled")
+            raise
+        except Exception as e:
+            comment(repr(e))
+        finally:
+            printrow(TrialStats.columns, result)
