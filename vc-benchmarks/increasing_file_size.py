@@ -104,6 +104,7 @@ class TrialStats:
         self.c1_cmd = CmdResults.value('no_exec')
         self.c1_ver = VerificationResults.value('no_ver')
         self.c1_repo = VerificationResults.value('no_ver')
+
         self.c1_user = None
         self.c1_nice = None
         self.c1_system = None
@@ -115,6 +116,7 @@ class TrialStats:
         self.c2_cmd = CmdResults.value('no_exec')
         self.c2_ver = VerificationResults.value('no_ver')
         self.c2_repo = VerificationResults.value('no_ver')
+
         self.c2_user = None
         self.c2_nice = None
         self.c2_system = None

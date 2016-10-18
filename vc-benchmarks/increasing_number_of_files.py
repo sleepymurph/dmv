@@ -51,6 +51,7 @@ class TrialStats:
 
     cmdmax = CmdResults.max_width()
     vermax = VerificationResults.max_width()
+    cpupat = '%10d'
     timepat = '%8.3f'
 
     columns = [
@@ -65,6 +66,12 @@ class TrialStats:
             Column("c1_ver", "%s", max_w=vermax),
             Column("c1_repo", "%s", max_w=vermax),
 
+            Column("c1_user", cpupat, sample=0),
+            Column("c1_nice", cpupat, sample=0),
+            Column("c1_system", cpupat, sample=0),
+            Column("c1_idle", cpupat, sample=0),
+            Column("c1_iowait", cpupat, sample=0),
+
             Column("stat1_time", timepat, sample=0),
             Column("stat1_cmd", "%s", max_w=cmdmax),
             Column("stat2_time", timepat, sample=0),
@@ -75,6 +82,12 @@ class TrialStats:
             Column("c2_cmd", "%s", max_w=cmdmax),
             Column("c2_ver", "%s", max_w=vermax),
             Column("c2_repo", "%s", max_w=vermax),
+
+            Column("c2_user", cpupat, sample=0),
+            Column("c2_nice", cpupat, sample=0),
+            Column("c2_system", cpupat, sample=0),
+            Column("c2_idle", cpupat, sample=0),
+            Column("c2_iowait", cpupat, sample=0),
 
             Column("cleanup_time", timepat, sample=0),
         ]
@@ -94,6 +107,12 @@ class TrialStats:
         self.c1_ver = VerificationResults.value('no_ver')
         self.c1_repo = VerificationResults.value('no_ver')
 
+        self.c1_user = None
+        self.c1_nice = None
+        self.c1_system = None
+        self.c1_idle = None
+        self.c1_iowait = None
+
         self.stat1_time = 0
         self.stat1_cmd = CmdResults.value('no_exec')
         self.stat2_time = 0
@@ -104,6 +123,12 @@ class TrialStats:
         self.c2_cmd = CmdResults.value('no_exec')
         self.c2_ver = VerificationResults.value('no_ver')
         self.c2_repo = VerificationResults.value('no_ver')
+
+        self.c2_user = None
+        self.c2_nice = None
+        self.c2_system = None
+        self.c2_idle = None
+        self.c2_iowait = None
 
         self.cleanup_time = 0
 
@@ -125,6 +150,8 @@ def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
                 RepoVerifier(repo, ts, 'c1_repo'), \
                 CommitVerifier(repo, obj=ts, attr='c1_ver'), \
                 CmdResult(ts, 'c1_cmd'), \
+                CpuUsageMeasurer(ts, user='c1_user', nice='c1_nice',
+                        system='c1_system', idle='c1_idle', iowait='c1_iowait'), \
                 StopWatch(ts, "c1_time"):
             repo.start_tracking_file("many_files_dir")
             repo.commit_file("many_files_dir")
@@ -146,6 +173,8 @@ def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
                 RepoVerifier(repo, ts, 'c2_repo'), \
                 CommitVerifier(repo, obj=ts, attr='c2_ver'), \
                 CmdResult(ts, 'c2_cmd'), \
+                CpuUsageMeasurer(ts, user='c2_user', nice='c2_nice',
+                        system='c2_system', idle='c2_idle', iowait='c2_iowait'), \
                 StopWatch(ts, 'c2_time'):
             repo.commit_file("many_files_dir")
         ts.c2_size = repo.check_total_size()
