@@ -465,6 +465,28 @@ def update_many_files(directory, prefix, every_nth_file=10):
             % ((hsize(updatedfiles, suffix=''),
                 hsize(checkedfiles, suffix=''), elapsed)))
 
+def reformat_device(devicepath):
+    """ Issue commands to reformat a partition. Requires a correct `sudo` setup.
+
+    Linux's Ext filesystems are not optimized for removing files. Deleting
+    thousands of files can often take much longer than creating them. It's
+    faster just to reformat the partition.
+
+    THIS WILL DESTROY ALL DATA ON THAT PARTITION, naturally.
+
+    Sudo must be configured to allow these commands to be run with no password
+    (NOPASSWD). See the sample `sudoers-user-reformat` file included with this
+    code.
+
+    "Take off and nuke the site from orbit. It's the only way to be sure."
+    """
+
+    logcall("sudo umount %s" % devicepath, shell=True)
+    logcall("sudo mke2fs -F -t ext4 -m0 -L test -E root_owner=1000:1000 %s"
+            % devicepath, shell=True)
+    logcall("sudo mount %s" % devicepath, shell=True)
+
+
 class TestFileUtils(unittest.TestCase):
 
     def setUp(self):

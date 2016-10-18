@@ -40,6 +40,9 @@ def parse_args():
     parser.add_argument("--tmp-dir", default="/tmp",
             help="directory in which to create and destroy test repos")
 
+    parser.add_argument("--reformat-partition", default=None,
+            help="reformat this device instead of deleting files one-by-one")
+
     args = parser.parse_args()
     if args.end_mag==-1:
         args.end_mag = args.start_mag+1
@@ -133,7 +136,7 @@ class TrialStats:
         self.cleanup_time = None
 
 
-def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
+def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp", reformat_partition=None):
 
     try:
         repodir = tempfile.mkdtemp(prefix='vcs_benchmark', dir=tmpdir)
@@ -182,7 +185,10 @@ def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
     finally:
         log("Cleaning up trial files...")
         with StopWatch(ts, 'cleanup_time'):
-            shutil.rmtree(repodir)
+            if reformat_partition:
+                reformat_device(reformat_partition)
+            else:
+                shutil.rmtree(repodir)
         log("Removed trial files in %5.3f seconds" % ts.cleanup_time)
 
 
@@ -206,6 +212,7 @@ if __name__ == "__main__":
                     % (eachfilebytes, hsize(eachfilebytes)),
             "vcs": args.vcs,
             "vcs_version": vcs_version,
+            "reformat_partition": args.reformat_partition,
         }))
     comment()
     comment(align_kvs(env))
@@ -228,7 +235,8 @@ if __name__ == "__main__":
                         result,
                         vcsclass,
                         data_gen=args.data_gen,
-                        tmpdir=tmpdir)
+                        tmpdir=tmpdir,
+                        reformat_partition=args.reformat_partition)
             except KeyboardInterrupt:
                 comment("Cancelled")
                 raise
