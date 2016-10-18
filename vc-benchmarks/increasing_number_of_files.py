@@ -55,12 +55,12 @@ class TrialStats:
             trialutil.Column("filecount", "%12d", sample=0),
             trialutil.Column("totalbytes", "0x%010x", sample=0),
             trialutil.Column("create_time", "%11.3f", sample=0),
-            trialutil.Column("commit1_time", "%11.3f", sample=0),
-            trialutil.Column("commit1_size", "0x%010x", sample=0),
+            trialutil.Column("c1_time", "%11.3f", sample=0),
+            trialutil.Column("c1_size", "0x%010x", sample=0),
             trialutil.Column("stat1_time", "%11.3f", sample=0),
             trialutil.Column("stat2_time", "%11.3f", sample=0),
-            trialutil.Column("commit2_time", "%11.3f", sample=0),
-            trialutil.Column("commit2_size", "0x%010x", sample=0),
+            trialutil.Column("c2_time", "%11.3f", sample=0),
+            trialutil.Column("c2_size", "0x%010x", sample=0),
             trialutil.Column("cleanup_time", "%11.3f", sample=0),
             trialutil.Column("errors", "%6s", sample=False),
         ]
@@ -69,12 +69,12 @@ class TrialStats:
         self.filecount = 0
         self.eachbytes = 0
         self.create_time = 0
-        self.commit1_time = 0
-        self.commit1_size = 0
+        self.c1_time = 0
+        self.c1_size = 0
         self.stat1_time = 0
         self.stat2_time = 0
-        self.commit2_time = 0
-        self.commit2_size = 0
+        self.c2_time = 0
+        self.c2_size = 0
         self.cleanup_time = 0
         self.errors = False
 
@@ -107,8 +107,8 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
-        trialstats.commit1_time = stopwatch.stop()
-        trialstats.commit1_size = repo.check_total_size()
+        trialstats.c1_time = stopwatch.stop()
+        trialstats.c1_size = repo.check_total_size()
 
         stopwatch.start()
         try:
@@ -134,8 +134,8 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         except trialutil.CallFailedError as e:
             log(e)
             trialstats.errors = True
-        trialstats.commit2_time = stopwatch.stop()
-        trialstats.commit2_size = repo.check_total_size()
+        trialstats.c2_time = stopwatch.stop()
+        trialstats.c2_size = repo.check_total_size()
 
     except Exception as e:
         trialstats.errors = True
