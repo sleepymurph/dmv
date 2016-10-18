@@ -83,9 +83,9 @@ class TrialStats:
 
 
 def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
-    trialstats = TrialStats()
-    trialstats.filecount = numfiles
-    trialstats.eachbytes = filebytes
+    ts = TrialStats()
+    ts.filecount = numfiles
+    ts.eachbytes = filebytes
 
     stopwatch = StopWatch()
     try:
@@ -97,7 +97,7 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         create_many_files(
                 repodir, numfiles, filebytes,
                 prefix="many_files_dir", data_gen=data_gen)
-        trialstats.create_time = stopwatch.stop()
+        ts.create_time = stopwatch.stop()
 
         stopwatch.start()
         try:
@@ -105,17 +105,17 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
             repo.commit_file("many_files_dir")
         except CallFailedError as e:
             log(e)
-            trialstats.errors = True
-        trialstats.c1_time = stopwatch.stop()
-        trialstats.c1_size = repo.check_total_size()
+            ts.errors = True
+        ts.c1_time = stopwatch.stop()
+        ts.c1_size = repo.check_total_size()
 
         stopwatch.start()
         try:
             repo.check_status("many_files_dir")
         except CallFailedError as e:
             log(e)
-            trialstats.errors = True
-        trialstats.stat1_time = stopwatch.stop()
+            ts.errors = True
+        ts.stat1_time = stopwatch.stop()
 
         update_many_files(repodir, "many_files_dir", every_nth_file=16)
 
@@ -125,31 +125,31 @@ def run_trial(vcsclass, numfiles, filebytes, data_gen, tmpdir="/tmp"):
         except CallFailedError as e:
             log(e)
             errors = True
-        trialstats.stat2_time = stopwatch.stop()
+        ts.stat2_time = stopwatch.stop()
 
         stopwatch.start()
         try:
             repo.commit_file("many_files_dir")
         except CallFailedError as e:
             log(e)
-            trialstats.errors = True
-        trialstats.c2_time = stopwatch.stop()
-        trialstats.c2_size = repo.check_total_size()
+            ts.errors = True
+        ts.c2_time = stopwatch.stop()
+        ts.c2_size = repo.check_total_size()
 
     except Exception as e:
-        trialstats.errors = True
+        ts.errors = True
         raise e
 
     finally:
         log("Cleaning up trial files...")
         stopwatch.start()
         shutil.rmtree(repodir)
-        trialstats.cleanup_time = stopwatch.stop()
+        ts.cleanup_time = stopwatch.stop()
         log("Removed trial files in %5.3f seconds"
-                % trialstats.cleanup_time)
+                % ts.cleanup_time)
 
-        trialstats.calculate_columns()
-        return trialstats
+        ts.calculate_columns()
+        return ts
 
 
 if __name__ == "__main__":
