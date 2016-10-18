@@ -47,15 +47,16 @@ class TrialStats:
     cmdmax = CmdResults.max_width()
     vermax = VerificationResults.max_width()
     cpupat = '%10d'
+    timepat = '%8.3f'
 
     columns = [
             Column("mag", "%3d", sample=0),
             Column("filebytes", "0x%010x", sample=0),
             Column("filesize", "%8s", sample=0),
 
-            Column("cre_time", "%8.3f", sample=0),
+            Column("cre_time", timepat, sample=0),
 
-            Column("c1_time", "%8.3f", sample=0),
+            Column("c1_time", timepat, sample=0),
             Column("c1_size", "0x%010x", sample=0),
             Column("c1_cmd", "%s", max_w=cmdmax),
             Column("c1_ver", "%s", max_w=vermax),
@@ -67,7 +68,7 @@ class TrialStats:
             Column("c1_idle", cpupat, sample=0),
             Column("c1_iowait", cpupat, sample=0),
 
-            Column("c2_time", "%8.3f", sample=0),
+            Column("c2_time", timepat, sample=0),
             Column("c2_size", "0x%010x", sample=0),
             Column("c2_cmd", "%s", max_w=cmdmax),
             Column("c2_ver", "%s", max_w=vermax),
@@ -79,7 +80,7 @@ class TrialStats:
             Column("c2_idle", cpupat, sample=0),
             Column("c2_iowait", cpupat, sample=0),
 
-            Column("gc_time", "%8.3f", sample=0),
+            Column("gc_time", timepat, sample=0),
             Column("gc_size", "0x%010x", sample=0),
             Column("gc_cmd", "%s", max_w=cmdmax),
             Column("gc_repo", "%s", max_w=vermax),

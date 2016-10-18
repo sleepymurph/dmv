@@ -51,41 +51,42 @@ class TrialStats:
 
     cmdmax = CmdResults.max_width()
     vermax = VerificationResults.max_width()
+    timepat = '%8.3f'
 
     columns = [
-            Column("magnitude", "%9d", sample=0),
+            Column("mag", "%3d", sample=0),
             Column("filecount", "%12d", sample=0),
             Column("totalbytes", "0x%010x", sample=0),
-            Column("create_time", "%11.3f", sample=0),
+            Column("cre_time", timepat, sample=0),
 
-            Column("c1_time", "%11.3f", sample=0),
+            Column("c1_time", timepat, sample=0),
             Column("c1_size", "0x%010x", sample=0),
             Column("c1_cmd", "%s", max_w=cmdmax),
             Column("c1_ver", "%s", max_w=vermax),
             Column("c1_repo", "%s", max_w=vermax),
 
-            Column("stat1_time", "%11.3f", sample=0),
+            Column("stat1_time", timepat, sample=0),
             Column("stat1_cmd", "%s", max_w=cmdmax),
-            Column("stat2_time", "%11.3f", sample=0),
+            Column("stat2_time", timepat, sample=0),
             Column("stat2_cmd", "%s", max_w=cmdmax),
 
-            Column("c2_time", "%11.3f", sample=0),
+            Column("c2_time", timepat, sample=0),
             Column("c2_size", "0x%010x", sample=0),
             Column("c2_cmd", "%s", max_w=cmdmax),
             Column("c2_ver", "%s", max_w=vermax),
             Column("c2_repo", "%s", max_w=vermax),
 
-            Column("cleanup_time", "%11.3f", sample=0),
+            Column("cleanup_time", timepat, sample=0),
         ]
 
     def __init__(self, filecount, eachbytes, **args):
         self.filecount = filecount
         self.eachbytes = eachbytes
 
-        self.magnitude = math.log10(self.filecount)
+        self.mag = math.log10(self.filecount)
         self.totalbytes = self.filecount * self.eachbytes
 
-        self.create_time = 0
+        self.cre_time = 0
 
         self.c1_time = 0
         self.c1_size = 0
@@ -115,7 +116,7 @@ def run_trial(ts, vcsclass, data_gen, tmpdir="/tmp"):
         repo.init_repo()
 
         with \
-                StopWatch(ts, "create_time"):
+                StopWatch(ts, "cre_time"):
             create_many_files(
                     repodir, ts.filecount, ts.eachbytes,
                     prefix="many_files_dir", data_gen=data_gen)
@@ -188,10 +189,10 @@ if __name__ == "__main__":
     comment()
     printheader(TrialStats.columns)
 
-    for magnitude in range(args.start_mag, args.end_mag):
+    for mag in range(args.start_mag, args.end_mag):
         for step in range(0, args.mag_steps):
-            numperstep = 10**magnitude / args.mag_steps
-            filecount = 10**magnitude + step*numperstep
+            numperstep = 10**mag / args.mag_steps
+            filecount = 10**mag + step*numperstep
             result = TrialStats(filecount, eachfilebytes)
             try:
                 run_trial(
