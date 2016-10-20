@@ -55,7 +55,7 @@ class TrialStats:
     cmdmax = CmdResults.max_width()
     vermax = VerificationResults.max_width()
     cpupat = '%10d'
-    timepat = '%8.3f'
+    timepat = '%9.3f'
 
     columns = [
             Column("mag", "%3d", sample=0),
