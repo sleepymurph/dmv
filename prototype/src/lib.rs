@@ -1,7 +1,7 @@
 extern crate clap;
 extern crate crypto;
 
-pub mod addfile {
+pub mod hash_object {
 
     use std::error::Error;
     use std::fs::File;
@@ -13,13 +13,11 @@ pub mod addfile {
     use crypto::sha1::Sha1;
 
     pub fn subcommand<'a>() -> App<'a, 'a> {
-        SubCommand::with_name("commit").arg(Arg::with_name("file"))
+        SubCommand::with_name("hash-object").arg(Arg::with_name("file"))
     }
 
     pub fn subcommand_match(matches: &ArgMatches) {
-        println!("commit!");
         if let Some(filename) = matches.value_of("file") {
-            println!("filename: {}", filename);
             let path = Path::new(filename);
             let mut file = match File::open(&path) {
                 Err(why) => {

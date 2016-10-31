@@ -9,11 +9,11 @@ use prototype::*;
 
 fn main() {
     let app_m = App::new("Store Prototype")
-        .subcommand(addfile::subcommand())
+        .subcommand(hash_object::subcommand())
         .get_matches();
 
     match app_m.subcommand() {
-        ("commit", Some(sub_m)) => addfile::subcommand_match(sub_m),
+        ("hash-object", Some(sub_m)) => hash_object::subcommand_match(sub_m),
         _ => {
             writeln!(std::io::stderr(), "{}", app_m.usage()).unwrap();
         }
