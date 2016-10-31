@@ -22,8 +22,11 @@ pub mod addfile {
             println!("filename: {}", filename);
             let path = Path::new(filename);
             let mut file = match File::open(&path) {
-                Err(why) => panic!("Couldn't open {}: {}",
-                                   path.display(), why.description()),
+                Err(why) => {
+                    panic!("Couldn't open {}: {}",
+                           path.display(),
+                           why.description())
+                }
                 Ok(file) => file,
             };
 
@@ -31,8 +34,11 @@ pub mod addfile {
             let mut digest = Sha1::new();
             loop {
                 match file.read(&mut buffer) {
-                    Err(why) => panic!("Error reading {}: {}",
-                                       path.display(), why.description()),
+                    Err(why) => {
+                        panic!("Error reading {}: {}",
+                               path.display(),
+                               why.description())
+                    }
                     Ok(0) => break,
                     Ok(bytes) => {
                         digest.input(&buffer[0..bytes]);

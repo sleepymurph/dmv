@@ -1,1 +1,5 @@
+# rust build directory
 target/
+
+# rustfmt backups
+*.rs.bk
