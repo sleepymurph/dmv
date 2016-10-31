@@ -5,3 +5,4 @@ authors = ["Mike Murphy <codermurph@sleepymurph.com>"]
 
 [dependencies]
 clap = "2"
+rust-crypto = "0.2"
