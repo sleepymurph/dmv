@@ -14,9 +14,7 @@ fn main() {
         .get_matches();
 
     match app_m.subcommand() {
-        ("init", Some(sub_m)) => {
-            InitCommand::subcommand_match(sub_m)
-        }
+        ("init", Some(sub_m)) => InitCommand::subcommand_match(sub_m),
         ("hash-object", Some(sub_m)) => {
             HashObjectCommand::subcommand_match(sub_m)
         }
