@@ -1,22 +1,33 @@
 extern crate clap;
 extern crate crypto;
 
-pub mod hash_object {
+use std::error::Error;
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
 
-    use std::error::Error;
-    use std::fs::File;
-    use std::io::Read;
-    use std::path::Path;
+use clap::{App, Arg, ArgMatches, SubCommand};
+use crypto::digest::Digest;
+use crypto::sha1::Sha1;
 
-    use clap::{App, Arg, ArgMatches, SubCommand};
-    use crypto::digest::Digest;
-    use crypto::sha1::Sha1;
+pub trait PrototypeCommand {
+    fn name() -> &'static str;
+    fn subcommand<'a, 'b>() -> App<'a, 'b>;
+    fn subcommand_match(matches: &ArgMatches);
+}
 
-    pub fn subcommand<'a>() -> App<'a, 'a> {
+pub struct HashObjectCommand;
+
+impl PrototypeCommand for HashObjectCommand {
+    fn name() -> &'static str {
+        "hash-object"
+    }
+
+    fn subcommand<'a, 'b>() -> App<'a, 'b> {
         SubCommand::with_name("hash-object").arg(Arg::with_name("file"))
     }
 
-    pub fn subcommand_match(matches: &ArgMatches) {
+    fn subcommand_match(matches: &ArgMatches) {
         if let Some(filename) = matches.value_of("file") {
             let path = Path::new(filename);
             let mut file = match File::open(&path) {
