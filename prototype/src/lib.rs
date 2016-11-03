@@ -14,6 +14,7 @@ use crypto::sha1::Sha1;
 
 mod repository;
 
+#[allow(dead_code)]
 mod dag {
     pub type ObjectKey = str;
     pub type ObjectSize = u64;
