@@ -2,20 +2,7 @@
 mod repository {
 
     use std::io;
-
-    pub type ObjectKey = str;
-    pub type ObjectSize = u64;
-
-    pub enum ObjectType {
-        Blob,
-        Tree,
-        Commit,
-    }
-
-    pub struct ObjectStat {
-        pub objecttype: ObjectType,
-        pub size: ObjectSize,
-    }
+    use dag::*;
 
     pub trait IncomingObject {
         fn writer(&mut self) -> &mut io::Write;
@@ -29,11 +16,11 @@ mod repository {
         fn add_object(&mut self) -> &mut IncomingObject;
     }
 
-
     mod test {
 
         use std::io;
-        use super::IncomingObject;
+        use super::*;
+        use dag::*;
 
         struct DummyIncoming {
             _writer: io::Sink,
@@ -49,7 +36,7 @@ mod repository {
             fn writer(&mut self) -> &mut io::Write {
                 &mut self._writer
             }
-            fn set_key(self, _key: &super::ObjectKey) -> io::Result<()> {
+            fn set_key(self, _key: &ObjectKey) -> io::Result<()> {
                 Ok(())
             }
         }
@@ -60,7 +47,7 @@ mod repository {
             let _ = incoming.writer().write_all(b"hello");
             let _ = incoming.set_key("hello");
             // This should not compile if you uncomment it
-            // incoming.writer().write_all("hello".as_bytes());
+            // let _ = incoming.writer().write_all("hello".as_bytes());
         }
     }
 }

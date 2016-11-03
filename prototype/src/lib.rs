@@ -14,6 +14,22 @@ use crypto::sha1::Sha1;
 
 mod repository;
 
+mod dag {
+    pub type ObjectKey = str;
+    pub type ObjectSize = u64;
+
+    pub enum ObjectType {
+        Blob,
+        Tree,
+        Commit,
+    }
+
+    pub struct ObjectStat {
+        pub objecttype: ObjectType,
+        pub size: ObjectSize,
+    }
+}
+
 pub trait Repository {
     fn init(&self) -> Result<(), std::io::Error>;
     fn hash_object(&self, path: &Path) -> Result<String, std::io::Error>;
