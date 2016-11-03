@@ -12,6 +12,8 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
 
+mod repository;
+
 pub trait Repository {
     fn init(&self) -> Result<(), std::io::Error>;
     fn hash_object(&self, path: &Path) -> Result<String, std::io::Error>;
