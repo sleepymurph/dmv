@@ -5,7 +5,7 @@ use std::io;
 use dag::*;
 
 pub trait IncomingObject<'a>: io::Write + 'a {
-    fn set_key(self, key: &ObjectKey) -> io::Result<()>;
+    fn set_key(mut self, key: &ObjectKey) -> io::Result<()>;
 }
 
 pub trait Repository<'a> {
@@ -13,7 +13,7 @@ pub trait Repository<'a> {
 
     fn init(&mut self) -> io::Result<()>;
 
-    fn has_object(&mut self, key: &ObjectKey) -> bool;
+    fn has_object(&self, key: &ObjectKey) -> bool;
     fn stat_object(&mut self, key: &ObjectKey) -> ObjectStat;
     fn read_object(&mut self, key: &ObjectKey) -> &mut io::Read;
     fn add_object(&'a mut self) -> io::Result<Self::IncomingType>;
