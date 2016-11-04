@@ -8,13 +8,14 @@ use dag::*;
 
 pub trait Repo {
     type ObjectRead: Read;
+    type IncomingObject: Write;
 
     fn init(&mut self) -> Result<()>;
     fn has_object(&self, key: &ObjectKey) -> bool;
     fn read_object(&mut self, key: &ObjectKey) -> Result<Self::ObjectRead>;
-    fn incoming(&mut self) -> Result<IncomingObject>;
+    fn incoming(&mut self) -> Result<Self::IncomingObject>;
     fn store_incoming(&mut self,
-                      mut incoming: IncomingObject,
+                      mut incoming: Self::IncomingObject,
                       key: &ObjectKey)
                       -> Result<()>;
 }
@@ -23,7 +24,7 @@ pub struct DiskRepo {
     path: PathBuf,
 }
 
-pub struct IncomingObject {
+pub struct DiskIncomingObject {
     temp_path: PathBuf,
     file: File,
 }
@@ -48,6 +49,7 @@ impl DiskRepo {
 
 impl Repo for DiskRepo {
     type ObjectRead = File;
+    type IncomingObject = DiskIncomingObject;
 
     fn init(&mut self) -> Result<()> {
         create_dir_all(&self.path)
@@ -61,7 +63,7 @@ impl Repo for DiskRepo {
         File::open(self.object_path(key))
     }
 
-    fn incoming(&mut self) -> Result<IncomingObject> {
+    fn incoming(&mut self) -> Result<Self::IncomingObject> {
         let temp_path = &self.path.join("tmp");
         try!(create_parents(&temp_path));
         let file = try!(OpenOptions::new()
@@ -71,14 +73,14 @@ impl Repo for DiskRepo {
             .map_err(|e| {
                 io::Error::new(e.kind(), format!("{}", &temp_path.display()))
             }));
-        Ok(IncomingObject {
+        Ok(DiskIncomingObject {
             temp_path: temp_path.to_owned(),
             file: file,
         })
     }
 
     fn store_incoming(&mut self,
-                      mut incoming: IncomingObject,
+                      mut incoming: Self::IncomingObject,
                       key: &ObjectKey)
                       -> Result<()> {
         try!(incoming.file.flush());
@@ -88,7 +90,7 @@ impl Repo for DiskRepo {
     }
 }
 
-impl Write for IncomingObject {
+impl Write for DiskIncomingObject {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         self.file.write(buf)
     }
