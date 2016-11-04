@@ -132,39 +132,3 @@ mod test {
         assert_eq!(repo.has_object(key), true);
     }
 }
-
-
-mod toy_tests {
-
-    use std::path;
-
-    struct Parent {
-    }
-
-    struct Spawn<'a> {
-        parent: &'a Parent,
-        name: String,
-    }
-
-    impl Parent {
-        fn say_hi(&self, spawn: &Spawn) -> String {
-            format!("Hello {}", &spawn.name)
-        }
-        fn create_spawn(&self, name: String) -> Spawn {
-            Spawn{ parent: &self, name: name }
-        }
-    }
-
-    impl<'a> Spawn<'a> {
-        fn nag_parent(&self) -> String {
-            self.parent.say_hi(&self)
-        }
-    }
-
-    #[test]
-    fn test_spawn() {
-        let parent = Parent{};
-        let spawn = parent.create_spawn("duder".into());
-        assert_eq!(spawn.nag_parent(), "Hello duder");
-    }
-}
