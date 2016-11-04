@@ -35,6 +35,7 @@ impl DiskRepository {
 }
 
 impl<'a> Repository<'a> for DiskRepository {
+    type ReadType = fs::File;
     type IncomingType = DiskIncoming<'a>;
 
     fn init(&mut self) -> io::Result<()> {
@@ -47,8 +48,8 @@ impl<'a> Repository<'a> for DiskRepository {
     fn stat_object(&mut self, key: &ObjectKey) -> ObjectStat {
         unimplemented!();
     }
-    fn read_object(&mut self, key: &ObjectKey) -> &mut io::Read {
-        unimplemented!();
+    fn read_object(&mut self, key: &ObjectKey) -> io::Result<Self::ReadType> {
+        fs::File::open(self.object_path(key))
     }
     fn add_object(&'a mut self) -> io::Result<DiskIncoming<'a>> {
         let temp_path = &self.path.join("tmp");
@@ -89,7 +90,7 @@ mod test {
 
     use std::path;
     use std::io;
-    use std::io::Write;
+    use std::io::{Read, Write};
     use std::fs;
     use std::ffi;
     use super::*;
@@ -120,14 +121,19 @@ mod test {
     #[test]
     fn test_add_object() {
         let (dir, mut repo) = mem_temp_repo();
-        let data = b"here be content";
+        let data = "here be content";
         let key = "9cac8e6ad1da3212c89b73fdbb2302180123b9ca";
         {
             let mut incoming = repo.add_object().expect("open incoming");
-            incoming.write(data).expect("write to incoming");
+            incoming.write(data.as_bytes()).expect("write to incoming");
             incoming.flush().expect("flush incoming");
             incoming.set_key(key).expect("set key");
         }
         assert_eq!(repo.has_object(key), true);
+
+        let mut reader = repo.read_object(key).expect("open saved object");
+        let mut read_data = String::new();
+        reader.read_to_string(&mut read_data).expect("read saved object");
+        assert_eq!(read_data, data);
     }
 }

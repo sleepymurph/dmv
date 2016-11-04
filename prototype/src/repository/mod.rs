@@ -9,12 +9,13 @@ pub trait IncomingObject<'a>: io::Write + 'a {
 }
 
 pub trait Repository<'a> {
+    type ReadType: io::Read + Sized;
     type IncomingType: IncomingObject<'a> + Sized;
 
     fn init(&mut self) -> io::Result<()>;
 
     fn has_object(&self, key: &ObjectKey) -> bool;
     fn stat_object(&mut self, key: &ObjectKey) -> ObjectStat;
-    fn read_object(&mut self, key: &ObjectKey) -> &mut io::Read;
+    fn read_object(&mut self, key: &ObjectKey) -> io::Result<Self::ReadType>;
     fn add_object(&'a mut self) -> io::Result<Self::IncomingType>;
 }
