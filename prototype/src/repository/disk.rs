@@ -48,8 +48,8 @@ impl Repository for DiskRepository {
     fn read_object(&mut self, key: &ObjectKey) -> &mut io::Read {
         unimplemented!();
     }
-    fn add_object(&mut self) -> DiskIncoming {
-        unimplemented!();
+    fn add_object(&mut self) -> io::Result<DiskIncoming> {
+        DiskIncoming::new(&self.path.join("tmp"))
     }
 }
 
@@ -86,6 +86,7 @@ mod test {
 
     use std::path;
     use std::io;
+    use std::io::Write;
     use std::fs;
     use std::ffi;
     use super::*;
@@ -114,7 +115,15 @@ mod test {
     }
 
     #[test]
-    fn test_init() {
-        let (dir, repo) = mem_temp_repo();
+    fn test_add_object() {
+        let (dir, mut repo) = mem_temp_repo();
+        let mut incoming = repo.add_object().expect("could not open incoming");
+        incoming.write(b"here be content")
+            .expect("could not write to incoming");
+        incoming.flush().expect("could not flush incoming");
+        let key = "9cac8e6ad1da3212c89b73fdbb2302180123b9ca";
+        incoming.set_key(key)
+            .expect("could not set key");
+        // assert_eq!(repo.has_object(key), true);
     }
 }

@@ -16,5 +16,5 @@ pub trait Repository {
     fn has_object(&mut self, key: &ObjectKey) -> bool;
     fn stat_object(&mut self, key: &ObjectKey) -> ObjectStat;
     fn read_object(&mut self, key: &ObjectKey) -> &mut io::Read;
-    fn add_object(&mut self) -> Self::IncomingType;
+    fn add_object(&mut self) -> io::Result<Self::IncomingType>;
 }
