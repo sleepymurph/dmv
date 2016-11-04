@@ -5,13 +5,22 @@ use std::ops;
 use super::*;
 use dag::*;
 
-pub struct DiskRepository<'a> {
-    path: &'a path::Path,
+pub struct DiskRepository {
+    path: path::PathBuf,
 }
 
-impl<'a> DiskRepository<'a> {
-    pub fn new(path: &'a path::Path) -> Self {
-        DiskRepository { path: path }
+pub struct DiskIncoming {
+    path: path::PathBuf,
+    file: fs::File,
+}
+
+impl DiskRepository {
+    pub fn new(path: &path::Path) -> Self {
+        DiskRepository { path: path.to_owned() }
+    }
+
+    fn path(&self) -> &path::PathBuf {
+        &self.path
     }
 
     fn object_path(&self, key: &ObjectKey) -> path::PathBuf {
@@ -23,15 +32,15 @@ impl<'a> DiskRepository<'a> {
     }
 }
 
-pub struct DiskIncoming<'a> {
-    path: &'a path::Path,
-    file: fs::File,
-}
+impl Repository for DiskRepository {
+    type IncomingType = DiskIncoming;
 
-impl<'a> Repository for DiskRepository<'a> {
-    type IncomingType = DiskIncoming<'a>;
+    fn init(&mut self) -> io::Result<()> {
+        fs::create_dir_all(&self.path)
+    }
+
     fn has_object(&mut self, key: &ObjectKey) -> bool {
-        return self.object_path(key).is_file();
+        self.object_path(key).is_file()
     }
     fn stat_object(&mut self, key: &ObjectKey) -> ObjectStat {
         unimplemented!();
@@ -39,28 +48,31 @@ impl<'a> Repository for DiskRepository<'a> {
     fn read_object(&mut self, key: &ObjectKey) -> &mut io::Read {
         unimplemented!();
     }
-    fn add_object(&mut self) -> DiskIncoming<'a> {
+    fn add_object(&mut self) -> DiskIncoming {
         unimplemented!();
     }
 }
 
-impl<'a> DiskIncoming<'a> {
-    fn new(path: &'a path::Path) -> io::Result<Self> {
+impl DiskIncoming {
+    fn new(path: &path::Path) -> io::Result<Self> {
         let file = try!(fs::OpenOptions::new()
             .write(true)
             .create(true)
             .open(&path));
-        Ok(DiskIncoming{path: path, file:file})
+        Ok(DiskIncoming {
+            path: path.to_owned(),
+            file: file,
+        })
     }
 }
 
-impl<'a> IncomingObject for DiskIncoming<'a> {
+impl IncomingObject for DiskIncoming {
     fn set_key(self, _key: &ObjectKey) -> io::Result<()> {
         Ok(())
     }
 }
 
-impl<'a> io::Write for DiskIncoming<'a> {
+impl io::Write for DiskIncoming {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.file.write(buf)
     }
@@ -70,8 +82,27 @@ impl<'a> io::Write for DiskIncoming<'a> {
 }
 
 mod test {
+    extern crate tempdir;
+
     use std::path;
+    use std::io;
+    use std::fs;
+    use std::ffi;
     use super::*;
+    use super::super::*;
+
+    fn mem_temp_repo() -> (tempdir::TempDir, DiskRepository) {
+        let tempdir = tempdir::TempDir::new_in("/dev/shm/", "rust_test")
+            .expect("could not create temporary directory in /dev/shm/");
+
+        let mut repo = DiskRepository::new(&tempdir.path().join("repo"));
+        repo.init().expect("could not initialize temporary repo");
+
+        assert_eq!(repo.path().file_name().unwrap(), "repo");
+        assert_eq!(repo.path().is_dir(), true);
+
+        (tempdir, repo)
+    }
 
     #[test]
     fn test_object_path() {
@@ -83,6 +114,7 @@ mod test {
     }
 
     #[test]
-    fn test_store_object() {
+    fn test_init() {
+        let (dir, repo) = mem_temp_repo();
     }
 }

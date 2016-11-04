@@ -9,7 +9,10 @@ pub trait IncomingObject: io::Write {
 }
 
 pub trait Repository {
-    type IncomingType: IncomingObject + ?Sized;
+    type IncomingType: IncomingObject + Sized;
+
+    fn init(&mut self) -> io::Result<()>;
+
     fn has_object(&mut self, key: &ObjectKey) -> bool;
     fn stat_object(&mut self, key: &ObjectKey) -> ObjectStat;
     fn read_object(&mut self, key: &ObjectKey) -> &mut io::Read;
