@@ -138,7 +138,14 @@ mod test {
 
     #[test]
     fn test_add_object() {
-        let mut repo = mem_temp_repo();
+        do_repo_trait_test(mem_temp_repo);
+    }
+
+    fn do_repo_trait_test<F, T>(create_temp_repo: F)
+        where F: Fn() -> T,
+              T: Repo
+    {
+        let mut repo = create_temp_repo();
         let data = "here be content";
         let key = "9cac8e6ad1da3212c89b73fdbb2302180123b9ca";
 
