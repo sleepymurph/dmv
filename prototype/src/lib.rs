@@ -1,3 +1,4 @@
+#![allow(dead_code,unused_variables,unused_mut,unused_imports)]
 extern crate clap;
 extern crate crypto;
 
@@ -13,6 +14,7 @@ use crypto::digest::Digest;
 use crypto::sha1::Sha1;
 
 mod repository;
+mod repo3;
 
 #[allow(dead_code)]
 mod dag {

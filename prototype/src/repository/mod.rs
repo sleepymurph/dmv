@@ -1,4 +1,3 @@
-#![allow(dead_code,unused_variables,unused_mut,unused_imports)]
 mod disk;
 
 use std::io;
@@ -27,28 +26,27 @@ mod test {
     use std::io::{Read, Write};
     use std::io;
 
-    /*
-    fn run_repository_trait_tests<'r, F, R>(create_temp_repo: F)
-        where F: Fn() -> R,
-              R: Repository<'r> + 'r
-    {
-        let mut repo = create_temp_repo();
-        let data = "here be content";
-        let key = "9cac8e6ad1da3212c89b73fdbb2302180123b9ca";
-        {
-            let mut incoming = repo.add_object().expect("open incoming");
-            incoming.write(data.as_bytes()).expect("write to incoming");
-            incoming.flush().expect("flush incoming");
-            incoming.set_key(key).expect("set key");
-        }
-        assert_eq!(repo.has_object(key), true);
-
-        let mut reader = repo.read_object(key).expect("open saved object");
-        let mut read_data = String::new();
-        reader.read_to_string(&mut read_data).expect("read saved object");
-        assert_eq!(read_data, data);
-    }
-    */
+    // fn run_repository_trait_tests<'r, F, R>(create_temp_repo: F)
+    // where F: Fn() -> R,
+    // R: Repository<'r> + 'r
+    // {
+    // let mut repo = create_temp_repo();
+    // let data = "here be content";
+    // let key = "9cac8e6ad1da3212c89b73fdbb2302180123b9ca";
+    // {
+    // let mut incoming = repo.add_object().expect("open incoming");
+    // incoming.write(data.as_bytes()).expect("write to incoming");
+    // incoming.flush().expect("flush incoming");
+    // incoming.set_key(key).expect("set key");
+    // }
+    // assert_eq!(repo.has_object(key), true);
+    //
+    // let mut reader = repo.read_object(key).expect("open saved object");
+    // let mut read_data = String::new();
+    // reader.read_to_string(&mut read_data).expect("read saved object");
+    // assert_eq!(read_data, data);
+    // }
+    //
 
     pub trait Foo<'a> {
         fn new() -> Self;
@@ -57,18 +55,20 @@ mod test {
 
     use std::marker::PhantomData;
 
-    struct Bar<'a> { _marker: PhantomData<&'a u32> }
+    struct Bar<'a> {
+        _marker: PhantomData<&'a u32>,
+    }
     impl<'a> Foo<'a> for Bar<'a> {
         fn new() -> Bar<'a> {
-            Bar {_marker:PhantomData}
+            Bar { _marker: PhantomData }
         }
         fn party(&self) -> String {
             "party!".into()
         }
     }
 
-    fn do_foo_tests<'a, F,T>(create: F)
-        where F: Fn()->T,
+    fn do_foo_tests<'a, F, T>(create: F)
+        where F: Fn() -> T,
               T: Foo<'a>
     {
         let mut foo = create();
