@@ -1,9 +1,23 @@
+use std::fmt;
+use std::io;
+use std::error;
 use std::io::{Write, Read, Result};
 use std::path::{Path, PathBuf};
 use std::fs::{rename, create_dir_all, OpenOptions, File};
 use dag::*;
 
-pub struct Repo {
+pub trait Repo {
+    fn init(&mut self) -> Result<()>;
+    fn has_object(&self, key: &ObjectKey) -> bool;
+    fn read_object(&mut self, key: &ObjectKey) -> Result<File>;
+    fn incoming(&mut self) -> Result<IncomingObject>;
+    fn store_incoming(&mut self,
+                      mut incoming: IncomingObject,
+                      key: &ObjectKey)
+                      -> Result<()>;
+}
+
+pub struct DiskRepo {
     path: PathBuf,
 }
 
@@ -12,9 +26,9 @@ pub struct IncomingObject {
     file: File,
 }
 
-impl Repo {
+impl DiskRepo {
     pub fn new(path: &Path) -> Self {
-        Repo { path: path.to_owned() }
+        DiskRepo { path: path.to_owned() }
     }
 
     fn path(&self) -> &PathBuf {
@@ -28,8 +42,10 @@ impl Repo {
             .join(&key[2..4])
             .join(&key[4..])
     }
+}
 
-    pub fn init(&mut self) -> Result<()> {
+impl Repo for DiskRepo {
+    fn init(&mut self) -> Result<()> {
         create_dir_all(&self.path)
     }
 
@@ -41,27 +57,29 @@ impl Repo {
         File::open(self.object_path(key))
     }
 
-    pub fn incoming(&mut self) -> Result<IncomingObject> {
+    fn incoming(&mut self) -> Result<IncomingObject> {
         let temp_path = &self.path.join("tmp");
+        try!(create_parents(&temp_path));
         let file = try!(OpenOptions::new()
             .write(true)
             .create(true)
-            .open(&temp_path));
+            .open(&temp_path)
+            .map_err(|e| {
+                io::Error::new(e.kind(), format!("{}", &temp_path.display()))
+            }));
         Ok(IncomingObject {
             temp_path: temp_path.to_owned(),
             file: file,
         })
     }
 
-    pub fn store_incoming(&mut self,
-                 mut incoming: IncomingObject,
-                 key: &ObjectKey)
-                 -> Result<()> {
+    fn store_incoming(&mut self,
+                      mut incoming: IncomingObject,
+                      key: &ObjectKey)
+                      -> Result<()> {
         try!(incoming.file.flush());
         let permpath = self.object_path(key);
-        if let Some(parent) = permpath.parent() {
-            try!(create_dir_all(parent));
-        }
+        try!(create_parents(&permpath));
         rename(&incoming.temp_path, &permpath)
     }
 }
@@ -75,6 +93,12 @@ impl Write for IncomingObject {
     }
 }
 
+fn create_parents(path: &Path) -> Result<Option<&Path>> {
+    match path.parent() {
+        Some(parent) => create_dir_all(parent).and(Ok(Some(parent))),
+        None => Ok(None),
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -84,22 +108,22 @@ mod test {
     use std::io::{Write, Read, Result};
     use std::path::{Path, PathBuf};
 
-    fn mem_temp_repo() -> (tempdir::TempDir, Repo) {
+    fn mem_temp_repo() -> DiskRepo {
         let tempdir = tempdir::TempDir::new_in("/dev/shm/", "rust_test")
-            .expect("could not create temporary directory in /dev/shm/");
+            .expect("create temporary directory in /dev/shm/");
 
-        let mut repo = Repo::new(&tempdir.path().join("repo"));
-        repo.init().expect("could not initialize temporary repo");
+        let mut repo = DiskRepo::new(&tempdir.path().join("repo"));
+        repo.init().expect("initialize temporary repo");
 
         assert_eq!(repo.path().file_name().unwrap(), "repo");
         assert_eq!(repo.path().is_dir(), true);
 
-        (tempdir, repo)
+        repo
     }
 
     #[test]
     fn test_object_path() {
-        let mut repo = Repo::new(Path::new(".prototype"));
+        let mut repo = DiskRepo::new(Path::new(".prototype"));
         assert_eq!(
             repo.object_path("a9c3334cfee4083a36bf1f9d952539806fff50e2"),
             Path::new(".prototype/objects/")
@@ -108,7 +132,7 @@ mod test {
 
     #[test]
     fn test_add_object() {
-        let (dir, mut repo) = mem_temp_repo();
+        let mut repo = mem_temp_repo();
         let data = "here be content";
         let key = "9cac8e6ad1da3212c89b73fdbb2302180123b9ca";
 
