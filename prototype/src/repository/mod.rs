@@ -50,24 +50,26 @@ mod test {
     }
     */
 
-    pub trait Foo {
+    pub trait Foo<'a> {
         fn new() -> Self;
         fn party(&self) -> String;
     }
 
-    struct Bar {}
-    impl Foo for Bar {
-        fn new() -> Bar {
-            Bar {}
+    use std::marker::PhantomData;
+
+    struct Bar<'a> { _marker: PhantomData<&'a u32> }
+    impl<'a> Foo<'a> for Bar<'a> {
+        fn new() -> Bar<'a> {
+            Bar {_marker:PhantomData}
         }
         fn party(&self) -> String {
             "party!".into()
         }
     }
 
-    fn do_foo_tests<F,T>(create: F)
+    fn do_foo_tests<'a, F,T>(create: F)
         where F: Fn()->T,
-              T: Foo
+              T: Foo<'a>
     {
         let mut foo = create();
         assert_eq!(foo.party(), "party!".to_string());
