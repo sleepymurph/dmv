@@ -4,17 +4,17 @@ mod disk;
 use std::io;
 use dag::*;
 
-pub trait IncomingObject: io::Write {
+pub trait IncomingObject<'a>: io::Write + 'a {
     fn set_key(self, key: &ObjectKey) -> io::Result<()>;
 }
 
-pub trait Repository {
-    type IncomingType: IncomingObject + Sized;
+pub trait Repository<'a> {
+    type IncomingType: IncomingObject<'a> + Sized;
 
     fn init(&mut self) -> io::Result<()>;
 
     fn has_object(&mut self, key: &ObjectKey) -> bool;
     fn stat_object(&mut self, key: &ObjectKey) -> ObjectStat;
     fn read_object(&mut self, key: &ObjectKey) -> &mut io::Read;
-    fn add_object(&mut self) -> io::Result<Self::IncomingType>;
+    fn add_object(&'a mut self) -> io::Result<Self::IncomingType>;
 }

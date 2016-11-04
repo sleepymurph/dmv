@@ -9,7 +9,8 @@ pub struct DiskRepository {
     path: path::PathBuf,
 }
 
-pub struct DiskIncoming {
+pub struct DiskIncoming<'a> {
+    repo: &'a DiskRepository,
     path: path::PathBuf,
     file: fs::File,
 }
@@ -32,8 +33,8 @@ impl DiskRepository {
     }
 }
 
-impl Repository for DiskRepository {
-    type IncomingType = DiskIncoming;
+impl<'a> Repository<'a> for DiskRepository {
+    type IncomingType = DiskIncoming<'a>;
 
     fn init(&mut self) -> io::Result<()> {
         fs::create_dir_all(&self.path)
@@ -48,31 +49,27 @@ impl Repository for DiskRepository {
     fn read_object(&mut self, key: &ObjectKey) -> &mut io::Read {
         unimplemented!();
     }
-    fn add_object(&mut self) -> io::Result<DiskIncoming> {
-        DiskIncoming::new(&self.path.join("tmp"))
-    }
-}
-
-impl DiskIncoming {
-    fn new(path: &path::Path) -> io::Result<Self> {
+    fn add_object(&'a mut self) -> io::Result<DiskIncoming<'a>> {
+        let temp_path = &self.path.join("tmp");
         let file = try!(fs::OpenOptions::new()
             .write(true)
             .create(true)
-            .open(&path));
+            .open(&temp_path));
         Ok(DiskIncoming {
-            path: path.to_owned(),
+            repo: self,
+            path: temp_path.to_owned(),
             file: file,
         })
     }
 }
 
-impl IncomingObject for DiskIncoming {
+impl<'a> IncomingObject<'a> for DiskIncoming<'a> {
     fn set_key(self, _key: &ObjectKey) -> io::Result<()> {
         Ok(())
     }
 }
 
-impl io::Write for DiskIncoming {
+impl<'a> io::Write for DiskIncoming<'a> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.file.write(buf)
     }
