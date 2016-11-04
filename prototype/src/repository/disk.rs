@@ -85,6 +85,7 @@ impl<'a> io::Write for DiskIncoming<'a> {
     }
 }
 
+#[cfg(test)]
 mod test {
     extern crate tempdir;
 
