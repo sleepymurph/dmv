@@ -7,9 +7,11 @@ use std::fs::{rename, create_dir_all, OpenOptions, File};
 use dag::*;
 
 pub trait Repo {
+    type ObjectRead: Read;
+
     fn init(&mut self) -> Result<()>;
     fn has_object(&self, key: &ObjectKey) -> bool;
-    fn read_object(&mut self, key: &ObjectKey) -> Result<File>;
+    fn read_object(&mut self, key: &ObjectKey) -> Result<Self::ObjectRead>;
     fn incoming(&mut self) -> Result<IncomingObject>;
     fn store_incoming(&mut self,
                       mut incoming: IncomingObject,
@@ -45,6 +47,8 @@ impl DiskRepo {
 }
 
 impl Repo for DiskRepo {
+    type ObjectRead = File;
+
     fn init(&mut self) -> Result<()> {
         create_dir_all(&self.path)
     }
@@ -53,7 +57,7 @@ impl Repo for DiskRepo {
         self.object_path(key).is_file()
     }
 
-    fn read_object(&mut self, key: &ObjectKey) -> Result<File> {
+    fn read_object(&mut self, key: &ObjectKey) -> Result<Self::ObjectRead> {
         File::open(self.object_path(key))
     }
 
