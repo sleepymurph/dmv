@@ -1,23 +1,28 @@
 use std::fmt;
+use std::ops::{Index, Range};
 use std::io;
 use std::error;
-use std::io::{Write, Read, Result};
+use std::io::{Cursor, Write, Read, Result, Error, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::fs::{rename, create_dir_all, OpenOptions, File};
+use std::collections::HashMap;
+use std::hash::Hash;
 use dag::*;
 
-pub trait Repo {
-    type ObjectRead: Read;
-    type IncomingObject: Write;
+pub trait Repo<'a> {
+    type ObjectRead: 'a + Read;
+    type IncomingObject: 'a + Write;
 
     fn init(&mut self) -> Result<()>;
-    fn has_object(&self, key: &ObjectKey) -> bool;
-    fn read_object(&mut self, key: &ObjectKey) -> Result<Self::ObjectRead>;
+    fn has_object<K>(&self, key: &K) -> bool where K: AsRef<String>;
+    fn read_object<K>(&mut self, key: &K) -> Result<Self::ObjectRead>
+        where K: AsRef<String>;
     fn incoming(&mut self) -> Result<Self::IncomingObject>;
-    fn store_incoming(&mut self,
-                      mut incoming: Self::IncomingObject,
-                      key: &ObjectKey)
-                      -> Result<()>;
+    fn store_incoming<K>(&mut self,
+                         mut incoming: Self::IncomingObject,
+                         key: &K)
+                         -> Result<()>
+        where K: AsRef<String>;
 }
 
 pub struct DiskRepo {
@@ -38,7 +43,10 @@ impl DiskRepo {
         &self.path
     }
 
-    fn object_path(&self, key: &ObjectKey) -> PathBuf {
+    fn object_path<K>(&self, key: &K) -> PathBuf
+        where K: AsRef<String>
+    {
+        let key = key.as_ref();
         self.path
             .join("objects")
             .join(&key[0..2])
@@ -47,7 +55,7 @@ impl DiskRepo {
     }
 }
 
-impl Repo for DiskRepo {
+impl<'a> Repo<'a> for DiskRepo {
     type ObjectRead = File;
     type IncomingObject = DiskIncomingObject;
 
@@ -55,11 +63,15 @@ impl Repo for DiskRepo {
         create_dir_all(&self.path)
     }
 
-    fn has_object(&self, key: &ObjectKey) -> bool {
+    fn has_object<K>(&self, key: &K) -> bool
+        where K: AsRef<String>
+    {
         self.object_path(key).is_file()
     }
 
-    fn read_object(&mut self, key: &ObjectKey) -> Result<Self::ObjectRead> {
+    fn read_object<K>(&mut self, key: &K) -> Result<Self::ObjectRead>
+        where K: AsRef<String>
+    {
         File::open(self.object_path(key))
     }
 
@@ -79,10 +91,12 @@ impl Repo for DiskRepo {
         })
     }
 
-    fn store_incoming(&mut self,
-                      mut incoming: Self::IncomingObject,
-                      key: &ObjectKey)
-                      -> Result<()> {
+    fn store_incoming<K>(&mut self,
+                         mut incoming: Self::IncomingObject,
+                         key: &K)
+                         -> Result<()>
+        where K: AsRef<String>
+    {
         try!(incoming.file.flush());
         let permpath = self.object_path(key);
         try!(create_parents(&permpath));
@@ -103,6 +117,53 @@ fn create_parents(path: &Path) -> Result<Option<&Path>> {
     match path.parent() {
         Some(parent) => create_dir_all(parent).and(Ok(Some(parent))),
         None => Ok(None),
+    }
+}
+
+type MemBlob = Vec<u8>;
+
+pub struct MemRepo {
+    object_map: HashMap<ObjectKey, MemBlob>,
+}
+
+impl MemRepo {
+    fn new() -> Self {
+        MemRepo { object_map: HashMap::new() }
+    }
+}
+
+impl<'a> Repo<'a> for MemRepo {
+    type ObjectRead = &'a [u8];
+    type IncomingObject = Cursor<MemBlob>;
+
+    fn init(&mut self) -> Result<()> {
+        Ok(())
+    }
+    fn has_object<K>(&self, key: &K) -> bool
+        where K: AsRef<String>
+    {
+        self.object_map.contains_key(key.as_ref())
+    }
+    fn read_object<K>(&mut self, key: &K) -> Result<&'a Self::ObjectRead>
+        where K: AsRef<String>
+    {
+        let poop = self.object_map.get(key.as_ref());
+        match poop {
+            Some(blob) => Ok(blob),
+            None => Err(Error::new(ErrorKind::Other, "Key not found: {}")),
+        }
+    }
+    fn incoming(&mut self) -> Result<Self::IncomingObject> {
+        unimplemented!();
+    }
+    fn store_incoming<K>(&mut self,
+                         mut incoming: Self::IncomingObject,
+                         key: &K)
+                         -> Result<()>
+        where K: AsRef<String>
+    {
+
+        unimplemented!();
     }
 }
 
@@ -130,24 +191,29 @@ mod test {
     #[test]
     fn test_object_path() {
         let mut repo = DiskRepo::new(Path::new(".prototype"));
-        assert_eq!(
-            repo.object_path("a9c3334cfee4083a36bf1f9d952539806fff50e2"),
-            Path::new(".prototype/objects/")
-                        .join("a9/c3/334cfee4083a36bf1f9d952539806fff50e2"));
+        assert_eq!(repo.object_path("a9c3334cfee4083a36bf1f9d952539806fff50e2"
+                       .as_ref()),
+                   Path::new(".prototype/objects/")
+                       .join("a9/c3/334cfee4083a36bf1f9d952539806fff50e2"));
     }
 
     #[test]
-    fn test_add_object() {
+    fn test_disk_implementation() {
         do_repo_trait_test(mem_temp_repo);
     }
 
-    fn do_repo_trait_test<F, T>(create_temp_repo: F)
+    #[test]
+    fn test_hashmap_implementation() {
+        do_repo_trait_test(MemRepo::new);
+    }
+
+    fn do_repo_trait_test<'a, F, T>(create_temp_repo: F)
         where F: Fn() -> T,
-              T: Repo
+              T: Repo<'a>
     {
         let mut repo = create_temp_repo();
         let data = "here be content";
-        let key = "9cac8e6ad1da3212c89b73fdbb2302180123b9ca";
+        let key = "9cac8e6ad1da3212c89b73fdbb2302180123b9ca".as_ref();
 
         let mut incoming = repo.incoming().expect("open incoming");
         incoming.write(data.as_bytes()).expect("write to incoming");

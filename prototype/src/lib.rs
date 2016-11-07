@@ -13,12 +13,11 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
 
-mod repository;
 mod repo3;
 
 #[allow(dead_code)]
 mod dag {
-    pub type ObjectKey = str;
+    pub type ObjectKey = String;
     pub type ObjectSize = u64;
 
     pub enum ObjectType {
