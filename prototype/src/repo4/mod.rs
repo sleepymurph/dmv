@@ -123,8 +123,7 @@ mod test {
     use std::io::{Write, Read, Result, Error, ErrorKind};
 
     use dag::ObjectKey;
-    use super::{ObjectStore, IncomingObject, DiskObjectStore,
-                DiskIncomingObject};
+    use super::{ObjectStore, IncomingObject, DiskObjectStore};
 
     pub struct InMemObjectStore {
         map: HashMap<ObjectKey, Vec<u8>>,
