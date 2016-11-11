@@ -115,7 +115,7 @@ fn create_parents(path: &Path) -> Result<Option<&Path>> {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     extern crate tempdir;
     use self::tempdir::TempDir;
 
@@ -125,22 +125,22 @@ mod test {
     use dag::ObjectKey;
     use super::{ObjectStore, IncomingObject, DiskObjectStore};
 
-    pub struct InMemObjectStore {
+    pub struct InMemoryObjectStore {
         map: HashMap<ObjectKey, Vec<u8>>,
     }
 
-    impl InMemObjectStore {
+    impl InMemoryObjectStore {
         pub fn new() -> Self {
-            InMemObjectStore { map: HashMap::new() }
+            InMemoryObjectStore { map: HashMap::new() }
         }
     }
 
     pub struct InMemIncomingObject<'a> {
-        object_store: &'a mut InMemObjectStore,
+        object_store: &'a mut InMemoryObjectStore,
         byte_vec: Vec<u8>,
     }
 
-    impl<'a> ObjectStore for &'a mut InMemObjectStore {
+    impl<'a> ObjectStore for &'a mut InMemoryObjectStore {
         type ObjectRead = &'a [u8];
         type ObjectWrite = InMemIncomingObject<'a>;
 
@@ -204,7 +204,7 @@ mod test {
 
     #[test]
     fn test_in_mem_object_store() {
-        do_object_store_trait_tests(InMemObjectStore::new);
+        do_object_store_trait_tests(InMemoryObjectStore::new);
     }
 
     fn create_temp_disk_object_store() -> DiskObjectStore {
