@@ -22,12 +22,16 @@ mod repo {
 
     extern crate crypto;
 
-    use std::io::{Read, Write, Result};
+    use std::io::{Read, Write, Result, sink};
 
     use self::crypto::digest::Digest;
     use self::crypto::sha1::Sha1;
 
     use dag::ObjectKey;
+
+    pub fn hash_object<R: Read>(input: R) -> Result<ObjectKey> {
+        hash_and_copy_object(input, sink())
+    }
 
     pub fn hash_and_copy_object<R: Read, W: Write>(mut input: R,
                                                    mut output: W)
@@ -76,6 +80,14 @@ mod repo {
             let input = [0u8; 1024 * 1024];
             do_hash_and_copy_test(&input,
                                   "3b71f43ff30f4b15b5cd85dd9e95ebc7e84eb5a3");
+        }
+
+        #[test]
+        fn test_hash_object() {
+            let input = "Hello!".as_bytes();
+            let expected_key = "69342c5c39e5ae5f0077aecc32c0f81811fb8193";
+            let hash = hash_object(input).expect("hash input");
+            assert_eq!(hash, expected_key);
         }
     }
 }
