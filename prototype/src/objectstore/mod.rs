@@ -6,10 +6,11 @@ use dag::ObjectKey;
 
 /// Content addressable storage for blobs
 ///
-/// Note that this trait's methods consume `self`. This is because the trait is meant to be
-/// implemented on references, so that you can use references for the associated types,
-/// `ObjectRead` and `ObjectWrite`. This is to get around the lack of syntax for higher-kinded
-/// types. See the ["Lack of iterator methods" section of this RFC](
+/// Note that this trait's methods consume `self`. This is because the trait is
+/// meant to be implemented on references, so that you can use references for
+/// the associated types, `ObjectRead` and `ObjectWrite`. This is to get around
+/// the lack of syntax for higher-kinded types. See the ["Lack of iterator
+/// methods" section of this RFC](
 /// https://github.com/aturon/rfcs/blob/collections-conventions/text/0000-collection-conventions.md#lack-of-iterator-methods)
 /// for more information.
 ///
