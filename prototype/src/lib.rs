@@ -30,6 +30,32 @@ mod repo {
     use self::crypto::sha1::Sha1;
 
     use dag::ObjectKey;
+    use objectstore::{ObjectStore, IncomingObject};
+
+    pub struct Repository<OS>
+        where for<'a> &'a mut OS: ObjectStore
+    {
+        objectstore: OS,
+    }
+
+    impl<OS> Repository<OS>
+        where for<'a> &'a mut OS: ObjectStore
+    {
+        pub fn new(objectstore: OS) -> Self {
+            Repository { objectstore: objectstore }
+        }
+
+        pub fn store<R: Read>(&mut self, input: R) -> Result<ObjectKey> {
+            let mut incoming = try!(self.objectstore.new_object());
+            let hash = try!(hash_and_copy_object(input, &mut incoming));
+            try!(incoming.store(hash.clone()));
+            Ok(hash)
+        }
+
+        pub fn has_object(&mut self, key: &ObjectKey) -> bool {
+            self.objectstore.has_object(key)
+        }
+    }
 
     pub fn hash_object<R: Read>(input: R) -> Result<ObjectKey> {
         hash_and_copy_object(input, sink())
@@ -62,6 +88,7 @@ mod repo {
     mod test {
 
         use super::*;
+        use objectstore::test::InMemoryObjectStore;
 
         fn do_hash_and_copy_test(input: &[u8], expected_key: &str) {
             let mut output: Vec<u8> = Vec::new();
@@ -90,6 +117,17 @@ mod repo {
             let expected_key = "69342c5c39e5ae5f0077aecc32c0f81811fb8193";
             let hash = hash_object(input).expect("hash input");
             assert_eq!(hash, expected_key);
+        }
+
+        #[test]
+        fn test_repo() {
+            let mut repo = Repository::new(InMemoryObjectStore::new());
+            let input = "Hello!".as_bytes();
+            let expected_key = "69342c5c39e5ae5f0077aecc32c0f81811fb8193";
+            let hash = repo.store(input).expect("hash input");
+            assert_eq!(hash, expected_key);
+
+            assert!(repo.has_object(&hash));
         }
     }
 }
