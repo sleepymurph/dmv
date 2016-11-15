@@ -19,43 +19,83 @@ mod dag {
 }
 
 mod rollinghash {
-    extern crate cdc;
-    use self::cdc::{Rabin64, RollingHash64};
 
-    type RabinWindowSize = u32;
+    pub type RollingHashValue = u32;
 
-    const RABIN_WINDOW_SIZE_BITS: RabinWindowSize = 8;
-    const RABIN_WINDOW_SIZE: RabinWindowSize = 1 << RABIN_WINDOW_SIZE_BITS;
-    const MATCH_BITS: RabinWindowSize = 13;
+    pub struct RollingHash {
+        value: RollingHashValue,
+        window: Vec<u8>,
+        window_size: usize,
+        pos: usize,
+        full: bool,
+    }
+
+    impl RollingHash {
+        pub fn new(window_size: usize) -> Self {
+            let mut window = Vec::with_capacity(window_size);
+            window.resize(window_size, 0);
+            RollingHash {
+                value: 0,
+                window: vec![0; window_size],
+                window_size: window_size,
+                pos: 0,
+                full: false,
+            }
+        }
+
+        pub fn reset(&mut self) {
+            self.window.clear();
+            self.window.resize(self.window_size, 0);
+            self.pos = 0;
+            self.full = false;
+            self.value = 0;
+        }
+
+        pub fn slide(&mut self, byte: u8) {
+            let outgoing = self.window[self.pos] as RollingHashValue;
+            let incoming = byte as RollingHashValue;
+            self.value = self.value - outgoing + incoming;
+            self.window[self.pos] = byte;
+            self.pos = (self.pos + 1) % self.window_size;
+            if self.pos == 0 {
+                self.full = true;
+            }
+        }
+
+        pub fn full(&self) -> bool {
+            self.full
+        }
+
+        pub fn value(&self) -> RollingHashValue {
+            self.value
+        }
+    }
+
+    const WINDOW_SIZE:usize = 4096;
+    const MATCH_BITS: RollingHashValue = 13;
 
     pub struct ChunkFlagger {
-        hasher: Rabin64,
-        mask: u64,
-        fill_count: RabinWindowSize,
+        hasher: RollingHash,
+        mask: RollingHashValue,
     }
 
     impl ChunkFlagger {
         pub fn new() -> Self {
-            let mut mask = 1u64;
+            let mut mask: RollingHashValue = 1;
             for _ in 0..MATCH_BITS {
                 mask = (mask << 1) + 1;
             }
             ChunkFlagger {
-                hasher: Rabin64::new(RABIN_WINDOW_SIZE_BITS),
+                hasher: RollingHash::new(WINDOW_SIZE),
                 mask: mask,
-                fill_count: 0,
             }
         }
 
-        pub fn slide(&mut self, byte: &u8) -> bool {
+        pub fn slide(&mut self, byte: u8) -> bool {
             self.hasher.slide(byte);
-            self.fill_count += 1;
 
-            if self.fill_count >= RABIN_WINDOW_SIZE &&
-               (self.hasher.get_hash() & self.mask) == 0 {
-
+            if self.hasher.full() && (self.hasher.value() & self.mask) == 0 {
                 self.hasher.reset();
-                self.fill_count = 0;
                 true
             } else {
                 false
@@ -65,8 +105,6 @@ mod rollinghash {
 
     #[cfg(test)]
     mod test {
-        extern crate cdc;
-        use self::cdc::{Rabin64, RollingHash64};
 
         use super::*;
         use std::io::{Read, BufReader, Bytes};
@@ -83,12 +121,12 @@ mod rollinghash {
         ///
         /// It demonstrates why you need to fill the window before checking the
         /// hash.
-        fn test_rabin_fingerprint_values() {
-            let mut hasher = Rabin64::new(8);
-            let mut hashvals: Vec<u64> = Vec::new();
+        fn test_rolling_hash_values() {
+            let mut hasher = RollingHash::new(256);
+            let mut hashvals: Vec<RollingHashValue> = Vec::new();
             for byte in rand_bytes().take(10) {
-                hasher.slide(&byte.unwrap());
-                hashvals.push(hasher.get_hash().clone());
+                hasher.slide(byte.unwrap());
+                hashvals.push(hasher.value());
             }
 
             // Uncomment to see all hash values
@@ -124,7 +162,7 @@ mod rollinghash {
             for (count, byte) in rand_bytes()
                 .take(CHUNK_TARGET_SIZE * CHUNK_REPEAT)
                 .enumerate() {
-                if flagger.slide(&byte.unwrap()) {
+                if flagger.slide(byte.unwrap()) {
                     chunk_offsets.push(count);
                 }
             }

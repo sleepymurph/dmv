@@ -12,7 +12,6 @@ name = "prototype"
 path = "src/main.rs"
 
 [dependencies]
-cdc = "0.0.2"
 clap = "2"
 rust-crypto = "0.2"
 tempdir = "0.3"
