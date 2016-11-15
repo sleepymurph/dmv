@@ -71,7 +71,7 @@ mod rollinghash {
         }
     }
 
-    const WINDOW_SIZE:usize = 4096;
+    const WINDOW_SIZE: usize = 4096;
     const MATCH_BITS: RollingHashValue = 13;
 
     pub struct ChunkFlagger {
@@ -137,14 +137,11 @@ mod rollinghash {
         }
 
 
-        const CHUNK_TARGET_SIZE: usize = 8 * 1024;
-        const CHUNK_REPEAT: usize = 50;
-
-        fn mean_std<I>(input: I) -> (usize, usize)
-            where I: Iterator<Item = usize>
+        fn mean_std<'a, I>(input: I) -> (usize, usize)
+            where I: Iterator<Item = &'a usize>
         {
             let (mut n, mut sum, mut sumsq) = (0, 0, 0);
-            for x in input {
+            for &x in input {
                 n += 1;
                 sum += x;
                 sumsq += x * x;
@@ -156,7 +153,21 @@ mod rollinghash {
         }
 
         #[test]
-        fn test_chunk_flag_happens() {
+        fn test_mean_std() {
+            let input: &[usize] = &[2, 4, 4, 4, 5, 5, 7, 9];
+            let (expected_mean, expected_std) = (5, 2);
+            let (mean, std) = mean_std(input.iter());
+            assert_eq!((mean, std), (expected_mean, expected_std));
+        }
+
+        #[test]
+        fn test_chunk_target_size() {
+            const CHUNK_TARGET_MIN: usize = 10 * 1024;
+            const CHUNK_TARGET_MAX: usize = 25 * 1024;
+            const CHUNK_TARGET_SIZE: usize = 15 * 1024;
+            const ACCEPTABLE_DEVIATION: usize = 20 * 1024;
+            const CHUNK_REPEAT: usize = 100;
+
             let mut flagger = ChunkFlagger::new();
             let mut chunk_offsets: Vec<usize> = Vec::new();
             for (count, byte) in rand_bytes()
@@ -177,10 +188,20 @@ mod rollinghash {
             }
 
             // Uncomment to get all chunk sizes
-            assert_eq!(chunk_sizes, []);
+            // assert_eq!(chunk_sizes, []);
 
-            let (mean, std) = mean_std(chunk_sizes.into_iter());
-            assert_eq!((mean, std), (0, 0));
+            let (mean, std) = mean_std(chunk_sizes.iter());
+            assert!(CHUNK_TARGET_MIN < mean && mean < CHUNK_TARGET_MAX,
+                    format!("Expected mean chunk size between {} and {}. \
+                             Got {}",
+                            CHUNK_TARGET_MIN,
+                            CHUNK_TARGET_MAX,
+                            mean));
+            assert!(std < ACCEPTABLE_DEVIATION,
+                    format!("Expected standard deviation of chunk sizes to \
+                             be less than {}. Got {}",
+                            ACCEPTABLE_DEVIATION,
+                            std));
         }
     }
 }
