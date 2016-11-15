@@ -13,5 +13,6 @@ path = "src/main.rs"
 
 [dependencies]
 clap = "2"
+rand = "0.3"
 rust-crypto = "0.2"
 tempdir = "0.3"

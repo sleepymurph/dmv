@@ -69,6 +69,7 @@ impl ChunkFlagger {
         }
     }
 
+    /// Adds a byte to the hash, returns true if this byte triggers a flag
     pub fn slide(&mut self, byte: u8) -> bool {
         self.hasher.slide(byte);
 
@@ -79,19 +80,32 @@ impl ChunkFlagger {
             false
         }
     }
+
+    /// Slides across the buffer, returns a list of flag positions
+    ///
+    /// Note that the positions point to the bytes that trigger the flag. These
+    /// positions mark the **end** of the chunk.
+    pub fn slide_over(&mut self, buf: &[u8]) -> Vec<usize> {
+        let mut boundaries = Vec::new();
+        for bufpos in 0..buf.len() {
+            if self.slide(buf[bufpos]) {
+                boundaries.push(bufpos);
+            }
+        }
+        boundaries
+    }
 }
 
 #[cfg(test)]
 mod test {
 
-    use super::*;
-    use std::io::{Read, BufReader, Bytes};
-    use std::fs::File;
+    extern crate rand;
+    use self::rand::{Rng, SeedableRng, XorShiftRng};
 
-    fn rand_bytes() -> Bytes<BufReader<File>> {
-        let urandom = File::open("/dev/urandom").expect("open urandom");
-        let bytereader = BufReader::new(urandom);
-        bytereader.bytes()
+    use super::*;
+
+    fn rng() -> XorShiftRng {
+        XorShiftRng::from_seed([255,20,110,0])
     }
 
     #[test]
@@ -100,10 +114,12 @@ mod test {
     /// It demonstrates why you need to fill the window before checking the
     /// hash.
     fn test_rolling_hash_values() {
+        let mut rng = rng();
+
         let mut hasher = RollingHash::new(256);
         let mut hashvals: Vec<RollingHashValue> = Vec::new();
-        for byte in rand_bytes().take(10) {
-            hasher.slide(byte.unwrap());
+        for byte in rng.gen_iter::<u8>().take(10) {
+            hasher.slide(byte);
             hashvals.push(hasher.value());
         }
 
@@ -138,20 +154,23 @@ mod test {
         assert_eq!((mean, std), (expected_mean, expected_std));
     }
 
+    const CHUNK_TARGET_SIZE: usize = 15 * 1024;
+
     #[test]
     fn test_chunk_target_size() {
         const CHUNK_TARGET_MIN: usize = 10 * 1024;
         const CHUNK_TARGET_MAX: usize = 25 * 1024;
-        const CHUNK_TARGET_SIZE: usize = 15 * 1024;
-        const ACCEPTABLE_DEVIATION: usize = 20 * 1024;
+        const ACCEPTABLE_DEVIATION: usize = 25 * 1024;
         const CHUNK_REPEAT: usize = 100;
+
+        let mut rng = rng();
 
         let mut flagger = ChunkFlagger::new();
         let mut chunk_offsets: Vec<usize> = Vec::new();
-        for (count, byte) in rand_bytes()
+        for (count, byte) in rng.gen_iter::<u8>()
             .take(CHUNK_TARGET_SIZE * CHUNK_REPEAT)
             .enumerate() {
-            if flagger.slide(byte.unwrap()) {
+            if flagger.slide(byte) {
                 chunk_offsets.push(count);
             }
         }
@@ -180,5 +199,25 @@ mod test {
                          be less than {}. Got {}",
                         ACCEPTABLE_DEVIATION,
                         std));
+    }
+
+
+    #[test]
+    fn test_chunk_slide_over() {
+        let mut rng = rng();
+
+        let mut data: Vec<u8> = Vec::new();
+        data.extend(rng.gen_iter::<u8>()
+            .take(10 * CHUNK_TARGET_SIZE));
+
+        let mut flagger = ChunkFlagger::new();
+        let chunk_offsets = flagger.slide_over(&data);
+
+        // Uncomment to see all offsets
+        // assert_eq!(chunk_offsets, [12345]);
+
+        assert!(chunk_offsets.len() >= 4,
+                format!("Expected several chunk offsets returned. Got: {:?}",
+                        chunk_offsets));
     }
 }
