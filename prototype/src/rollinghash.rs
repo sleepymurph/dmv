@@ -99,14 +99,8 @@ impl ChunkFlagger {
 #[cfg(test)]
 mod test {
 
-    extern crate rand;
-    use self::rand::{Rng, SeedableRng, XorShiftRng};
-
     use super::*;
-
-    fn rng() -> XorShiftRng {
-        XorShiftRng::from_seed([255,20,110,0])
-    }
+    use testutil::RandBytes;
 
     #[test]
     /// This test shows that the Rabin value increases slowly after a reset
@@ -114,11 +108,9 @@ mod test {
     /// It demonstrates why you need to fill the window before checking the
     /// hash.
     fn test_rolling_hash_values() {
-        let mut rng = rng();
-
         let mut hasher = RollingHash::new(256);
         let mut hashvals: Vec<RollingHashValue> = Vec::new();
-        for byte in rng.gen_iter::<u8>().take(10) {
+        for byte in RandBytes::new().into_iter().take(10) {
             hasher.slide(byte);
             hashvals.push(hasher.value());
         }
@@ -163,11 +155,10 @@ mod test {
         const ACCEPTABLE_DEVIATION: usize = 25 * 1024;
         const CHUNK_REPEAT: usize = 100;
 
-        let mut rng = rng();
-
         let mut flagger = ChunkFlagger::new();
         let mut chunk_offsets: Vec<usize> = Vec::new();
-        for (count, byte) in rng.gen_iter::<u8>()
+        for (count, byte) in RandBytes::new()
+            .into_iter()
             .take(CHUNK_TARGET_SIZE * CHUNK_REPEAT)
             .enumerate() {
             if flagger.slide(byte) {
@@ -204,10 +195,9 @@ mod test {
 
     #[test]
     fn test_chunk_slide_over() {
-        let mut rng = rng();
-
         let mut data: Vec<u8> = Vec::new();
-        data.extend(rng.gen_iter::<u8>()
+        data.extend(RandBytes::new()
+            .into_iter()
             .take(10 * CHUNK_TARGET_SIZE));
 
         let mut flagger = ChunkFlagger::new();

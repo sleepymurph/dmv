@@ -2,6 +2,7 @@
 
 mod objectstore;
 mod rollinghash;
+mod testutil;
 
 mod dag {
     pub type ObjectKey = String;
