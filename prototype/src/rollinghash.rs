@@ -1,3 +1,5 @@
+use std::io::{BufRead, Result};
+
 pub type RollingHashValue = u32;
 
 pub struct RollingHash {
@@ -70,15 +72,29 @@ impl ChunkFlagger {
     }
 
     /// Adds a byte to the hash, returns true if this byte triggers a flag
-    pub fn slide(&mut self, byte: u8) -> bool {
-        self.hasher.slide(byte);
-
-        if self.hasher.full() && (self.hasher.value() & self.mask) == 0 {
+    pub fn slide(&mut self, byte: u8) {
+        if self.flag() {
             self.hasher.reset();
-            true
-        } else {
-            false
         }
+        self.hasher.slide(byte);
+    }
+
+    pub fn flag(&self) -> bool {
+        self.hasher.full() && (self.hasher.value() & self.mask) == 0
+    }
+
+    /// Slides across the buffer, returns position of first flag
+    ///
+    /// Note that the position points to the byte that triggers the flag. So
+    /// this position marks the **end** of the chunk.
+    pub fn slide_until(&mut self, buf: &[u8]) -> Option<usize> {
+        for bufpos in 0..buf.len() {
+            self.slide(buf[bufpos]);
+            if self.flag() {
+                return Some(bufpos);
+            }
+        }
+        None
     }
 
     /// Slides across the buffer, returns a list of flag positions
@@ -88,13 +104,72 @@ impl ChunkFlagger {
     pub fn slide_over(&mut self, buf: &[u8]) -> Vec<usize> {
         let mut boundaries = Vec::new();
         for bufpos in 0..buf.len() {
-            if self.slide(buf[bufpos]) {
+            self.slide(buf[bufpos]);
+            if self.flag() {
                 boundaries.push(bufpos);
             }
         }
         boundaries
     }
 }
+
+
+pub struct ChunkReader<R: BufRead> {
+    reader: R,
+    flagger: ChunkFlagger,
+}
+
+impl<R: BufRead> ChunkReader<R> {
+    pub fn wrap(reader: R) -> Self {
+        ChunkReader {
+            reader: reader,
+            flagger: ChunkFlagger::new(),
+        }
+    }
+
+    pub fn read_chunk(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
+        let mut read = 0;
+        loop {
+            let (done, used);
+            {
+                let available = try!(self.reader.fill_buf());
+
+                match self.flagger.slide_until(available) {
+                    Some(pos) => {
+                        buf.extend_from_slice(&available[..pos + 2]);
+                        done = true;
+                        used = pos + 2;
+                    }
+                    None => {
+                        buf.extend_from_slice(available);
+                        done = false;
+                        used = available.len();
+                    }
+                }
+            }
+
+            self.reader.consume(used);
+            read += used;
+            if done || used == 0 {
+                return Ok(read);
+            }
+        }
+    }
+}
+
+impl<R: BufRead> Iterator for ChunkReader<R> {
+    type Item = Result<Vec<u8>>;
+    fn next(&mut self) -> Option<Result<Vec<u8>>> {
+        let mut buf: Vec<u8> = Vec::new();
+        match self.read_chunk(&mut buf) {
+            Ok(0) => None,
+            Ok(_n) => Some(Ok(buf)),
+            Err(e) => Some(Err(e)),
+        }
+    }
+}
+
+
 
 #[cfg(test)]
 mod test {
@@ -161,7 +236,9 @@ mod test {
             .into_iter()
             .take(CHUNK_TARGET_SIZE * CHUNK_REPEAT)
             .enumerate() {
-            if flagger.slide(byte) {
+
+            flagger.slide(byte);
+            if flagger.flag() {
                 chunk_offsets.push(count);
             }
         }
@@ -209,5 +286,30 @@ mod test {
         assert!(chunk_offsets.len() >= 4,
                 format!("Expected several chunk offsets returned. Got: {:?}",
                         chunk_offsets));
+    }
+
+
+    #[test]
+    fn test_chunk_reader() {
+        let mut rng = RandBytes::new();
+        let rand_bytes = rng.next_many(10 * CHUNK_TARGET_SIZE);
+        let mut chunk_read = ChunkReader::wrap(rand_bytes.as_slice());
+
+        let mut chunks: Vec<Vec<u8>> = Vec::new();
+
+        for chunk in &mut chunk_read {
+            chunks.push(chunk.expect("read chunk"));
+        }
+
+        assert!(chunks.len() > 1,
+                format!("Expected input to be broken into chunks. Got {} \
+                         chunks",
+                        chunks.len()));
+
+        let reconstructed = chunks.into_iter().fold(vec![], |mut a, v| {
+            a.extend(v);
+            a
+        });
+        assert_eq!(reconstructed, rand_bytes);
     }
 }

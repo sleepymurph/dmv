@@ -25,6 +25,12 @@ impl RandBytes {
         self.rng.gen()
     }
 
+    pub fn next_many(&mut self, size: usize) -> Vec<u8> {
+        let mut vec = Vec::new();
+        self.as_read(size).read_to_end(&mut vec).expect("read random bytes");
+        vec
+    }
+
     pub fn as_read(&mut self, limit: usize) -> RandBytesRead {
         RandBytesRead {
             rng: self,
