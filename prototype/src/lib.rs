@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod objectstore;
+mod objectstore2;
 mod rollinghash;
 mod testutil;
 
