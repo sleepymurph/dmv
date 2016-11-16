@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 mod objectstore;
-mod objectstore2;
 mod rollinghash;
 mod testutil;
 
@@ -32,16 +31,16 @@ mod repo {
     use self::crypto::sha1::Sha1;
 
     use dag::ObjectKey;
-    use objectstore::{ObjectStore, IncomingObject};
+    use objectstore::ObjectStore;
 
     pub struct Repository<OS>
-        where for<'a> &'a mut OS: ObjectStore
+        where OS: ObjectStore
     {
         objectstore: OS,
     }
 
     impl<OS> Repository<OS>
-        where for<'a> &'a mut OS: ObjectStore
+        where OS: ObjectStore
     {
         pub fn new(objectstore: OS) -> Self {
             Repository { objectstore: objectstore }
@@ -50,7 +49,7 @@ mod repo {
         pub fn store<R: Read>(&mut self, input: R) -> Result<ObjectKey> {
             let mut incoming = try!(self.objectstore.new_object());
             let hash = try!(hash_and_copy_object(input, &mut incoming));
-            try!(incoming.store(hash.clone()));
+            try!(self.objectstore.save_object(hash.clone(), incoming));
             Ok(hash)
         }
 
