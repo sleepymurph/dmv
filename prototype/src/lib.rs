@@ -25,13 +25,14 @@ mod repo {
 
     extern crate crypto;
 
-    use std::io::{Read, Write, Result, sink};
+    use std::io::{Read, BufRead, Write, Result, sink};
 
     use self::crypto::digest::Digest;
     use self::crypto::sha1::Sha1;
 
     use dag::ObjectKey;
     use objectstore::ObjectStore;
+    use rollinghash::ChunkReader;
 
     pub struct Repository<OS>
         where OS: ObjectStore
@@ -46,11 +47,16 @@ mod repo {
             Repository { objectstore: objectstore }
         }
 
-        pub fn store<R: Read>(&mut self, input: R) -> Result<ObjectKey> {
-            let mut incoming = try!(self.objectstore.new_object());
-            let hash = try!(hash_and_copy_object(input, &mut incoming));
-            try!(self.objectstore.save_object(hash.clone(), incoming));
-            Ok(hash)
+        pub fn store<R: BufRead>(&mut self, input: &mut R) -> Result<ObjectKey> {
+            let mut digest = Sha1::new();
+            for chunk in ChunkReader::wrap(input) {
+                let chunk = try!(chunk);
+                let mut incoming = try!(self.objectstore.new_object());
+                digest.input(&chunk);
+                try!(incoming.write(&chunk));
+                try!(self.objectstore.save_object(digest.result_str(), incoming));
+            }
+            Ok(digest.result_str())
         }
 
         pub fn has_object(&mut self, key: &ObjectKey) -> bool {
@@ -88,8 +94,11 @@ mod repo {
     #[cfg(test)]
     mod test {
 
+        use std::io::BufReader;
+
         use super::*;
         use objectstore::test::InMemoryObjectStore;
+        use testutil::RandBytes;
 
         fn do_hash_and_copy_test(input: &[u8], expected_key: &str) {
             let mut output: Vec<u8> = Vec::new();
@@ -121,14 +130,28 @@ mod repo {
         }
 
         #[test]
-        fn test_repo() {
+        fn test_repo_store() {
             let mut repo = Repository::new(InMemoryObjectStore::new());
-            let input = "Hello!".as_bytes();
+            let mut input = "Hello!".as_bytes();
             let expected_key = "69342c5c39e5ae5f0077aecc32c0f81811fb8193";
-            let hash = repo.store(input).expect("hash input");
+            let hash = repo.store(&mut input).expect("hash input");
             assert_eq!(hash, expected_key);
 
             assert!(repo.has_object(&hash));
         }
+
+        #[test]
+        #[ignore]
+        fn test_repo_store_chunks() {
+            let mut rng = RandBytes::new();
+            let mut repo = Repository::new(InMemoryObjectStore::new());
+            let mut input = BufReader::new(rng.as_read(100 * 1024));
+            let expected_key = "69342c5c39e5ae5f0077aecc32c0f81811fb8193";
+            let hash = repo.store(&mut input).expect("hash input");
+            assert_eq!(hash, expected_key);
+
+            assert!(repo.has_object(&hash));
+        }
+
     }
 }
