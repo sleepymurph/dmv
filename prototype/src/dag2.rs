@@ -1,3 +1,5 @@
+//! Implementation of the directed acyclic graph (DAG)
+
 use std::fmt;
 use std::convert;
 
@@ -14,6 +16,7 @@ pub enum DagError {
     ParseKey { bad_key: String },
 }
 
+/// Hash key for an object
 #[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub struct ObjectKey {
     hash: ObjectKeyByteArray,

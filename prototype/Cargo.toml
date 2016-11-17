@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Mike Murphy <codermurph@sleepymurph.com>"]
 
 [lib]
-name = "prototype"
+name = "prototypelib"
 path = "src/lib.rs"
 
 [[bin]]

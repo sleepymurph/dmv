@@ -1,9 +1,11 @@
+//! Library for master's thesis prototype
+
 #![allow(dead_code)]
 
 mod objectstore;
 mod rollinghash;
 mod testutil;
-mod dag2;
+pub mod dag2;
 
 mod dag {
     pub type ObjectKey = String;
