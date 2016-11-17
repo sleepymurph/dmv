@@ -3,6 +3,7 @@
 mod objectstore;
 mod rollinghash;
 mod testutil;
+mod dag2;
 
 mod dag {
     pub type ObjectKey = String;
@@ -47,14 +48,17 @@ mod repo {
             Repository { objectstore: objectstore }
         }
 
-        pub fn store<R: BufRead>(&mut self, input: &mut R) -> Result<ObjectKey> {
+        pub fn store<R: BufRead>(&mut self,
+                                 input: &mut R)
+                                 -> Result<ObjectKey> {
             let mut digest = Sha1::new();
             for chunk in ChunkReader::wrap(input) {
                 let chunk = try!(chunk);
                 let mut incoming = try!(self.objectstore.new_object());
                 digest.input(&chunk);
                 try!(incoming.write(&chunk));
-                try!(self.objectstore.save_object(digest.result_str(), incoming));
+                try!(self.objectstore
+                    .save_object(digest.result_str(), incoming));
             }
             Ok(digest.result_str())
         }
