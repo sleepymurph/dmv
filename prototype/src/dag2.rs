@@ -29,6 +29,7 @@ type ObjectKeyByteArray = [u8; KEY_SIZE_BYTES];
 #[derive(Debug)]
 pub enum DagError {
     ParseKey { bad_key: String },
+    BadObjectHeader { msg: String },
     IoError(io::Error),
 }
 
@@ -143,9 +144,15 @@ impl ObjectHeader {
         let mut header = [0u8; 12];
         try!(reader.read_exact(&mut header));
 
-        let object_type = match &header[0..4] {
+        let object_type_marker = &header[0..4];
+        let object_type = match object_type_marker {
             b"blob" => ObjectType::Blob,
-            _ => unimplemented!(),
+            _ => {
+                return Err(DagError::BadObjectHeader {
+                    msg: format!("Unrecognized object type bytes: {:?}",
+                                 object_type_marker),
+                })
+            }
         };
         let content_size = byteorder::BigEndian::read_u64(&header[4..12]);
 
