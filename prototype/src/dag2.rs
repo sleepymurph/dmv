@@ -113,101 +113,100 @@ impl convert::From<ObjectKey> for String {
     }
 }
 
-
 #[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
-pub enum Object {
-    /// Blobs
-    ///
-    /// Blobs are a special case because often when dealing with the DAG we
-    /// don't need to read in the actual data. So we have an Option for the
-    /// binary data, which represents whether the data has been loaded or not.
-    /// It will not be read in by default, but it will be necessary when writing
-    /// out, in order to finish the write and compute the hash.
-    ///
-    /// Blobs are assumed to be able to fit in memory because of the way that
-    /// large files are broken into chunks when stored. So it should be safe to
-    /// use a `Vec<u8>` to hold the contents.
-    Blob {
-        size: ObjectSize,
-        content: Option<Vec<u8>>,
-    },
-    ChunkedBlob {
-        // TODO: list of chunk mappings
-        size: ObjectSize,
-        total_blob_size: ObjectSize,
-    },
-    Tree {
-        // TODO: list of file mappings
-        size: ObjectSize,
-    },
-    Commit {
-        // TODO: parents, message, author, etc.
-        size: ObjectSize,
-        tree: ObjectKey,
-    },
+pub enum ObjectType {
+    Blob,
+    ChunkedBlob,
+    Tree,
+    Commit,
 }
 
-impl Object {
-    pub fn blob_from_vec(bytes: Vec<u8>) -> Self {
-        Object::Blob {
-            size: bytes.len() as ObjectSize,
-            content: Some(bytes),
-        }
-    }
+#[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
+pub struct ObjectHeader {
+    object_type: ObjectType,
+    content_size: ObjectSize,
+}
 
-    /// Write object to output
-    ///
-    /// When writing a `Blob`, the content must be available, or else the write
-    /// will not be able to finish to get the hash of the object.
-    pub fn write_to(&self, writer: &mut io::Write) -> io::Result<ObjectKey> {
-        let mut writer = HashWriter::wrap(writer);
-        match self {
-            &Object::Blob { size, content: Some(ref content) } => {
+impl ObjectHeader {
+    pub fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self.object_type {
+            ObjectType::Blob => {
                 try!(writer.write(b"blob"));
-                try!(writer.write_u64::<byteorder::BigEndian>(size));
-                try!(writer.write(&[0u8]));
-                try!(writer.write(content));
-                Ok(writer.hash())
-            }
-            &Object::Blob { content: None, .. } => {
-                panic!("Cannot write a blob without content")
+                try!(writer.write_u64::<byteorder::BigEndian>(self.content_size));
             }
             _ => unimplemented!(),
         }
+        Ok(())
     }
 
-    pub fn read_from<R: io::BufRead>(reader: &mut R)
-                                     -> Result<Object, DagError> {
-        let mut header = [0u8; 13];
+    pub fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError> {
+        let mut header = [0u8; 12];
         try!(reader.read_exact(&mut header));
-        if header.starts_with(b"blob") {
-            // panic!(format!("{:?}",header));
-            let size = byteorder::BigEndian::read_u64(&header[4..12]);
-            return Ok(Object::Blob {
-                size: size,
-                content: None,
-            });
-        }
-        unimplemented!()
+
+        let object_type = match &header[0..4] {
+            b"blob" => ObjectType::Blob,
+            _ => unimplemented!(),
+        };
+        let content_size = byteorder::BigEndian::read_u64(&header[4..12]);
+
+        Ok(ObjectHeader {
+            object_type: object_type,
+            content_size: content_size,
+        })
     }
+}
 
-    pub fn read_rest_of_blob<R: io::BufRead>(&mut self,
-                                             reader: &mut R)
-                                             -> Result<(), DagError> {
+pub trait Object: Sized {
+    /// Write object, header AND content, to the give writer
+    fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey>;
 
-        match self {
-            &mut Object::Blob { size, ref mut content, .. } => {
-                let mut new_buf: Vec<u8> = Vec::with_capacity(size as usize);
-                try!(reader.read_to_end(&mut new_buf));
-                *content = Some(new_buf);
-                Ok(())
-            }
-            _ => {
-                panic!(format!("Tried to read rest of blob with non-blob: \
-                                {:?}",
-                               self))
-            }
-        }
+    /// Read object, content only, from the given reader
+    fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError>;
+}
+
+/// Blobs
+///
+/// Blobs are a special case because often when dealing with the DAG we
+/// don't need to read in the actual data. So we have an Option for the
+/// binary data, which represents whether the data has been loaded or not.
+/// It will not be read in by default, but it will be necessary when writing
+/// out, in order to finish the write and compute the hash.
+///
+/// Blobs are assumed to be able to fit in memory because of the way that
+/// large files are broken into chunks when stored. So it should be safe to
+/// use a `Vec<u8>` to hold the contents.
+#[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
+pub struct Blob {
+    content: Vec<u8>,
+}
+
+impl From<Vec<u8>> for Blob {
+    fn from(v: Vec<u8>) -> Blob {
+        Blob::from_vec(v)
+    }
+}
+
+impl Blob {
+    fn from_vec(v: Vec<u8>) -> Blob {
+        Blob { content: v }
+    }
+}
+
+impl Object for Blob {
+    fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey> {
+        let mut writer = HashWriter::wrap(writer);
+        let header = ObjectHeader {
+            object_type: ObjectType::Blob,
+            content_size: self.content.len() as ObjectSize,
+        };
+        try!(header.write_to(&mut writer));
+        try!(writer.write(&self.content));
+        Ok(writer.hash())
+    }
+    fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError> {
+        let mut content: Vec<u8> = Vec::new();
+        try!(reader.read_to_end(&mut content));
+        Ok(Blob { content: content })
     }
 }
 
@@ -312,7 +311,7 @@ mod test {
     fn test_write_blob() {
         let content = b"Hello world!";
         let content_size = content.len() as ObjectSize;
-        let blob = Object::blob_from_vec(content.to_vec());
+        let blob = Blob::from_vec(content.to_vec());
 
         let mut output: Vec<u8> = Vec::new();
         blob.write_to(&mut output).expect("write out blob");
@@ -320,22 +319,18 @@ mod test {
         // panic!(format!("{:?}",output));
 
         let mut reader = io::BufReader::new(output.as_slice());
-        let mut readblob = Object::read_from(&mut reader).expect("read blob");
+        let header = ObjectHeader::read_from(&mut reader).expect("read header");
+
+        assert_eq!(header,
+                   ObjectHeader {
+                       object_type: ObjectType::Blob,
+                       content_size: content_size,
+                   });
+
+        let readblob = Blob::read_from(&mut reader).expect("read rest of blob");
 
         assert_eq!(readblob,
-                   Object::Blob {
-                       size: content_size,
-                       content: None,
-                   },
-                   "Initial blob read should only read the header");
-
-        readblob.read_rest_of_blob(&mut reader).expect("read rest of blob");
-
-        assert_eq!(readblob,
-                   Object::Blob {
-                       size: content_size,
-                       content: Some(content.to_vec()),
-                   },
+                   blob,
                    "Should be able to get the rest of the content by \
                     continuing to read from the same reader.");
     }
