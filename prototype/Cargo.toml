@@ -12,6 +12,7 @@ name = "prototype"
 path = "src/main.rs"
 
 [dependencies]
+byteorder = "0.5"
 clap = "2"
 rand = "0.3"
 rust-crypto = "0.2"

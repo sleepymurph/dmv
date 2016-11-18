@@ -1,15 +1,19 @@
 //! Implementation of the directed acyclic graph (DAG)
 
+extern crate byteorder;
+use self::byteorder::WriteBytesExt;
+use self::byteorder::ByteOrder;
+
 extern crate crypto;
 use self::crypto::digest::Digest;
 
 use std::convert;
-use std::error;
 use std::fmt;
 use std::io;
+use std::io::Write;
 
 /// Type used for sizing and seeking in objects
-type ObjectSize = u64;
+pub type ObjectSize = u64;
 
 /// Hash type
 type Hasher = crypto::sha1::Sha1;
@@ -22,9 +26,16 @@ pub const KEY_SIZE_BYTES: usize = KEY_SIZE_BITS / 8;
 
 type ObjectKeyByteArray = [u8; KEY_SIZE_BYTES];
 
-#[derive(Debug,PartialEq,Eq)]
+#[derive(Debug)]
 pub enum DagError {
     ParseKey { bad_key: String },
+    IoError(io::Error),
+}
+
+impl From<io::Error> for DagError {
+    fn from(err: io::Error) -> Self {
+        DagError::IoError(err)
+    }
 }
 
 /// Hash key for an object
@@ -137,16 +148,46 @@ pub enum Object {
 }
 
 impl Object {
+    pub fn blob_from_vec(bytes: Vec<u8>) -> Self {
+        Object::Blob {
+            size: bytes.len() as ObjectSize,
+            content: Some(bytes),
+        }
+    }
+
     /// Write object to output
     ///
     /// When writing a `Blob`, the content must be available, or else the write
     /// will not be able to finish to get the hash of the object.
     pub fn write_to(&self, writer: &mut io::Write) -> io::Result<ObjectKey> {
-        unimplemented!()
+        let mut writer = HashWriter::wrap(writer);
+        match self {
+            &Object::Blob { size, content: Some(ref content) } => {
+                try!(writer.write(b"blob"));
+                try!(writer.write_u64::<byteorder::BigEndian>(size));
+                try!(writer.write(&[0u8]));
+                try!(writer.write(content));
+                Ok(writer.hash())
+            }
+            &Object::Blob { content: None, .. } => {
+                panic!("Cannot write a blob without content")
+            }
+            _ => unimplemented!(),
+        }
     }
 
     pub fn read_from<R: io::BufRead>(reader: &mut R)
                                      -> Result<Object, DagError> {
+        let mut header = [0u8; 12];
+        try!(reader.read_exact(&mut header));
+        if header.starts_with(b"blob") {
+            // panic!(format!("{:?}",header));
+            let size = byteorder::BigEndian::read_u64(&header[4..12]);
+            return Ok(Object::Blob {
+                size: size,
+                content: None,
+            });
+        }
         unimplemented!()
     }
 }
@@ -188,6 +229,7 @@ impl<W: io::Write> io::Write for HashWriter<W> {
 mod test {
     use super::*;
 
+    use std::io;
     use std::io::Write;
 
     #[test]
@@ -217,10 +259,15 @@ mod test {
              ("too long", "da39a3ee5e6b4b0d3255bfef95601890afd807090000")];
 
         for &(desc, bad) in bad_inputs.into_iter() {
-            assert_eq!(ObjectKey::from_hex(&bad),
-                       Err(DagError::ParseKey { bad_key: bad.into() }),
-                       "{}",
-                       desc);
+            match ObjectKey::from_hex(&bad) {
+                Err(DagError::ParseKey { ref bad_key }) if bad_key == bad => (),
+                other => {
+                    panic!(format!("parsing \"{}\" input. Expected error. \
+                                    Got: {:?}",
+                                   desc,
+                                   other))
+                }
+            }
         }
     }
 
@@ -240,5 +287,27 @@ mod test {
         }
 
         assert_eq!(output, input);
+    }
+
+    #[test]
+    fn test_write_blob() {
+        let content = b"Hello world!".to_vec();
+        let content_size = content.len() as ObjectSize;
+        let blob = Object::blob_from_vec(content);
+
+        let mut output: Vec<u8> = Vec::new();
+        blob.write_to(&mut output).expect("write out blob");
+
+        // panic!(format!("{:?}",output));
+
+        let readblob =
+            Object::read_from(&mut io::BufReader::new(output.as_slice()))
+                .expect("read blob");
+
+        assert_eq!(readblob,
+                   Object::Blob {
+                       size: content_size,
+                       content: None,
+                   });
     }
 }
