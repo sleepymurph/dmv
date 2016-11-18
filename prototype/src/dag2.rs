@@ -178,7 +178,7 @@ impl Object {
 
     pub fn read_from<R: io::BufRead>(reader: &mut R)
                                      -> Result<Object, DagError> {
-        let mut header = [0u8; 12];
+        let mut header = [0u8; 13];
         try!(reader.read_exact(&mut header));
         if header.starts_with(b"blob") {
             // panic!(format!("{:?}",header));
@@ -189,6 +189,25 @@ impl Object {
             });
         }
         unimplemented!()
+    }
+
+    pub fn read_rest_of_blob<R: io::BufRead>(&mut self,
+                                             reader: &mut R)
+                                             -> Result<(), DagError> {
+
+        match self {
+            &mut Object::Blob { size, ref mut content, .. } => {
+                let mut new_buf: Vec<u8> = Vec::with_capacity(size as usize);
+                try!(reader.read_to_end(&mut new_buf));
+                *content = Some(new_buf);
+                Ok(())
+            }
+            _ => {
+                panic!(format!("Tried to read rest of blob with non-blob: \
+                                {:?}",
+                               self))
+            }
+        }
     }
 }
 
@@ -291,23 +310,33 @@ mod test {
 
     #[test]
     fn test_write_blob() {
-        let content = b"Hello world!".to_vec();
+        let content = b"Hello world!";
         let content_size = content.len() as ObjectSize;
-        let blob = Object::blob_from_vec(content);
+        let blob = Object::blob_from_vec(content.to_vec());
 
         let mut output: Vec<u8> = Vec::new();
         blob.write_to(&mut output).expect("write out blob");
 
         // panic!(format!("{:?}",output));
 
-        let readblob =
-            Object::read_from(&mut io::BufReader::new(output.as_slice()))
-                .expect("read blob");
+        let mut reader = io::BufReader::new(output.as_slice());
+        let mut readblob = Object::read_from(&mut reader).expect("read blob");
 
         assert_eq!(readblob,
                    Object::Blob {
                        size: content_size,
                        content: None,
-                   });
+                   },
+                   "Initial blob read should only read the header");
+
+        readblob.read_rest_of_blob(&mut reader).expect("read rest of blob");
+
+        assert_eq!(readblob,
+                   Object::Blob {
+                       size: content_size,
+                       content: Some(content.to_vec()),
+                   },
+                   "Should be able to get the rest of the content by \
+                    continuing to read from the same reader.");
     }
 }
