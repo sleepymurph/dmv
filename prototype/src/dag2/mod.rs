@@ -6,6 +6,9 @@ pub use self::objectkey::*;
 mod blob;
 pub use self::blob::*;
 
+mod chunkedblob;
+pub use self::chunkedblob::*;
+
 extern crate byteorder;
 use self::byteorder::WriteBytesExt;
 use self::byteorder::ByteOrder;

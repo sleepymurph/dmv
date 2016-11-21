@@ -51,6 +51,7 @@ impl RollingHash {
     }
 }
 
+pub const CHUNK_TARGET_SIZE: usize = 15 * 1024;
 const WINDOW_SIZE: usize = 4096;
 const MATCH_BITS: RollingHashValue = 13;
 
@@ -220,8 +221,6 @@ mod test {
         let (mean, std) = mean_std(input.iter());
         assert_eq!((mean, std), (expected_mean, expected_std));
     }
-
-    const CHUNK_TARGET_SIZE: usize = 15 * 1024;
 
     #[test]
     fn test_chunk_target_size() {

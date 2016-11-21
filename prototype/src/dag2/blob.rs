@@ -3,18 +3,12 @@ use super::*;
 use std::io;
 use std::io::Write;
 
-/// Blobs
-///
-/// Blobs are a special case because often when dealing with the DAG we
-/// don't need to read in the actual data. So we have an Option for the
-/// binary data, which represents whether the data has been loaded or not.
-/// It will not be read in by default, but it will be necessary when writing
-/// out, in order to finish the write and compute the hash.
+/// A binary (file) stored in the DAG
 ///
 /// Blobs are assumed to be able to fit in memory because of the way that
 /// large files are broken into chunks when stored. So it should be safe to
 /// use a `Vec<u8>` to hold the contents.
-#[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct Blob {
     content: Vec<u8>,
 }
@@ -28,6 +22,14 @@ impl From<Vec<u8>> for Blob {
 impl Blob {
     pub fn from_vec(v: Vec<u8>) -> Blob {
         Blob { content: v }
+    }
+
+    pub fn size(&self) -> ObjectSize {
+        self.content.len() as ObjectSize
+    }
+
+    pub fn content(&self) -> &Vec<u8> {
+        &self.content
     }
 }
 

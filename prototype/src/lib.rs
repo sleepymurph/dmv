@@ -3,8 +3,8 @@
 #![allow(dead_code)]
 
 mod objectstore;
-mod rollinghash;
-mod testutil;
+pub mod rollinghash;
+pub mod testutil;
 pub mod dag2;
 
 mod dag {
