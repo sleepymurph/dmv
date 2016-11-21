@@ -60,15 +60,19 @@ mod test {
 
     #[test]
     fn test_write_blob() {
+        // Construct object
         let content = b"Hello world!";
         let content_size = content.len() as ObjectSize;
         let blob = Blob::from_vec(content.to_vec());
 
+        // Write out
         let mut output: Vec<u8> = Vec::new();
         blob.write_to(&mut output).expect("write out blob");
 
+        // Uncomment to double-check format
         // panic!(format!("{:?}",output));
 
+        // Read in header
         let mut reader = io::BufReader::new(output.as_slice());
         let header = ObjectHeader::read_from(&mut reader).expect("read header");
 
@@ -78,6 +82,7 @@ mod test {
                        content_size: content_size,
                    });
 
+        // Read in object content
         let readblob = Blob::read_from(&mut reader).expect("read rest of blob");
 
         assert_eq!(readblob,

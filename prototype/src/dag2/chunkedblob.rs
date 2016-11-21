@@ -1,7 +1,8 @@
-use super::*;
-
 use std::io;
 use std::io::Write;
+use std::mem;
+
+use super::*;
 
 /// A large blob made of many smaller chunks
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
@@ -38,23 +39,66 @@ impl ChunkedBlob {
 
 impl Object for ChunkedBlob {
     fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey> {
-        unimplemented!();
-        // let mut writer = HashWriter::wrap(writer);
-        // let header = ObjectHeader {
-        // object_type: ObjectType::Blob,
-        // content_size: self.content.len() as ObjectSize,
-        // };
-        // try!(header.write_to(&mut writer));
-        // try!(writer.write(&self.content));
-        // Ok(writer.hash())
-        //
+        let mut writer = HashWriter::wrap(writer);
+
+        let objsize_bytes = mem::size_of::<ObjectSize>();
+        let chunk_record_size = objsize_bytes * 2 + KEY_SIZE_BYTES;
+
+        let header = ObjectHeader {
+            object_type: ObjectType::ChunkedBlob,
+            content_size:
+                (objsize_bytes +
+                 self.chunks.len() *
+                 chunk_record_size) as ObjectSize,
+        };
+
+        try!(header.write_to(&mut writer));
+
+        try!(write_object_size(&mut writer, self.total_size));
+
+        for chunk in &self.chunks {
+            try!(write_object_size(&mut writer, chunk.offset));
+            try!(write_object_size(&mut writer, chunk.size));
+            try!(writer.write(chunk.hash.as_ref()));
+        }
+
+        Ok(writer.hash())
     }
-    fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError> {
-        unimplemented!();
-        // let mut content: Vec<u8> = Vec::new();
-        // try!(reader.read_to_end(&mut content));
-        // Ok(Blob { content: content })
-        //
+
+    fn read_from<R: io::BufRead>(mut reader: &mut R) -> Result<Self, DagError> {
+        let objsize_bytes = mem::size_of::<ObjectSize>();
+        let chunk_record_size = objsize_bytes * 2 + KEY_SIZE_BYTES;
+        let mut chunk_record_buf: Vec<u8> =
+            Vec::with_capacity(chunk_record_size);
+        chunk_record_buf.resize(chunk_record_size, 0);
+
+        let total_size = try!(read_object_size(&mut reader));
+        let mut chunks: Vec<ChunkOffset> = Vec::new();
+        loop {
+            let bytes_read = try!(reader.read(&mut chunk_record_buf));
+            match bytes_read {
+                0 => break,
+                _ if bytes_read == chunk_record_size => {
+                    let chunk_offset =
+                        object_size_from_bytes(&chunk_record_buf[0..8]);
+                    let chunk_size =
+                        object_size_from_bytes(&chunk_record_buf[8..16]);
+                    let chunk_hash =
+                        ObjectKey::from_bytes(&chunk_record_buf[16..]).unwrap();
+
+                    chunks.push(ChunkOffset {
+                        offset: chunk_offset,
+                        size: chunk_size,
+                        hash: chunk_hash,
+                    });
+                }
+                _ => return Err(DagError::from(io::Error::new(io::ErrorKind::UnexpectedEof, ""))),
+            }
+        }
+        Ok(ChunkedBlob {
+            total_size: total_size,
+            chunks: chunks,
+        })
     }
 }
 
@@ -69,25 +113,37 @@ mod test {
     use std::io::Write;
     use std::collections;
 
-    #[test]
-    fn test_chunk_and_reconstruct() {
+    fn create_random_chunkedblob
+        ()
+        -> (Vec<u8>, collections::HashMap<ObjectKey, Blob>, ChunkedBlob)
+    {
         // Set up a "file" of random bytes
         let mut rng = testutil::RandBytes::new();
         let rand_bytes = rng.next_many(10 * rollinghash::CHUNK_TARGET_SIZE);
 
         // Break into chunks, indexed by ChunkedBlob
-        let mut chunk_read =
-            rollinghash::ChunkReader::wrap(rand_bytes.as_slice());
         let mut chunkedblob = ChunkedBlob::new();
         let mut chunk_store: collections::HashMap<ObjectKey, Blob> =
             collections::HashMap::new();
 
-        for chunk in &mut chunk_read {
-            let blob = Blob::from_vec(chunk.expect("chunk"));
-            let hash = blob.write_to(&mut io::sink()).expect("write chunk");
-            chunkedblob.add_chunk(blob.size(), hash);
-            chunk_store.insert(hash, blob);
+        {
+            let mut chunk_read =
+                rollinghash::ChunkReader::wrap(rand_bytes.as_slice());
+            for chunk in &mut chunk_read {
+                let blob = Blob::from_vec(chunk.expect("chunk"));
+                let hash = blob.write_to(&mut io::sink()).expect("write chunk");
+                chunkedblob.add_chunk(blob.size(), hash);
+                chunk_store.insert(hash, blob);
+            }
         }
+
+        (rand_bytes, chunk_store, chunkedblob)
+    }
+
+    #[test]
+    fn test_chunk_and_reconstruct() {
+        let (rand_bytes, chunk_store, chunkedblob) =
+            create_random_chunkedblob();
 
         assert_eq!(chunkedblob.total_size,
                    rand_bytes.len() as ObjectSize,
@@ -101,5 +157,29 @@ mod test {
         }
 
         assert_eq!(reconstructed, rand_bytes, "reconstructed content");
+    }
+
+    #[test]
+    fn test_write_chunkedblob() {
+        // Construct object
+        let (_, _, chunkedblob) =
+            create_random_chunkedblob();
+
+        // Write out
+        let mut output: Vec<u8> = Vec::new();
+        chunkedblob.write_to(&mut output).expect("write out chunked blob");
+
+        // Read in header
+        let mut reader = io::BufReader::new(output.as_slice());
+        let header = ObjectHeader::read_from(&mut reader).expect("read header");
+
+        assert_eq!(header.object_type, ObjectType::ChunkedBlob);
+        assert_ne!(header.content_size, 0);
+
+        // Read in object content
+        let readobject = ChunkedBlob::read_from(&mut reader)
+            .expect("read object content");
+
+        assert_eq!(readobject, chunkedblob);
     }
 }

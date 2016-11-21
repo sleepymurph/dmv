@@ -11,6 +11,7 @@ pub use self::chunkedblob::*;
 
 extern crate byteorder;
 use self::byteorder::WriteBytesExt;
+use self::byteorder::ReadBytesExt;
 use self::byteorder::ByteOrder;
 
 use std::io;
@@ -18,10 +19,25 @@ use std::io;
 /// Type used for sizing and seeking in objects
 pub type ObjectSize = u64;
 
+pub fn write_object_size(writer: &mut io::Write,
+                         objectsize: ObjectSize)
+                         -> io::Result<()> {
+    writer.write_u64::<byteorder::BigEndian>(objectsize)
+}
+
+pub fn read_object_size<R: io::Read>(reader: &mut R) -> io::Result<ObjectSize> {
+    reader.read_u64::<byteorder::BigEndian>()
+}
+
+pub fn object_size_from_bytes(buf: &[u8]) -> ObjectSize {
+    byteorder::BigEndian::read_u64(buf)
+}
+
 #[derive(Debug)]
 pub enum DagError {
     ParseKey { bad_key: String },
     BadObjectHeader { msg: String },
+    BadKeyLength { bad_key: Vec<u8> },
     IoError(io::Error),
 }
 
@@ -50,10 +66,13 @@ impl ObjectHeader {
         match self.object_type {
             ObjectType::Blob => {
                 try!(writer.write(b"blob"));
-                try!(writer.write_u64::<byteorder::BigEndian>(self.content_size));
+            }
+            ObjectType::ChunkedBlob => {
+                try!(writer.write(b"ckbl"));
             }
             _ => unimplemented!(),
         }
+        try!(writer.write_u64::<byteorder::BigEndian>(self.content_size));
         Ok(())
     }
 
@@ -64,6 +83,7 @@ impl ObjectHeader {
         let object_type_marker = &header[0..4];
         let object_type = match object_type_marker {
             b"blob" => ObjectType::Blob,
+            b"ckbl" => ObjectType::ChunkedBlob,
             _ => {
                 return Err(DagError::BadObjectHeader {
                     msg: format!("Unrecognized object type bytes: {:?}",

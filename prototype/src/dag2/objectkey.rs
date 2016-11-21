@@ -62,6 +62,15 @@ impl ObjectKey {
         }
         Ok(ObjectKey { hash: buf })
     }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, DagError> {
+        if bytes.len() != KEY_SIZE_BYTES {
+            return Err(DagError::BadKeyLength { bad_key: bytes.to_vec() });
+        }
+        let mut key = Self::zero();
+        key.hash.clone_from_slice(bytes);
+        Ok(key)
+    }
 }
 
 impl fmt::LowerHex for ObjectKey {
@@ -95,6 +104,11 @@ impl convert::From<ObjectKey> for String {
     }
 }
 
+impl AsRef<[u8]> for ObjectKey {
+    fn as_ref(&self) -> &[u8] {
+        &self.hash
+    }
+}
 
 
 /// Wraps an existing writer and computes a hash of the bytes going into it
