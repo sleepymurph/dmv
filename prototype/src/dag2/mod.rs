@@ -12,6 +12,9 @@ pub use self::chunkedblob::*;
 mod tree;
 pub use self::tree::*;
 
+mod commit;
+pub use self::commit::*;
+
 extern crate byteorder;
 use self::byteorder::WriteBytesExt;
 use self::byteorder::ReadBytesExt;
@@ -79,7 +82,9 @@ impl ObjectHeader {
             ObjectType::Tree => {
                 try!(writer.write(b"tree"));
             }
-            _ => unimplemented!(),
+            ObjectType::Commit => {
+                try!(writer.write(b"cmmt"));
+            }
         }
         try!(writer.write_u64::<byteorder::BigEndian>(self.content_size));
         Ok(())
@@ -94,6 +99,7 @@ impl ObjectHeader {
             b"blob" => ObjectType::Blob,
             b"ckbl" => ObjectType::ChunkedBlob,
             b"tree" => ObjectType::Tree,
+            b"cmmt" => ObjectType::Commit,
             _ => {
                 return Err(DagError::BadObjectHeader {
                     msg: format!("Unrecognized object type bytes: {:?}",

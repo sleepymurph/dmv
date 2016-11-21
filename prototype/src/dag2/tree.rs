@@ -61,7 +61,8 @@ impl Object for Tree {
 
         let mut entries: Vec<TreeEntry> = Vec::new();
         loop {
-            let bytes_read = try!(reader.read_until(TREE_ENTRY_SEPARATOR, &mut entry_buf));
+            let bytes_read =
+                try!(reader.read_until(TREE_ENTRY_SEPARATOR, &mut entry_buf));
             if bytes_read == 0 {
                 break;
             }
@@ -100,7 +101,7 @@ mod test {
         let mut rng = testutil::RandBytes::new();
 
         let mut object = Tree::new();
-        object.entries.push(TreeEntry{
+        object.entries.push(TreeEntry {
             hash: random_hash(&mut rng),
             name: path::Path::new("foo").to_owned(),
         });
