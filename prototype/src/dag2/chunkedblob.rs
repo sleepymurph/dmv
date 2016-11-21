@@ -1,6 +1,5 @@
 use std::io;
 use std::io::Write;
-use std::mem;
 
 use super::*;
 
@@ -37,19 +36,18 @@ impl ChunkedBlob {
     }
 }
 
+const CHUNK_RECORD_SIZE: usize = OBJECT_SIZE_BYTES * 2 + KEY_SIZE_BYTES;
+
 impl Object for ChunkedBlob {
     fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey> {
         let mut writer = HashWriter::wrap(writer);
 
-        let objsize_bytes = mem::size_of::<ObjectSize>();
-        let chunk_record_size = objsize_bytes * 2 + KEY_SIZE_BYTES;
-
         let header = ObjectHeader {
             object_type: ObjectType::ChunkedBlob,
             content_size:
-                (objsize_bytes +
+                (OBJECT_SIZE_BYTES +
                  self.chunks.len() *
-                 chunk_record_size) as ObjectSize,
+                 CHUNK_RECORD_SIZE) as ObjectSize,
         };
 
         try!(header.write_to(&mut writer));
@@ -66,11 +64,7 @@ impl Object for ChunkedBlob {
     }
 
     fn read_from<R: io::BufRead>(mut reader: &mut R) -> Result<Self, DagError> {
-        let objsize_bytes = mem::size_of::<ObjectSize>();
-        let chunk_record_size = objsize_bytes * 2 + KEY_SIZE_BYTES;
-        let mut chunk_record_buf: Vec<u8> =
-            Vec::with_capacity(chunk_record_size);
-        chunk_record_buf.resize(chunk_record_size, 0);
+        let mut chunk_record_buf = [0u8; CHUNK_RECORD_SIZE];
 
         let total_size = try!(read_object_size(&mut reader));
         let mut chunks: Vec<ChunkOffset> = Vec::new();
@@ -78,7 +72,7 @@ impl Object for ChunkedBlob {
             let bytes_read = try!(reader.read(&mut chunk_record_buf));
             match bytes_read {
                 0 => break,
-                _ if bytes_read == chunk_record_size => {
+                _ if bytes_read == CHUNK_RECORD_SIZE => {
                     let chunk_offset =
                         object_size_from_bytes(&chunk_record_buf[0..8]);
                     let chunk_size =
@@ -162,8 +156,7 @@ mod test {
     #[test]
     fn test_write_chunkedblob() {
         // Construct object
-        let (_, _, chunkedblob) =
-            create_random_chunkedblob();
+        let (_, _, chunkedblob) = create_random_chunkedblob();
 
         // Write out
         let mut output: Vec<u8> = Vec::new();

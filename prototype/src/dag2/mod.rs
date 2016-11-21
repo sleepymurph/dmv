@@ -9,6 +9,9 @@ pub use self::blob::*;
 mod chunkedblob;
 pub use self::chunkedblob::*;
 
+mod tree;
+pub use self::tree::*;
+
 extern crate byteorder;
 use self::byteorder::WriteBytesExt;
 use self::byteorder::ReadBytesExt;
@@ -18,6 +21,9 @@ use std::io;
 
 /// Type used for sizing and seeking in objects
 pub type ObjectSize = u64;
+
+/// Size of ObjectSize type in bytes
+pub const OBJECT_SIZE_BYTES: usize = 8;
 
 pub fn write_object_size(writer: &mut io::Write,
                          objectsize: ObjectSize)
@@ -70,6 +76,9 @@ impl ObjectHeader {
             ObjectType::ChunkedBlob => {
                 try!(writer.write(b"ckbl"));
             }
+            ObjectType::Tree => {
+                try!(writer.write(b"tree"));
+            }
             _ => unimplemented!(),
         }
         try!(writer.write_u64::<byteorder::BigEndian>(self.content_size));
@@ -84,6 +93,7 @@ impl ObjectHeader {
         let object_type = match object_type_marker {
             b"blob" => ObjectType::Blob,
             b"ckbl" => ObjectType::ChunkedBlob,
+            b"tree" => ObjectType::Tree,
             _ => {
                 return Err(DagError::BadObjectHeader {
                     msg: format!("Unrecognized object type bytes: {:?}",
