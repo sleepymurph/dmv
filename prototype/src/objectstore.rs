@@ -4,6 +4,7 @@ use std::path;
 use std::fs;
 
 use dag::ObjectKey;
+use fsutil;
 
 pub struct ObjectStore {
     path: path::PathBuf,
@@ -46,7 +47,7 @@ impl ObjectStore {
 
     pub fn new_object(&mut self) -> io::Result<IncomingObject> {
         let temp_path = self.path.join("tmp");
-        try!(create_parents(&temp_path));
+        try!(fsutil::create_parents(&temp_path));
         let file = try!(fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -67,7 +68,7 @@ impl ObjectStore {
 
         try!(object.flush());
         let permpath = self.object_path(&key);
-        try!(create_parents(&permpath));
+        try!(fsutil::create_parents(&permpath));
         fs::rename(&object.temp_path, &permpath)
     }
 }
@@ -81,14 +82,6 @@ impl io::Write for IncomingObject {
     }
 }
 
-fn create_parents(path: &path::Path) -> io::Result<Option<&path::Path>> {
-    match path.parent() {
-        Some(parent) => fs::create_dir_all(parent).and(Ok(Some(parent))),
-        None => Ok(None),
-    }
-}
-
-
 #[cfg(test)]
 pub mod test {
     extern crate tempdir;
@@ -100,7 +93,7 @@ pub mod test {
     use dag::ObjectKey;
     use super::*;
 
-    fn create_temp_object_store() -> ObjectStore {
+    pub fn create_temp_object_store() -> ObjectStore {
         let tmp = TempDir::new_in("/dev/shm", "object_store_test")
             .expect("create tempdir");
         let object_store = ObjectStore::new(tmp.path());

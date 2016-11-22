@@ -4,7 +4,12 @@ extern crate rand;
 use self::rand::{Rng, SeedableRng, Generator, XorShiftRng};
 
 use std::iter::IntoIterator;
-use std::io::{Read, Result};
+use std::fs;
+use std::io;
+use std::io::Read;
+use std::path;
+
+use fsutil;
 
 pub struct RandBytes {
     rng: XorShiftRng,
@@ -38,6 +43,15 @@ impl RandBytes {
             limit: limit,
         }
     }
+
+    pub fn write_file(&mut self,
+                      path: &path::Path,
+                      size: u64)
+                      -> io::Result<u64> {
+
+        let mut rand_bytes = self.as_read(size as usize);
+        write_file(path, &mut rand_bytes)
+    }
 }
 
 impl<'a> IntoIterator for &'a mut RandBytes {
@@ -50,7 +64,7 @@ impl<'a> IntoIterator for &'a mut RandBytes {
 }
 
 impl<'a> Read for RandBytesRead<'a> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut pos = 0;
         while pos < buf.len() && self.count < self.limit {
             buf[pos] = self.rng.next();
@@ -61,6 +75,23 @@ impl<'a> Read for RandBytesRead<'a> {
     }
 }
 
+pub fn write_file<R: Read>(path: &path::Path,
+                           mut contents: R)
+                           -> io::Result<u64> {
+
+    try!(fsutil::create_parents(path));
+    let mut file = try!(fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(&path)
+        .map_err(|e| io::Error::new(e.kind(), format!("{}", &path.display()))));
+
+    io::copy(&mut contents, &mut file)
+}
+
+pub fn write_str_file(path: &path::Path, contents: &str) -> io::Result<u64> {
+    write_file(path, contents.as_bytes())
+}
 
 #[test]
 fn test_rand_bytes_same_every_time() {

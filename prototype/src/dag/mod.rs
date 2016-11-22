@@ -66,8 +66,8 @@ pub enum ObjectType {
 
 #[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub struct ObjectHeader {
-    object_type: ObjectType,
-    content_size: ObjectSize,
+    pub object_type: ObjectType,
+    pub content_size: ObjectSize,
 }
 
 impl ObjectHeader {

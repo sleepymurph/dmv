@@ -10,7 +10,7 @@ use std::io::Write;
 /// use a `Vec<u8>` to hold the contents.
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct Blob {
-    content: Vec<u8>,
+    pub content: Vec<u8>,
 }
 
 impl From<Vec<u8>> for Blob {
