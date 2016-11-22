@@ -76,7 +76,7 @@ pub mod repo {
                     // Empty file
                     let blob = dag::Blob::from_vec(vec![0u8;0]);
                     self.store_object(&blob)
-                },
+                }
                 (Some(v1), None) => {
                     // File only one-chunk long
                     let blob = dag::Blob::from_vec(v1?);
@@ -96,6 +96,34 @@ pub mod repo {
                 }
                 (None, Some(_)) => unreachable!(),
             }
+        }
+
+
+        pub fn store_directory(&mut self,
+                               path: &path::Path)
+                               -> io::Result<dag::ObjectKey> {
+
+            let mut tree = dag::Tree::new();
+            for entry in try!(fs::read_dir(path)) {
+                let entry = try!(entry);
+                let subpath = entry.path();
+                let name = try!(subpath.strip_prefix(path).map_err(|spe| {
+                        io::Error::new(io::ErrorKind::Other, spe)
+                    }));
+                if name == path::Path::new(".prototype") {
+                    continue;
+                }
+                let key;
+                if subpath.is_dir() {
+                    key = try!(self.store_directory(&subpath));
+                } else if subpath.is_file() {
+                    key = try!(self.store_file(&subpath));
+                } else {
+                    unimplemented!()
+                };
+                tree.add_entry(key, name);
+            }
+            self.store_object(&tree)
         }
     }
 
@@ -179,8 +207,7 @@ pub mod repo {
             let filesize = 3 * rollinghash::CHUNK_TARGET_SIZE as u64;
 
             let mut rng = testutil::RandBytes::new();
-            rng.write_file(&filepath, filesize)
-                .unwrap();
+            rng.write_file(&filepath, filesize).unwrap();
 
             let hash = repo.store_file(&filepath).unwrap();
 
@@ -204,6 +231,38 @@ pub mod repo {
                 let blob = dag::Blob::read_from(&mut obj).unwrap();
                 assert_eq!(blob.size(), chunkrecord.size);
             }
+        }
+
+
+        #[test]
+        fn test_store_directory() {
+            let (_temp, mut repo) = create_temp_repository().unwrap();
+            let mut rng = testutil::RandBytes::new();
+
+            let wd_path = repo.workdir_path().unwrap().to_path_buf();
+
+            let rel_path = |relative| wd_path.join(relative);
+
+            testutil::write_str_file(&rel_path("foo"), "foo").unwrap();
+            testutil::write_str_file(&rel_path("bar"), "bar").unwrap();
+
+            let filesize = 3 * rollinghash::CHUNK_TARGET_SIZE as u64;
+            rng.write_file(&rel_path("baz"), filesize).unwrap();
+
+            let hash = repo.store_directory(&wd_path).unwrap();
+
+            let obj = repo.objectstore.read_object(&hash).unwrap();
+            let mut obj = io::BufReader::new(obj);
+            let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
+
+            assert_eq!(header.object_type, dag::ObjectType::Tree);
+
+            let tree = dag::Tree::read_from(&mut obj).unwrap();
+            // assert_eq!(tree, dag::Tree::new());
+            assert_eq!(tree.entries.len(), 3);
+
+            // TODO: nested directories
+            // TODO: consistent sort order
         }
     }
 }

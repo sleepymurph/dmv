@@ -57,20 +57,21 @@ impl Object for Tree {
     }
 
     fn read_from<R: io::BufRead>(mut reader: &mut R) -> Result<Self, DagError> {
-        let mut entry_buf: Vec<u8> = Vec::new();
+        let mut name_buf: Vec<u8> = Vec::new();
+        let mut hash_buf = [0u8; KEY_SIZE_BYTES];
 
         let mut entries: Vec<TreeEntry> = Vec::new();
         loop {
-            let bytes_read =
-                try!(reader.read_until(TREE_ENTRY_SEPARATOR, &mut entry_buf));
+            let bytes_read = try!(reader.read(&mut hash_buf));
             if bytes_read == 0 {
                 break;
             }
-            let hash = ObjectKey::from_bytes(&entry_buf[0..KEY_SIZE_BYTES])
-                .unwrap();
-            let mut name = entry_buf[KEY_SIZE_BYTES..].to_owned();
-            name.pop(); // Drop the string-ending separator
-            let name = String::from_utf8(name).unwrap();
+
+            let hash = try!(ObjectKey::from_bytes(&hash_buf));
+
+            try!(reader.read_until(TREE_ENTRY_SEPARATOR, &mut name_buf));
+            name_buf.pop(); // Drop the string-ending separator
+            let name = String::from_utf8(name_buf.clone()).unwrap();
             let name = path::Path::new(&name).to_owned();
             entries.push(TreeEntry {
                 hash: hash,
