@@ -72,12 +72,18 @@ pub mod repo {
             let chunk2 = chunker.next();
 
             match (chunk1, chunk2) {
-                (None, None) => unimplemented!(),
+                (None, None) => {
+                    // Empty file
+                    let blob = dag::Blob::from_vec(vec![0u8;0]);
+                    self.store_object(&blob)
+                },
                 (Some(v1), None) => {
+                    // File only one-chunk long
                     let blob = dag::Blob::from_vec(v1?);
                     self.store_object(&blob)
                 }
                 (Some(v1), Some(v2)) => {
+                    // Multiple chunks
                     let mut chunkedblob = dag::ChunkedBlob::new();
 
                     for chunk in vec![v1, v2].into_iter().chain(chunker) {
@@ -126,6 +132,25 @@ pub mod repo {
             };
 
             Ok((wd_temp, repo))
+        }
+
+        #[test]
+        fn test_store_file_empty() {
+            let (_temp, mut repo) = create_temp_repository().unwrap();
+            let filepath = repo.workdir_join("foo").unwrap();
+            testutil::write_str_file(&filepath, "").unwrap();
+
+            let hash = repo.store_file(&filepath).unwrap();
+
+            let obj = repo.objectstore.read_object(&hash).unwrap();
+            let mut obj = io::BufReader::new(obj);
+
+            let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
+            assert_eq!(header.object_type, dag::ObjectType::Blob);
+            assert_eq!(header.content_size, 0);
+
+            let blob = dag::Blob::read_from(&mut obj).unwrap();
+            assert_eq!(String::from_utf8(blob.content).unwrap(), "");
         }
 
         #[test]
