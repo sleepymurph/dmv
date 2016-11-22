@@ -64,7 +64,7 @@ impl ObjectKey {
     }
 
     pub fn to_hex(&self) -> String {
-        let mut hex = String::with_capacity(2*KEY_SIZE_BYTES);
+        let mut hex = String::with_capacity(2 * KEY_SIZE_BYTES);
         for byte in &self.hash {
             hex.push_str(&format!("{:02x}", byte));
         }

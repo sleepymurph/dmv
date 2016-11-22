@@ -25,7 +25,9 @@ impl Object for Commit {
     fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey> {
         let mut writer = HashWriter::wrap(writer);
 
-        let content_size = OBJECT_SIZE_BYTES + 1 + OBJECT_SIZE_BYTES*self.parents.len() + self.message.as_bytes().len();
+        let content_size = OBJECT_SIZE_BYTES + 1 +
+                           OBJECT_SIZE_BYTES * self.parents.len() +
+                           self.message.as_bytes().len();
         let content_size = content_size as ObjectSize;
 
         let header = ObjectHeader {
@@ -53,7 +55,8 @@ impl Object for Commit {
         let mut num_parents_buf = [0u8; 1];
         try!(reader.read_exact(&mut num_parents_buf));
         let num_parents = num_parents_buf[0];
-        let mut parents: Vec<ObjectKey> = Vec::with_capacity(num_parents as usize);
+        let mut parents: Vec<ObjectKey> =
+            Vec::with_capacity(num_parents as usize);
 
         for _ in 0..num_parents {
             try!(reader.read_exact(&mut hash_buf));
@@ -64,7 +67,11 @@ impl Object for Commit {
         let mut message = String::new();
         try!(reader.read_to_string(&mut message));
 
-        Ok(Commit { tree: tree, parents: parents, message: message})
+        Ok(Commit {
+            tree: tree,
+            parents: parents,
+            message: message,
+        })
     }
 }
 
