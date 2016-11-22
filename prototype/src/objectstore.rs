@@ -42,6 +42,7 @@ impl DiskObjectStore {
     }
 
     fn object_path(&self, key: &ObjectKey) -> PathBuf {
+        let key = key.to_hex();
         self.path
             .join("objects")
             .join(&key[0..2])
@@ -182,9 +183,10 @@ pub mod test {
         where F: Fn() -> O,
               O: ObjectStore
     {
-        let (key, data) = ("69342c5c39e5ae5f0077aecc32c0f81811fb8193"
-            .to_string(),
-                           "Hello!".to_string());
+        let (key, data) =
+            (ObjectKey::from_hex("69342c5c39e5ae5f0077aecc32c0f81811fb8193")
+                .unwrap(),
+             "Hello!".to_string());
         let mut store = create_temp_object_store();
         assert_eq!(store.has_object(&key), false);
         {

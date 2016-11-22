@@ -63,6 +63,14 @@ impl ObjectKey {
         Ok(ObjectKey { hash: buf })
     }
 
+    pub fn to_hex(&self) -> String {
+        let mut hex = String::with_capacity(2*KEY_SIZE_BYTES);
+        for byte in &self.hash {
+            hex.push_str(&format!("{:02x}", byte));
+        }
+        hex
+    }
+
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, DagError> {
         if bytes.len() != KEY_SIZE_BYTES {
             return Err(DagError::BadKeyLength { bad_key: bytes.to_vec() });
