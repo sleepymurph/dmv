@@ -107,12 +107,12 @@ pub mod repo {
             for entry in try!(fs::read_dir(path)) {
                 let entry = try!(entry);
                 let subpath = entry.path();
+                if subpath == self.objectstore.path() {
+                    continue;
+                }
                 let name = try!(subpath.strip_prefix(path).map_err(|spe| {
                         io::Error::new(io::ErrorKind::Other, spe)
                     }));
-                if name == path::Path::new(".prototype") {
-                    continue;
-                }
                 let key;
                 if subpath.is_dir() {
                     key = try!(self.store_directory(&subpath));
@@ -241,13 +241,11 @@ pub mod repo {
 
             let wd_path = repo.workdir_path().unwrap().to_path_buf();
 
-            let rel_path = |relative| wd_path.join(relative);
-
-            testutil::write_str_file(&rel_path("foo"), "foo").unwrap();
-            testutil::write_str_file(&rel_path("bar"), "bar").unwrap();
+            testutil::write_str_file(&wd_path.join("foo"), "foo").unwrap();
+            testutil::write_str_file(&wd_path.join("bar"), "bar").unwrap();
 
             let filesize = 3 * rollinghash::CHUNK_TARGET_SIZE as u64;
-            rng.write_file(&rel_path("baz"), filesize).unwrap();
+            rng.write_file(&wd_path.join("baz"), filesize).unwrap();
 
             let hash = repo.store_directory(&wd_path).unwrap();
 
