@@ -17,7 +17,7 @@ impl Tree {
         Tree { entries: BTreeMap::new() }
     }
 
-    pub fn add_entry(&mut self, hash: ObjectKey, name: path::PathBuf) {
+    pub fn add_entry(&mut self, name: path::PathBuf, hash: ObjectKey) {
         self.entries.insert(name, hash);
     }
 
@@ -74,7 +74,7 @@ impl Object for Tree {
             name_buf.pop(); // Drop the string-ending separator
             let name = String::from_utf8(name_buf.clone()).unwrap();
             let name = path::Path::new(&name).to_owned();
-            tree.add_entry(hash, name);
+            tree.add_entry(name, hash);
         }
         Ok(tree)
     }
@@ -99,8 +99,8 @@ mod test {
         let mut rng = testutil::RandBytes::new();
 
         let mut object = Tree::new();
-        object.add_entry(random_hash(&mut rng),
-                         path::Path::new("foo").to_owned());
+        object.add_entry(path::Path::new("foo").to_owned(),
+                         random_hash(&mut rng));
 
         // Write out
         let mut output: Vec<u8> = Vec::new();
@@ -129,9 +129,9 @@ mod test {
     #[test]
     fn test_tree_sort_by_name() {
         let mut tree = Tree::new();
-        tree.add_entry(shortkey(0), path::Path::new("foo").to_owned());
-        tree.add_entry(shortkey(2), path::Path::new("bar").to_owned());
-        tree.add_entry(shortkey(1), path::Path::new("baz").to_owned());
+        tree.add_entry(path::Path::new("foo").to_owned(), shortkey(0));
+        tree.add_entry(path::Path::new("bar").to_owned(), shortkey(2));
+        tree.add_entry(path::Path::new("baz").to_owned(), shortkey(1));
 
         let names: Vec<String> = tree.iter()
             .map(|ent| ent.0.to_str().unwrap().to_string())
