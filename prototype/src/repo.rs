@@ -93,7 +93,7 @@ impl Repo {
             } else {
                 unimplemented!()
             };
-            tree.add_entry(key, name);
+            tree.add_entry(key, name.to_owned());
         }
         self.store_object(&tree)
     }

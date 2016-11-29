@@ -1,3 +1,4 @@
+use std::collections;
 use std::io;
 use std::io::Write;
 use std::path;
@@ -7,30 +8,30 @@ use super::*;
 /// A large blob made of many smaller chunks
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct Tree {
-    entries: Vec<TreeEntry>,
+    entries: collections::BTreeSet<TreeEntry>,
 }
 
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+#[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub struct TreeEntry {
-    pub hash: ObjectKey,
     pub name: path::PathBuf,
+    pub hash: ObjectKey,
 }
 
 impl Tree {
     pub fn new() -> Self {
-        Tree { entries: Vec::new() }
+        Tree { entries: collections::BTreeSet::new() }
     }
 
-    pub fn add_entry(&mut self, hash: ObjectKey, name: &path::Path) {
+    pub fn add_entry(&mut self, hash: ObjectKey, name: path::PathBuf) {
         let new_entry = TreeEntry {
             hash: hash,
-            name: name.to_owned(),
+            name: name,
         };
-        self.entries.push(new_entry);
+        self.entries.insert(new_entry);
     }
 
-    pub fn entries(&self) -> &[TreeEntry] {
-        &self.entries
+    pub fn iter(&self) -> collections::btree_set::Iter<TreeEntry> {
+        self.entries.iter()
     }
 
     pub fn len(&self) -> usize {
@@ -68,7 +69,8 @@ impl Object for Tree {
         let mut name_buf: Vec<u8> = Vec::new();
         let mut hash_buf = [0u8; KEY_SIZE_BYTES];
 
-        let mut entries: Vec<TreeEntry> = Vec::new();
+        let mut tree = Tree::new();
+
         loop {
             let bytes_read = try!(reader.read(&mut hash_buf));
             if bytes_read == 0 {
@@ -81,15 +83,11 @@ impl Object for Tree {
             name_buf.pop(); // Drop the string-ending separator
             let name = String::from_utf8(name_buf.clone()).unwrap();
             let name = path::Path::new(&name).to_owned();
-            entries.push(TreeEntry {
-                hash: hash,
-                name: name,
-            });
+            tree.add_entry(hash, name);
         }
-        Ok(Tree { entries: entries })
+        Ok(tree)
     }
 }
-
 
 #[cfg(test)]
 mod test {
@@ -110,10 +108,8 @@ mod test {
         let mut rng = testutil::RandBytes::new();
 
         let mut object = Tree::new();
-        object.entries.push(TreeEntry {
-            hash: random_hash(&mut rng),
-            name: path::Path::new("foo").to_owned(),
-        });
+        object.add_entry(random_hash(&mut rng),
+                         path::Path::new("foo").to_owned());
 
         // Write out
         let mut output: Vec<u8> = Vec::new();
@@ -131,5 +127,24 @@ mod test {
             .expect("read object content");
 
         assert_eq!(readobject, object);
+    }
+
+    fn shortkey(num: u8) -> ObjectKey {
+        let mut vec = [0u8; KEY_SIZE_BYTES];
+        vec[KEY_SIZE_BYTES - 1] = num;
+        ObjectKey::from_bytes(&vec).unwrap()
+    }
+
+    #[test]
+    fn test_tree_sort_by_name() {
+        let mut tree = Tree::new();
+        tree.add_entry(shortkey(0), path::Path::new("foo").to_owned());
+        tree.add_entry(shortkey(2), path::Path::new("bar").to_owned());
+        tree.add_entry(shortkey(1), path::Path::new("baz").to_owned());
+
+        let names: Vec<String> = tree.iter()
+            .map(|ent| ent.name.to_str().unwrap().to_string())
+            .collect();
+        assert_eq!(names, vec!["bar", "baz", "foo"]);
     }
 }
