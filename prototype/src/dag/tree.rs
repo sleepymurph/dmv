@@ -7,7 +7,7 @@ use super::*;
 /// A large blob made of many smaller chunks
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct Tree {
-    pub entries: Vec<TreeEntry>,
+    entries: Vec<TreeEntry>,
 }
 
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
@@ -27,6 +27,14 @@ impl Tree {
             name: name.to_owned(),
         };
         self.entries.push(new_entry);
+    }
+
+    pub fn entries(&self) -> &[TreeEntry] {
+        &self.entries
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
     }
 }
 

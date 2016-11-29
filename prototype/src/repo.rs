@@ -228,7 +228,7 @@ mod test {
 
         let tree = dag::Tree::read_from(&mut obj).unwrap();
         // assert_eq!(tree, dag::Tree::new());
-        assert_eq!(tree.entries.len(), 3);
+        assert_eq!(tree.len(), 3);
 
         // TODO: nested directories
         // TODO: consistent sort order
