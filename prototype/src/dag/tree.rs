@@ -1,4 +1,5 @@
-use std::collections;
+use std::collections::BTreeMap;
+use std::collections::btree_map;
 use std::io;
 use std::io::Write;
 use std::path;
@@ -8,29 +9,19 @@ use super::*;
 /// A large blob made of many smaller chunks
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct Tree {
-    entries: collections::BTreeSet<TreeEntry>,
-}
-
-#[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
-pub struct TreeEntry {
-    pub name: path::PathBuf,
-    pub hash: ObjectKey,
+    entries: BTreeMap<path::PathBuf, ObjectKey>,
 }
 
 impl Tree {
     pub fn new() -> Self {
-        Tree { entries: collections::BTreeSet::new() }
+        Tree { entries: BTreeMap::new() }
     }
 
     pub fn add_entry(&mut self, hash: ObjectKey, name: path::PathBuf) {
-        let new_entry = TreeEntry {
-            hash: hash,
-            name: name,
-        };
-        self.entries.insert(new_entry);
+        self.entries.insert(name, hash);
     }
 
-    pub fn iter(&self) -> collections::btree_set::Iter<TreeEntry> {
+    pub fn iter(&self) -> btree_map::Iter<path::PathBuf, ObjectKey> {
         self.entries.iter()
     }
 
@@ -46,7 +37,7 @@ impl Object for Tree {
         let mut writer = HashWriter::wrap(writer);
 
         let tree_size = self.entries.iter().fold(0, |acc, x| {
-            acc + KEY_SIZE_BYTES + x.name.as_os_str().len() + 1
+            acc + KEY_SIZE_BYTES + x.0.as_os_str().len() + 1
         }) as ObjectSize;
 
         let header = ObjectHeader {
@@ -57,8 +48,8 @@ impl Object for Tree {
         try!(header.write_to(&mut writer));
 
         for entry in &self.entries {
-            try!(writer.write(entry.hash.as_ref()));
-            try!(writer.write(entry.name.to_str().unwrap().as_bytes()));
+            try!(writer.write(entry.1.as_ref()));
+            try!(writer.write(entry.0.to_str().unwrap().as_bytes()));
             try!(writer.write(&[TREE_ENTRY_SEPARATOR]));
         }
 
@@ -143,7 +134,7 @@ mod test {
         tree.add_entry(shortkey(1), path::Path::new("baz").to_owned());
 
         let names: Vec<String> = tree.iter()
-            .map(|ent| ent.name.to_str().unwrap().to_string())
+            .map(|ent| ent.0.to_str().unwrap().to_string())
             .collect();
         assert_eq!(names, vec!["bar", "baz", "foo"]);
     }
