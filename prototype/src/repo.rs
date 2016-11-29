@@ -83,9 +83,8 @@ impl Repo {
             if subpath == self.objectstore.path() {
                 continue;
             }
-            let name = try!(subpath.strip_prefix(path).map_err(|spe| {
-                    io::Error::new(io::ErrorKind::Other, spe)
-                }));
+            let name = try!(subpath.strip_prefix(path)
+                .map_err(|spe| io::Error::new(io::ErrorKind::Other, spe)));
             let key;
             if subpath.is_dir() {
                 key = try!(self.store_directory(&subpath));
@@ -195,8 +194,7 @@ mod test {
         assert_eq!(chunked.chunks.len(), 5);
 
         for chunkrecord in chunked.chunks {
-            let obj =
-                repo.objectstore.read_object(&chunkrecord.hash).unwrap();
+            let obj = repo.objectstore.read_object(&chunkrecord.hash).unwrap();
             let mut obj = io::BufReader::new(obj);
             let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
             assert_eq!(header.object_type, dag::ObjectType::Blob);
