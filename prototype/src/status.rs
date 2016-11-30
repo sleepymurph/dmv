@@ -65,4 +65,8 @@ impl DirStatus {
     pub fn to_hash_total_size(&self) -> dag::ObjectSize {
         self.to_hash_total_size
     }
+
+    pub fn is_modified(&self) -> bool {
+        self.newmodified.len() == 0 && self.missing.len() == 0
+    }
 }

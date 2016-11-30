@@ -6,9 +6,11 @@ use std::path;
 use dag;
 use objectstore;
 use rollinghash;
+use status;
 
 pub struct WorkDir {
     path: path::PathBuf,
+    current_branch: Option<dag::ObjectKey>,
 }
 
 pub struct Repo {
@@ -24,6 +26,65 @@ impl ops::Deref for WorkDir {
 }
 
 impl Repo {
+    pub fn status(&self) -> io::Result<status::DirStatus> {
+        let meta = try!(self.workdir.metadata());
+        let status =
+            try!(self.status_path(&self.workdir,
+                                  &meta,
+                                  self.workdir.current_branch.as_ref()));
+        match status {
+            status::ModifiedChild::Dir { status, .. } => Ok(status),
+            _ => {
+                panic!("Working directory is not a directory: {:?}",
+                       &self.workdir.path)
+            }
+        }
+    }
+
+    pub fn status_path(&self,
+                       path: &path::Path,
+                       meta: &fs::Metadata,
+                       expected_hash: Option<&dag::ObjectKey>)
+                       -> io::Result<status::ModifiedChild> {
+
+
+        if meta.is_dir() {
+
+            let mut dirstatus = status::DirStatus::new();
+
+            for child in try!(fs::read_dir(path)) {
+                let child = child?;
+                let subpath = child.path();
+
+                if subpath == self.objectstore.path() {
+                    continue;
+                }
+
+                let filename = path::Path::new(&child.file_name())
+                    .to_path_buf();
+                let submeta = child.metadata()?;
+
+                let childstatus = self.status_path(&subpath, &submeta, None)?;
+                dirstatus.insert_modified(filename, childstatus);
+            }
+
+            Ok(status::ModifiedChild::Dir {
+                newmodified: status::NewModified::Modified,
+                status: dirstatus,
+            })
+
+        } else if meta.is_file() {
+
+            Ok(status::ModifiedChild::File {
+                newmodified: status::NewModified::NoCache,
+                size: meta.len(),
+            })
+
+        } else {
+            unimplemented!()
+        }
+    }
+
     pub fn store_object<O: dag::Object>(&mut self,
                                         obj: &O)
                                         -> io::Result<dag::ObjectKey> {
@@ -106,11 +167,13 @@ mod test {
 
     use std::fs;
     use std::io;
+    use std::path;
 
     use dag;
     use dag::Object;
     use objectstore;
     use rollinghash;
+    use status;
     use testutil;
 
     use super::*;
@@ -120,7 +183,10 @@ mod test {
                                                     "test_repository"));
         let wd_path = wd_temp.path().to_path_buf();
         try!(fs::create_dir_all(&wd_path));
-        let wd = WorkDir { path: wd_path.clone() };
+        let wd = WorkDir {
+            path: wd_path.clone(),
+            current_branch: None,
+        };
 
         let os_path = wd_path.join(".prototype");
         let os = objectstore::ObjectStore::new(&os_path);
@@ -229,6 +295,69 @@ mod test {
         let tree = dag::Tree::read_from(&mut obj).unwrap();
         // assert_eq!(tree, dag::Tree::new());
         assert_eq!(tree.len(), 3);
+
+        // TODO: nested directories
+        // TODO: consistent sort order
+    }
+
+    fn path_buf(s: &str) -> path::PathBuf {
+        path::Path::new(s).to_path_buf()
+    }
+
+    #[test]
+    fn test_status_no_cache() {
+        let (_temp, mut repo) = create_temp_repository().unwrap();
+        let mut rng = testutil::RandBytes::new();
+
+        let mut expected = status::DirStatus::new();
+
+        testutil::write_str_file(&repo.workdir.join("foo"), "foo").unwrap();
+        expected.insert_modified(path_buf("foo"),
+                                 status::ModifiedChild::File {
+                                     newmodified: status::NewModified::NoCache,
+                                     size: 3,
+                                 });
+
+        testutil::write_str_file(&repo.workdir.join("bar"), "bar").unwrap();
+        expected.insert_modified(path_buf("bar"),
+                                 status::ModifiedChild::File {
+                                     newmodified: status::NewModified::NoCache,
+                                     size: 3,
+                                 });
+
+        let filesize = 3 * rollinghash::CHUNK_TARGET_SIZE as u64;
+        rng.write_file(&repo.workdir.join("baz"), filesize).unwrap();
+        expected.insert_modified(path_buf("baz"),
+                                 status::ModifiedChild::File {
+                                     newmodified: status::NewModified::NoCache,
+                                     size: filesize,
+                                 });
+
+        let mut sub = status::DirStatus::new();
+
+        testutil::write_str_file(&repo.workdir.join("sub/x"), "new x").unwrap();
+        sub.insert_modified(path_buf("x"),
+                            status::ModifiedChild::File {
+                                newmodified: status::NewModified::NoCache,
+                                size: 5,
+                            });
+
+        testutil::write_str_file(&repo.workdir.join("sub/y"), "new y").unwrap();
+        sub.insert_modified(path_buf("y"),
+                            status::ModifiedChild::File {
+                                newmodified: status::NewModified::NoCache,
+                                size: 5,
+                            });
+
+        expected.insert_modified(path_buf("sub"),
+                                 status::ModifiedChild::Dir {
+                                     newmodified: status::NewModified::Modified,
+                                     status: sub,
+                                 });
+
+        let status = repo.status().unwrap();
+
+        assert_eq!(status, expected);
 
         // TODO: nested directories
         // TODO: consistent sort order
