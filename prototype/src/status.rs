@@ -4,14 +4,12 @@ use std::path;
 use dag;
 
 type ModifiedMap = collections::BTreeMap<path::PathBuf, PathStatus>;
-type PathSet = collections::BTreeSet<path::PathBuf>;
 
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct DirStatus {
     known: dag::Tree,
-    newmodified: ModifiedMap,
+    modified: ModifiedMap,
     to_hash_total_size: dag::ObjectSize,
-    missing: PathSet,
 }
 
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
@@ -36,9 +34,8 @@ impl DirStatus {
     pub fn new() -> Self {
         DirStatus {
             known: dag::Tree::new(),
-            newmodified: ModifiedMap::new(),
+            modified: ModifiedMap::new(),
             to_hash_total_size: 0,
-            missing: PathSet::new(),
         }
     }
 
@@ -48,17 +45,17 @@ impl DirStatus {
                 self.known.insert(name, hash);
             }
             PathStatus::Deleted => {
-                self.missing.insert(name);
+                self.modified.insert(name, status);
             }
             PathStatus::NewFile { size } |
             PathStatus::ModifiedFile { size } |
             PathStatus::UncachedFile { size } => {
                 self.to_hash_total_size += size;
-                self.newmodified.insert(name, status);
+                self.modified.insert(name, status);
             }
             PathStatus::ModifiedDir { status } => {
                 self.to_hash_total_size += status.to_hash_total_size();
-                self.newmodified
+                self.modified
                     .insert(name, PathStatus::ModifiedDir { status: status });
             }
         };
@@ -69,6 +66,6 @@ impl DirStatus {
     }
 
     pub fn is_modified(&self) -> bool {
-        self.newmodified.len() != 0 || self.missing.len() != 0
+        self.modified.len() != 0
     }
 }
