@@ -1,5 +1,6 @@
 use std::fs;
 use std::io;
+use std::ops;
 use std::path;
 
 use dag;
@@ -11,19 +12,18 @@ pub struct WorkDir {
 }
 
 pub struct Repo {
-    objectstore: objectstore::ObjectStore,
-    workdir: Option<WorkDir>,
+    pub objectstore: objectstore::ObjectStore,
+    pub workdir: WorkDir,
+}
+
+impl ops::Deref for WorkDir {
+    type Target = path::Path;
+    fn deref(&self) -> &Self::Target {
+        &self.path
+    }
 }
 
 impl Repo {
-    pub fn workdir_path(&self) -> Option<&path::Path> {
-        self.workdir.as_ref().map(|wd| wd.path.as_ref())
-    }
-
-    pub fn workdir_join(&self, addition: &str) -> Option<path::PathBuf> {
-        self.workdir_path().map(|p| p.join(addition))
-    }
-
     pub fn store_object<O: dag::Object>(&mut self,
                                         obj: &O)
                                         -> io::Result<dag::ObjectKey> {
@@ -128,7 +128,7 @@ mod test {
 
         let repo = Repo {
             objectstore: os,
-            workdir: Some(wd),
+            workdir: wd,
         };
 
         Ok((wd_temp, repo))
@@ -137,7 +137,7 @@ mod test {
     #[test]
     fn test_store_file_empty() {
         let (_temp, mut repo) = create_temp_repository().unwrap();
-        let filepath = repo.workdir_join("foo").unwrap();
+        let filepath = repo.workdir.join("foo");
         testutil::write_str_file(&filepath, "").unwrap();
 
         let hash = repo.store_file(&filepath).unwrap();
@@ -156,7 +156,7 @@ mod test {
     #[test]
     fn test_store_file_small() {
         let (_temp, mut repo) = create_temp_repository().unwrap();
-        let filepath = repo.workdir_join("foo").unwrap();
+        let filepath = repo.workdir.join("foo");
 
         testutil::write_str_file(&filepath, "foo").unwrap();
 
@@ -175,7 +175,7 @@ mod test {
     #[test]
     fn test_store_file_chunked() {
         let (_temp, mut repo) = create_temp_repository().unwrap();
-        let filepath = repo.workdir_join("foo").unwrap();
+        let filepath = repo.workdir.join("foo");
         let filesize = 3 * rollinghash::CHUNK_TARGET_SIZE as u64;
 
         let mut rng = testutil::RandBytes::new();
@@ -210,7 +210,7 @@ mod test {
         let (_temp, mut repo) = create_temp_repository().unwrap();
         let mut rng = testutil::RandBytes::new();
 
-        let wd_path = repo.workdir_path().unwrap().to_path_buf();
+        let wd_path = repo.workdir.to_path_buf();
 
         testutil::write_str_file(&wd_path.join("foo"), "foo").unwrap();
         testutil::write_str_file(&wd_path.join("bar"), "bar").unwrap();
