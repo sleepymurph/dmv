@@ -3,7 +3,7 @@ use std::path;
 
 use dag;
 
-type ModifiedMap = collections::BTreeMap<path::PathBuf, ModifiedChild>;
+type ModifiedMap = collections::BTreeMap<path::PathBuf, PathStatus>;
 type PathSet = collections::BTreeSet<path::PathBuf>;
 
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
@@ -15,25 +15,21 @@ pub struct DirStatus {
 }
 
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
-pub enum ModifiedChild {
-    File {
-        newmodified: NewModified,
-        size: dag::ObjectSize,
-    },
-    Dir {
-        newmodified: NewModified,
-        status: DirStatus,
-    },
-}
+pub enum PathStatus {
+    /// Path (file or directory) matches commit
+    Known { hash: dag::ObjectKey },
+    /// Path (file or directory) exists in commit but is missing from file system
+    Deleted,
 
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
-pub enum NewModified {
-    /// File or directory does not exist in the previous commit
-    New,
-    /// File or directory exists in the commit and is modified
-    Modified,
-    /// File exists and may be modified, we must hash it to tell (files only)
-    NoCache,
+    /// File does not exist in the previous commit
+    NewFile { size: dag::ObjectSize },
+    /// File exists in commit and is modified on disk
+    ModifiedFile { size: dag::ObjectSize },
+    /// File exists in commit and may be modified on disk, but test is expensive
+    UncachedFile { size: dag::ObjectSize },
+
+    /// Path is a directory that is modified
+    ModifiedDir { status: DirStatus },
 }
 
 impl DirStatus {
@@ -46,20 +42,26 @@ impl DirStatus {
         }
     }
 
-    pub fn insert_known(&mut self, name: path::PathBuf, hash: dag::ObjectKey) {
-        self.known.insert(name, hash);
-    }
-
-    pub fn insert_modified(&mut self,
-                           name: path::PathBuf,
-                           modified: ModifiedChild) {
-        self.to_hash_total_size += match modified {
-            ModifiedChild::File { size, .. } => size,
-            ModifiedChild::Dir { ref status, .. } => {
-                status.to_hash_total_size()
+    pub fn insert(&mut self, name: path::PathBuf, status: PathStatus) {
+        match status {
+            PathStatus::Known { hash } => {
+                self.known.insert(name, hash);
+            }
+            PathStatus::Deleted => {
+                self.missing.insert(name);
+            }
+            PathStatus::NewFile { size } |
+            PathStatus::ModifiedFile { size } |
+            PathStatus::UncachedFile { size } => {
+                self.to_hash_total_size += size;
+                self.newmodified.insert(name, status);
+            }
+            PathStatus::ModifiedDir { status } => {
+                self.to_hash_total_size += status.to_hash_total_size();
+                self.newmodified
+                    .insert(name, PathStatus::ModifiedDir { status: status });
             }
         };
-        self.newmodified.insert(name, modified);
     }
 
     pub fn to_hash_total_size(&self) -> dag::ObjectSize {

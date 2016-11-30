@@ -33,7 +33,7 @@ impl Repo {
                                   &meta,
                                   self.workdir.current_branch.as_ref()));
         match status {
-            status::ModifiedChild::Dir { status, .. } => Ok(status),
+            status::PathStatus::ModifiedDir { status, .. } => Ok(status),
             _ => {
                 panic!("Working directory is not a directory: {:?}",
                        &self.workdir.path)
@@ -45,7 +45,7 @@ impl Repo {
                        path: &path::Path,
                        meta: &fs::Metadata,
                        expected_hash: Option<&dag::ObjectKey>)
-                       -> io::Result<status::ModifiedChild> {
+                       -> io::Result<status::PathStatus> {
 
 
         if meta.is_dir() {
@@ -65,20 +65,14 @@ impl Repo {
                 let submeta = child.metadata()?;
 
                 let childstatus = self.status_path(&subpath, &submeta, None)?;
-                dirstatus.insert_modified(filename, childstatus);
+                dirstatus.insert(filename, childstatus);
             }
 
-            Ok(status::ModifiedChild::Dir {
-                newmodified: status::NewModified::Modified,
-                status: dirstatus,
-            })
+            Ok(status::PathStatus::ModifiedDir { status: dirstatus })
 
         } else if meta.is_file() {
 
-            Ok(status::ModifiedChild::File {
-                newmodified: status::NewModified::NoCache,
-                size: meta.len(),
-            })
+            Ok(status::PathStatus::UncachedFile { size: meta.len() })
 
         } else {
             unimplemented!()
