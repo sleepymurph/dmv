@@ -312,54 +312,24 @@ mod test {
         let mut expected = status::DirStatus::new();
 
         testutil::write_str_file(&repo.workdir.join("foo"), "foo").unwrap();
-        expected.insert_modified(path_buf("foo"),
-                                 status::ModifiedChild::File {
-                                     newmodified: status::NewModified::NoCache,
-                                     size: 3,
-                                 });
-
         testutil::write_str_file(&repo.workdir.join("bar"), "bar").unwrap();
-        expected.insert_modified(path_buf("bar"),
-                                 status::ModifiedChild::File {
-                                     newmodified: status::NewModified::NoCache,
-                                     size: 3,
-                                 });
 
         let filesize = 3 * rollinghash::CHUNK_TARGET_SIZE as u64;
         rng.write_file(&repo.workdir.join("baz"), filesize).unwrap();
-        expected.insert_modified(path_buf("baz"),
-                                 status::ModifiedChild::File {
-                                     newmodified: status::NewModified::NoCache,
-                                     size: filesize,
-                                 });
-
-        let mut sub = status::DirStatus::new();
 
         testutil::write_str_file(&repo.workdir.join("sub/x"), "new x").unwrap();
-        sub.insert_modified(path_buf("x"),
-                            status::ModifiedChild::File {
-                                newmodified: status::NewModified::NoCache,
-                                size: 5,
-                            });
-
         testutil::write_str_file(&repo.workdir.join("sub/y"), "new y").unwrap();
-        sub.insert_modified(path_buf("y"),
-                            status::ModifiedChild::File {
-                                newmodified: status::NewModified::NoCache,
-                                size: 5,
-                            });
-
-        expected.insert_modified(path_buf("sub"),
-                                 status::ModifiedChild::Dir {
-                                     newmodified: status::NewModified::Modified,
-                                     status: sub,
-                                 });
 
         let status = repo.status().unwrap();
 
-        assert_eq!(status, expected);
+        assert!(status.is_modified());
+        assert_eq!(status.to_hash_total_size(), 46096);
 
-        // TODO: nested directories
-        // TODO: consistent sort order
+        // Uncomment to examine status value
+        // panic!("{:?}", status);
     }
+
+    // TODO: Commit and create cache
+    // TODO: Status after commit
+    // TODO: Deleted values
 }

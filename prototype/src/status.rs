@@ -67,6 +67,6 @@ impl DirStatus {
     }
 
     pub fn is_modified(&self) -> bool {
-        self.newmodified.len() == 0 && self.missing.len() == 0
+        self.newmodified.len() != 0 || self.missing.len() != 0
     }
 }
