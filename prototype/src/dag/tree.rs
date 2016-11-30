@@ -1,27 +1,31 @@
-use std::collections::BTreeMap;
-use std::collections::btree_map;
+use std::collections;
 use std::io;
 use std::io::Write;
 use std::path;
 
 use super::*;
 
+type PathMap = collections::BTreeMap<path::PathBuf, ObjectKey>;
+type PathMapIter<'a> = collections::btree_map::Iter<'a,
+                                                    path::PathBuf,
+                                                    ObjectKey>;
+
 /// A large blob made of many smaller chunks
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct Tree {
-    entries: BTreeMap<path::PathBuf, ObjectKey>,
+    entries: PathMap,
 }
 
 impl Tree {
     pub fn new() -> Self {
-        Tree { entries: BTreeMap::new() }
+        Tree { entries: PathMap::new() }
     }
 
-    pub fn add_entry(&mut self, name: path::PathBuf, hash: ObjectKey) {
+    pub fn insert(&mut self, name: path::PathBuf, hash: ObjectKey) {
         self.entries.insert(name, hash);
     }
 
-    pub fn iter(&self) -> btree_map::Iter<path::PathBuf, ObjectKey> {
+    pub fn iter(&self) -> PathMapIter {
         self.entries.iter()
     }
 
@@ -74,7 +78,7 @@ impl Object for Tree {
             name_buf.pop(); // Drop the string-ending separator
             let name = String::from_utf8(name_buf.clone()).unwrap();
             let name = path::Path::new(&name).to_owned();
-            tree.add_entry(name, hash);
+            tree.insert(name, hash);
         }
         Ok(tree)
     }
@@ -99,8 +103,7 @@ mod test {
         let mut rng = testutil::RandBytes::new();
 
         let mut object = Tree::new();
-        object.add_entry(path::Path::new("foo").to_owned(),
-                         random_hash(&mut rng));
+        object.insert(path::Path::new("foo").to_owned(), random_hash(&mut rng));
 
         // Write out
         let mut output: Vec<u8> = Vec::new();
@@ -129,9 +132,9 @@ mod test {
     #[test]
     fn test_tree_sort_by_name() {
         let mut tree = Tree::new();
-        tree.add_entry(path::Path::new("foo").to_owned(), shortkey(0));
-        tree.add_entry(path::Path::new("bar").to_owned(), shortkey(2));
-        tree.add_entry(path::Path::new("baz").to_owned(), shortkey(1));
+        tree.insert(path::Path::new("foo").to_owned(), shortkey(0));
+        tree.insert(path::Path::new("bar").to_owned(), shortkey(2));
+        tree.insert(path::Path::new("baz").to_owned(), shortkey(1));
 
         let names: Vec<String> = tree.iter()
             .map(|ent| ent.0.to_str().unwrap().to_string())
