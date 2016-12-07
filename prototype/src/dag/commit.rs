@@ -78,10 +78,10 @@ impl Object for Commit {
 
 #[cfg(test)]
 mod test {
-    use super::super::*;
-    use testutil;
 
     use std::io;
+    use super::super::*;
+    use testutil;
 
     fn random_hash(rng: &mut testutil::RandBytes) -> ObjectKey {
         let rand_bytes = rng.next_many(KEY_SIZE_BYTES);

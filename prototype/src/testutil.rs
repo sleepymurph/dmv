@@ -1,15 +1,15 @@
 #![cfg(test)]
 
 extern crate rand;
-use self::rand::{Rng, SeedableRng, Generator, XorShiftRng};
 
-use std::iter::IntoIterator;
+use fsutil;
+use self::rand::{Rng, SeedableRng, Generator, XorShiftRng};
 use std::fs;
 use std::io;
 use std::io::Read;
-use std::path;
 
-use fsutil;
+use std::iter::IntoIterator;
+use std::path;
 
 pub struct RandBytes {
     rng: XorShiftRng,

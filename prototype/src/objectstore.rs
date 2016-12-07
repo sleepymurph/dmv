@@ -1,10 +1,11 @@
-use std::io;
-use std::io::Write;
-use std::path;
-use std::fs;
+
 
 use dag::ObjectKey;
 use fsutil;
+use std::fs;
+use std::io;
+use std::io::Write;
+use std::path;
 
 pub struct ObjectStore {
     path: path::PathBuf,
@@ -85,12 +86,12 @@ impl io::Write for IncomingObject {
 #[cfg(test)]
 pub mod test {
     extern crate tempdir;
-    use self::tempdir::TempDir;
-
-    use std::io::Write;
-    use std::io::Read;
 
     use dag::ObjectKey;
+    use self::tempdir::TempDir;
+    use std::io::Read;
+
+    use std::io::Write;
     use super::*;
 
     pub fn create_temp_object_store() -> ObjectStore {

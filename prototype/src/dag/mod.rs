@@ -16,9 +16,9 @@ mod commit;
 pub use self::commit::*;
 
 extern crate byteorder;
-use self::byteorder::WriteBytesExt;
-use self::byteorder::ReadBytesExt;
 use self::byteorder::ByteOrder;
+use self::byteorder::ReadBytesExt;
+use self::byteorder::WriteBytesExt;
 
 use std::io;
 

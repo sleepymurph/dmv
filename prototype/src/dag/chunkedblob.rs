@@ -99,13 +99,13 @@ impl Object for ChunkedBlob {
 
 #[cfg(test)]
 mod test {
-    use super::super::*;
-    use testutil;
     use rollinghash;
+    use std::collections;
 
     use std::io;
     use std::io::Write;
-    use std::collections;
+    use super::super::*;
+    use testutil;
 
     fn create_random_chunkedblob
         ()

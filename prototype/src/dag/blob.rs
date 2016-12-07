@@ -1,7 +1,8 @@
-use super::*;
+
 
 use std::io;
 use std::io::Write;
+use super::*;
 
 /// A binary (file) stored in the DAG
 ///
@@ -54,9 +55,9 @@ impl Object for Blob {
 
 #[cfg(test)]
 mod test {
-    use super::super::*;
 
     use std::io;
+    use super::super::*;
 
     #[test]
     fn test_write_blob() {

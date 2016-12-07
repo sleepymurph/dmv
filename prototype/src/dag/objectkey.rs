@@ -153,10 +153,10 @@ impl<W: io::Write> io::Write for HashWriter<W> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use super::super::DagError;
 
     use std::io::Write;
+    use super::*;
+    use super::super::DagError;
 
     #[test]
     fn test_key_hex_conversions() {

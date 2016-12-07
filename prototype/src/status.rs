@@ -1,7 +1,8 @@
-use std::collections;
-use std::path;
+
 
 use dag;
+use std::collections;
+use std::path;
 
 type ModifiedMap = collections::BTreeMap<path::PathBuf, PathStatus>;
 

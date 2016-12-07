@@ -1,12 +1,13 @@
-use std::fs;
-use std::io;
-use std::ops;
-use std::path;
+
 
 use dag;
 use objectstore;
 use rollinghash;
 use status;
+use std::fs;
+use std::io;
+use std::ops;
+use std::path;
 
 pub struct WorkDir {
     path: path::PathBuf,
@@ -159,18 +160,18 @@ impl Repo {
 mod test {
     extern crate tempdir;
 
-    use std::fs;
-    use std::io;
-    use std::path;
 
     use dag;
     use dag::Object;
     use objectstore;
     use rollinghash;
     use status;
-    use testutil;
+    use std::fs;
+    use std::io;
+    use std::path;
 
     use super::*;
+    use testutil;
 
     fn create_temp_repository() -> io::Result<(tempdir::TempDir, Repo)> {
         let wd_temp = try!(tempdir::TempDir::new_in("/dev/shm",
