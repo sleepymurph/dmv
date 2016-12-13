@@ -1,5 +1,9 @@
 //! Code relating to the object hashes used to identify objects in the DAG
 
+use rustc_serialize::Decodable;
+use rustc_serialize::Decoder;
+use rustc_serialize::Encodable;
+use rustc_serialize::Encoder;
 use std::convert;
 use std::fmt;
 use std::io;
@@ -21,7 +25,7 @@ pub const KEY_SIZE_BYTES: usize = KEY_SIZE_BITS / 8;
 type ObjectKeyByteArray = [u8; KEY_SIZE_BYTES];
 
 /// Hash key for an object
-#[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug,RustcEncodable,RustcDecodable)]
+#[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub struct ObjectKey {
     hash: ObjectKeyByteArray,
 }
@@ -118,6 +122,18 @@ impl AsRef<[u8]> for ObjectKey {
     }
 }
 
+impl Encodable for ObjectKey {
+    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+        self.to_hex().encode(s)
+    }
+}
+
+impl Decodable for ObjectKey {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
+        let hex = try!(<String>::decode(d));
+        ObjectKey::from_hex(&hex).map_err(|_e| unimplemented!())
+    }
+}
 
 /// Wraps an existing writer and computes a hash of the bytes going into it
 pub struct HashWriter<W: io::Write> {
@@ -154,6 +170,7 @@ impl<W: io::Write> io::Write for HashWriter<W> {
 #[cfg(test)]
 mod test {
 
+    use rustc_serialize::json;
     use std::io::Write;
     use super::*;
     use super::super::DagError;
@@ -215,4 +232,15 @@ mod test {
         assert_eq!(output, input);
     }
 
+
+    #[test]
+    fn test_serialize_objectkey() {
+        let obj =
+            ObjectKey::from_hex("d3486ae9136e7856bc42212385ea797094475802")
+                .unwrap();
+        let encoded = json::encode(&obj).unwrap();
+        assert_eq!(encoded, "\"d3486ae9136e7856bc42212385ea797094475802\"");
+        let decoded: ObjectKey = json::decode(&encoded).unwrap();
+        assert_eq!(decoded, obj);
+    }
 }
