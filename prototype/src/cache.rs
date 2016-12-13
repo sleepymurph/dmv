@@ -33,20 +33,14 @@ pub struct CacheTime(time::SystemTime);
 impl Encodable for CacheTime {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
         let since_epoch = self.0.duration_since(time::UNIX_EPOCH).unwrap();
-        s.emit_tuple(2, |s| {
-            s.emit_tuple_arg(0, |s| s.emit_u64(since_epoch.as_secs())).and(
-            s.emit_tuple_arg(1, |s| s.emit_u32(since_epoch.subsec_nanos())))
-        })
+        let secs_nanos = (since_epoch.as_secs(), since_epoch.subsec_nanos());
+        secs_nanos.encode(s)
     }
 }
 
 impl Decodable for CacheTime {
     fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        let (secs, nanos) = try!(d.read_tuple(2, |d| {
-            let secs = try!(d.read_tuple_arg(0, |d| d.read_u64()));
-            let nanos = try!(d.read_tuple_arg(1, |d| d.read_u32()));
-            Ok((secs, nanos))
-        }));
+        let (secs, nanos) = try!(<(u64,u32)>::decode(d));
         Ok(CacheTime(time::UNIX_EPOCH + time::Duration::new(secs, nanos)))
     }
 }
