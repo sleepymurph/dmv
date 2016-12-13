@@ -2,10 +2,13 @@
 
 #![allow(dead_code)]
 
+extern crate rustc_serialize;
+
 pub mod rollinghash;
 pub mod testutil;
 pub mod dag;
 pub mod objectstore;
 pub mod fsutil;
+pub mod cache;
 pub mod status;
 pub mod repo;

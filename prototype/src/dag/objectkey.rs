@@ -21,7 +21,7 @@ pub const KEY_SIZE_BYTES: usize = KEY_SIZE_BITS / 8;
 type ObjectKeyByteArray = [u8; KEY_SIZE_BYTES];
 
 /// Hash key for an object
-#[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
+#[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug,RustcEncodable,RustcDecodable)]
 pub struct ObjectKey {
     hash: ObjectKeyByteArray,
 }
