@@ -4,13 +4,14 @@ use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
 use std::collections;
+use std::convert;
 use std::path;
 use std::time;
 
-pub type CacheMap = collections::HashMap<CachePath, CacheEntry>;
-
 #[derive(Clone,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
 pub struct FileCache(CacheMap);
+
+pub type CacheMap = collections::HashMap<CachePath, CacheEntry>;
 
 #[derive(Clone,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
 pub struct CacheEntry {
@@ -37,6 +38,12 @@ impl FileCache {
     }
 }
 
+impl convert::AsMut<CacheMap> for FileCache {
+    fn as_mut(&mut self) -> &mut CacheMap {
+        &mut self.0
+    }
+}
+
 impl Encodable for CacheTime {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
         let since_epoch = self.0.duration_since(time::UNIX_EPOCH).unwrap();
@@ -58,9 +65,9 @@ impl CachePath {
     }
 }
 
-impl<'a> From<&'a str> for CachePath {
-    fn from(s: &'a str) -> Self {
-        Self::from_str(s)
+impl<P: AsRef<path::Path>> From<P> for CachePath {
+    fn from(p: P) -> Self {
+        CachePath(p.as_ref().to_path_buf())
     }
 }
 
@@ -117,7 +124,7 @@ mod test {
     #[test]
     fn test_serialize_filecache() {
         let mut obj = FileCache::new();
-        obj.0.insert(CachePath::from_str("patha/x"), CacheEntry{
+        obj.as_mut().insert(CachePath::from_str("patha/x"), CacheEntry{
             filestats: FileStats{
                 mtime: CacheTime(
                            time::UNIX_EPOCH + time::Duration::new(120, 55)),

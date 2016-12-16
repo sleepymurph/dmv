@@ -1,3 +1,4 @@
+use cache;
 use dag;
 use objectstore;
 use rollinghash;
@@ -10,6 +11,7 @@ use std::path;
 pub struct WorkDir {
     path: path::PathBuf,
     current_branch: Option<dag::ObjectKey>,
+    cache: cache::FileCache,
 }
 
 pub struct Repo {
@@ -45,7 +47,6 @@ impl Repo {
                              meta: &fs::Metadata,
                              _expected_hash: Option<&dag::ObjectKey>)
                              -> io::Result<status::PathStatus> {
-
 
         if meta.is_dir() {
 
@@ -126,19 +127,26 @@ impl Repo {
     }
 
 
-    pub fn store_directory(&mut self,
-                           path: &path::Path)
-                           -> io::Result<dag::ObjectKey> {
+    pub fn store_directory<P: AsRef<path::Path>>
+        (&mut self,
+         relpath: &P)
+         -> io::Result<dag::ObjectKey> {
 
+        let abspath = self.workdir.path.join(relpath);
         let mut tree = dag::Tree::new();
-        for entry in try!(fs::read_dir(path)) {
+
+        for entry in try!(fs::read_dir(&abspath)) {
+
             let entry = try!(entry);
+
             let subpath = entry.path();
             if subpath == self.objectstore.path() {
                 continue;
             }
-            let name = try!(subpath.strip_prefix(path)
+
+            let name = try!(subpath.strip_prefix(&abspath)
                 .map_err(|spe| io::Error::new(io::ErrorKind::Other, spe)));
+
             let key;
             if subpath.is_dir() {
                 key = try!(self.store_directory(&subpath));
@@ -147,18 +155,19 @@ impl Repo {
             } else {
                 unimplemented!()
             };
+
             tree.insert(name.to_owned(), key);
         }
         self.store_object(&tree)
     }
 }
 
-
 #[cfg(test)]
 mod test {
     extern crate tempdir;
 
 
+    use cache;
     use dag;
     use dag::Object;
     use objectstore;
@@ -177,6 +186,7 @@ mod test {
         let wd = WorkDir {
             path: wd_path.clone(),
             current_branch: None,
+            cache: cache::FileCache::new(),
         };
 
         let os_path = wd_path.join(".prototype");
@@ -275,7 +285,7 @@ mod test {
         let filesize = 3 * rollinghash::CHUNK_TARGET_SIZE as u64;
         rng.write_file(&wd_path.join("baz"), filesize).unwrap();
 
-        let hash = repo.store_directory(&wd_path).unwrap();
+        let hash = repo.store_directory(&".").unwrap();
 
         let obj = repo.objectstore.read_object(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);
