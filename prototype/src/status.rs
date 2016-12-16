@@ -1,5 +1,3 @@
-
-
 use dag;
 use std::collections;
 use std::path;
@@ -17,7 +15,7 @@ pub struct DirStatus {
 pub enum PathStatus {
     /// Path (file or directory) matches commit
     Known { hash: dag::ObjectKey },
-    /// Path (file or directory) exists in commit but is missing from file system
+    /// Path (file or directory) is in commit but missing from file system
     Deleted,
 
     /// File does not exist in the previous commit

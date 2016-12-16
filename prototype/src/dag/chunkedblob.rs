@@ -86,7 +86,8 @@ impl Object for ChunkedBlob {
                         hash: chunk_hash,
                     });
                 }
-                _ => return Err(DagError::from(io::Error::new(io::ErrorKind::UnexpectedEof, ""))),
+                _ => return Err(DagError::from(io::Error::new(
+                            io::ErrorKind::UnexpectedEof, ""))),
             }
         }
         Ok(ChunkedBlob {
