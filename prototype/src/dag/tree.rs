@@ -1,3 +1,4 @@
+use fsutil;
 use std::collections;
 use std::io;
 use std::io::Write;
@@ -77,7 +78,7 @@ impl Object for Tree {
             try!(reader.read_until(TREE_ENTRY_SEPARATOR, &mut name_buf));
             name_buf.pop(); // Drop the string-ending separator
             let name = String::from_utf8(name_buf.clone()).unwrap();
-            let name = path::Path::new(&name).to_owned();
+            let name = fsutil::new_path_buf(&name);
             tree.insert(name, hash);
         }
         Ok(tree)
@@ -87,8 +88,8 @@ impl Object for Tree {
 #[cfg(test)]
 mod test {
 
+    use fsutil;
     use std::io;
-    use std::path;
     use super::super::*;
     use testutil;
 
@@ -103,7 +104,7 @@ mod test {
         let mut rng = testutil::RandBytes::new();
 
         let mut object = Tree::new();
-        object.insert(path::Path::new("foo").to_owned(), random_hash(&mut rng));
+        object.insert(fsutil::new_path_buf("foo"), random_hash(&mut rng));
 
         // Write out
         let mut output: Vec<u8> = Vec::new();
@@ -132,9 +133,9 @@ mod test {
     #[test]
     fn test_tree_sort_by_name() {
         let mut tree = Tree::new();
-        tree.insert(path::Path::new("foo").to_owned(), shortkey(0));
-        tree.insert(path::Path::new("bar").to_owned(), shortkey(2));
-        tree.insert(path::Path::new("baz").to_owned(), shortkey(1));
+        tree.insert(fsutil::new_path_buf("foo"), shortkey(0));
+        tree.insert(fsutil::new_path_buf("bar"), shortkey(2));
+        tree.insert(fsutil::new_path_buf("baz"), shortkey(1));
 
         let names: Vec<String> = tree.iter()
             .map(|ent| ent.0.to_str().unwrap().to_string())

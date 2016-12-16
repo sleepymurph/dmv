@@ -1,4 +1,5 @@
 use dag;
+use fsutil;
 use objectstore;
 use rollinghash;
 use status;
@@ -59,8 +60,7 @@ impl Repo {
                     continue;
                 }
 
-                let filename = path::Path::new(&child.file_name())
-                    .to_path_buf();
+                let filename = fsutil::new_path_buf(&child.file_name());
                 let submeta = child.metadata()?;
 
                 let childstatus =
@@ -166,7 +166,6 @@ mod test {
     use rollinghash;
     use std::fs;
     use std::io;
-    use std::path;
 
     use super::*;
     use testutil;
@@ -291,10 +290,6 @@ mod test {
 
         // TODO: nested directories
         // TODO: consistent sort order
-    }
-
-    fn path_buf(s: &str) -> path::PathBuf {
-        path::Path::new(s).to_path_buf()
     }
 
     #[test]
