@@ -1,5 +1,3 @@
-
-
 use dag;
 use objectstore;
 use rollinghash;
@@ -27,12 +25,12 @@ impl ops::Deref for WorkDir {
 }
 
 impl Repo {
-    pub fn status(&self) -> io::Result<status::DirStatus> {
+    pub fn check_status(&self) -> io::Result<status::DirStatus> {
         let meta = try!(self.workdir.metadata());
         let status =
-            try!(self.status_path(&self.workdir,
-                                  &meta,
-                                  self.workdir.current_branch.as_ref()));
+            try!(self.check_status_path(&self.workdir,
+                                        &meta,
+                                        self.workdir.current_branch.as_ref()));
         match status {
             status::PathStatus::ModifiedDir { status, .. } => Ok(status),
             _ => {
@@ -42,11 +40,11 @@ impl Repo {
         }
     }
 
-    pub fn status_path(&self,
-                       path: &path::Path,
-                       meta: &fs::Metadata,
-                       expected_hash: Option<&dag::ObjectKey>)
-                       -> io::Result<status::PathStatus> {
+    pub fn check_status_path(&self,
+                             path: &path::Path,
+                             meta: &fs::Metadata,
+                             _expected_hash: Option<&dag::ObjectKey>)
+                             -> io::Result<status::PathStatus> {
 
 
         if meta.is_dir() {
@@ -65,7 +63,8 @@ impl Repo {
                     .to_path_buf();
                 let submeta = child.metadata()?;
 
-                let childstatus = self.status_path(&subpath, &submeta, None)?;
+                let childstatus =
+                    self.check_status_path(&subpath, &submeta, None)?;
                 dirstatus.insert(filename, childstatus);
             }
 
@@ -165,7 +164,6 @@ mod test {
     use dag::Object;
     use objectstore;
     use rollinghash;
-    use status;
     use std::fs;
     use std::io;
     use std::path;
@@ -300,11 +298,9 @@ mod test {
     }
 
     #[test]
-    fn test_status_no_cache() {
-        let (_temp, mut repo) = create_temp_repository().unwrap();
+    fn test_check_status_no_cache() {
+        let (_temp, repo) = create_temp_repository().unwrap();
         let mut rng = testutil::RandBytes::new();
-
-        let mut expected = status::DirStatus::new();
 
         testutil::write_str_file(&repo.workdir.join("foo"), "foo").unwrap();
         testutil::write_str_file(&repo.workdir.join("bar"), "bar").unwrap();
@@ -315,7 +311,7 @@ mod test {
         testutil::write_str_file(&repo.workdir.join("sub/x"), "new x").unwrap();
         testutil::write_str_file(&repo.workdir.join("sub/y"), "new y").unwrap();
 
-        let status = repo.status().unwrap();
+        let status = repo.check_status().unwrap();
 
         assert!(status.is_modified());
         assert_eq!(status.to_hash_total_size(), 46096);
