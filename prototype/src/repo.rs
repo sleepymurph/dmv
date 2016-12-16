@@ -1,5 +1,4 @@
 use dag;
-use fsutil;
 use objectstore;
 use rollinghash;
 use status;
@@ -60,7 +59,7 @@ impl Repo {
                     continue;
                 }
 
-                let filename = fsutil::new_path_buf(&child.file_name());
+                let filename = path::PathBuf::from(&child.file_name());
                 let submeta = child.metadata()?;
 
                 let childstatus =

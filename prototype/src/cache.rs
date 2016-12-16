@@ -1,5 +1,4 @@
 use dag;
-use fsutil;
 use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
@@ -55,7 +54,7 @@ impl Decodable for CacheTime {
 
 impl CachePath {
     pub fn from_str(s: &str) -> Self {
-        CachePath(fsutil::new_path_buf(s))
+        CachePath(path::PathBuf::from(s))
     }
 }
 
@@ -82,7 +81,6 @@ impl Decodable for CachePath {
 #[cfg(test)]
 mod test {
     use dag;
-    use fsutil;
     use rustc_serialize::json;
     use std::path;
     use std::time;
@@ -100,7 +98,7 @@ mod test {
     /// PathBufs are serialized as byte arrays instead of strings. Booo.
     #[test]
     fn test_serialize_pathbuf() {
-        let obj = fsutil::new_path_buf("hello");
+        let obj = path::PathBuf::from("hello");
         let encoded = json::encode(&obj).unwrap();
         assert_eq!(encoded, "[104,101,108,108,111]");
         let decoded: path::PathBuf = json::decode(&encoded).unwrap();
