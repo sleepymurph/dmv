@@ -4,7 +4,6 @@ use objectstore;
 use status;
 use std::fs;
 use std::io;
-use std::ops;
 use std::path;
 
 pub struct WorkDir {
@@ -18,18 +17,17 @@ pub struct Repo {
     pub workdir: WorkDir,
 }
 
-impl ops::Deref for WorkDir {
-    type Target = path::Path;
-    fn deref(&self) -> &Self::Target {
+impl WorkDir {
+    pub fn path(&self) -> &path::Path {
         &self.path
     }
 }
 
 impl Repo {
     pub fn check_status(&self) -> io::Result<status::DirStatus> {
-        let meta = try!(self.workdir.metadata());
+        let meta = try!(self.workdir.path.metadata());
         let status =
-            try!(self.check_status_path(&self.workdir,
+            try!(self.check_status_path(self.workdir.path(),
                                         &meta,
                                         self.workdir.current_branch.as_ref()));
         match status {
@@ -156,7 +154,7 @@ mod test {
         let (_temp, mut repo) = create_temp_repository().unwrap();
         let mut rng = testutil::RandBytes::new();
 
-        let wd_path = repo.workdir.to_path_buf();
+        let wd_path = repo.workdir.path().to_owned();
 
         testutil::write_str_file(&wd_path.join("foo"), "foo").unwrap();
         testutil::write_str_file(&wd_path.join("bar"), "bar").unwrap();
@@ -185,14 +183,16 @@ mod test {
         let (_temp, repo) = create_temp_repository().unwrap();
         let mut rng = testutil::RandBytes::new();
 
-        testutil::write_str_file(&repo.workdir.join("foo"), "foo").unwrap();
-        testutil::write_str_file(&repo.workdir.join("bar"), "bar").unwrap();
+        let wd_path = repo.workdir.path();
+
+        testutil::write_str_file(&wd_path.join("foo"), "foo").unwrap();
+        testutil::write_str_file(&wd_path.join("bar"), "bar").unwrap();
 
         let filesize = 3 * rollinghash::CHUNK_TARGET_SIZE as u64;
-        rng.write_file(&repo.workdir.join("baz"), filesize).unwrap();
+        rng.write_file(&wd_path.join("baz"), filesize).unwrap();
 
-        testutil::write_str_file(&repo.workdir.join("sub/x"), "new x").unwrap();
-        testutil::write_str_file(&repo.workdir.join("sub/y"), "new y").unwrap();
+        testutil::write_str_file(&wd_path.join("sub/x"), "new x").unwrap();
+        testutil::write_str_file(&wd_path.join("sub/y"), "new y").unwrap();
 
         let status = repo.check_status().unwrap();
 
