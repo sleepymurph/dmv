@@ -11,4 +11,4 @@ pub mod objectstore;
 pub mod fsutil;
 pub mod cache;
 pub mod status;
-pub mod repo;
+pub mod workdir;
