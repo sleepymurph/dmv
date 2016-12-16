@@ -1,7 +1,6 @@
-
-
-use dag::ObjectKey;
+use dag;
 use fsutil;
+use rollinghash;
 use std::fs;
 use std::io;
 use std::io::Write;
@@ -29,7 +28,7 @@ impl ObjectStore {
         fs::create_dir_all(&self.path)
     }
 
-    fn object_path(&self, key: &ObjectKey) -> path::PathBuf {
+    fn object_path(&self, key: &dag::ObjectKey) -> path::PathBuf {
         let key = key.to_hex();
         self.path
             .join("objects")
@@ -38,11 +37,11 @@ impl ObjectStore {
             .join(&key[4..])
     }
 
-    pub fn has_object(&self, key: &ObjectKey) -> bool {
+    pub fn has_object(&self, key: &dag::ObjectKey) -> bool {
         self.object_path(key).is_file()
     }
 
-    pub fn read_object(&self, key: &ObjectKey) -> io::Result<fs::File> {
+    pub fn read_object(&self, key: &dag::ObjectKey) -> io::Result<fs::File> {
         fs::File::open(self.object_path(key))
     }
 
@@ -63,7 +62,7 @@ impl ObjectStore {
     }
 
     pub fn save_object(&mut self,
-                       key: ObjectKey,
+                       key: dag::ObjectKey,
                        mut object: IncomingObject)
                        -> io::Result<()> {
 
@@ -71,6 +70,53 @@ impl ObjectStore {
         let permpath = self.object_path(&key);
         try!(fsutil::create_parents(&permpath));
         fs::rename(&object.temp_path, &permpath)
+    }
+
+    pub fn store_object<O: dag::Object>(&mut self,
+                                        obj: &O)
+                                        -> io::Result<dag::ObjectKey> {
+        let mut incoming = try!(self.new_object());
+        let key = try!(obj.write_to(&mut incoming));
+        try!(self.save_object(key, incoming));
+        Ok(key)
+    }
+
+    pub fn store_file(&mut self,
+                      path: &path::Path)
+                      -> io::Result<dag::ObjectKey> {
+
+        let file = try!(fs::File::open(path));
+        let file = io::BufReader::new(file);
+
+        let mut chunker = rollinghash::ChunkReader::wrap(file);
+        let chunk1 = chunker.next();
+        let chunk2 = chunker.next();
+
+        match (chunk1, chunk2) {
+            (None, None) => {
+                // Empty file
+                let blob = dag::Blob::from_vec(vec![0u8;0]);
+                self.store_object(&blob)
+            }
+            (Some(v1), None) => {
+                // File only one-chunk long
+                let blob = dag::Blob::from_vec(v1?);
+                self.store_object(&blob)
+            }
+            (Some(v1), Some(v2)) => {
+                // Multiple chunks
+                let mut chunkedblob = dag::ChunkedBlob::new();
+
+                for chunk in vec![v1, v2].into_iter().chain(chunker) {
+                    let blob = dag::Blob::from_vec(chunk?);
+                    let key = try!(self.store_object(&blob));
+                    chunkedblob.add_chunk(blob.size(), key);
+                }
+
+                self.store_object(&chunkedblob)
+            }
+            (None, Some(_)) => unreachable!(),
+        }
     }
 }
 
@@ -87,27 +133,46 @@ impl io::Write for IncomingObject {
 pub mod test {
     extern crate tempdir;
 
-    use dag::ObjectKey;
-    use self::tempdir::TempDir;
+    use dag;
+    use dag::Object;
+    use rollinghash;
+    use std::fs;
+    use std::io;
     use std::io::Read;
-
     use std::io::Write;
     use super::*;
+    use testutil;
 
     pub fn create_temp_object_store() -> ObjectStore {
-        let tmp = TempDir::new_in("/dev/shm", "object_store_test")
+        let tmp = tempdir::TempDir::new_in("/dev/shm", "object_store_test")
             .expect("create tempdir");
         let object_store = ObjectStore::new(tmp.path());
         object_store.init().expect("initialize object store");
         object_store
     }
 
+    fn create_temp_repository
+        ()
+        -> io::Result<(tempdir::TempDir, ObjectStore)>
+    {
+        let wd_temp = try!(tempdir::TempDir::new_in("/dev/shm",
+                                                    "test_directory"));
+        let wd_path = wd_temp.path().to_path_buf();
+        try!(fs::create_dir_all(&wd_path));
+        let os_path = wd_path.join("object_store");
+        let os = ObjectStore::new(&os_path);
+        try!(os.init());
+
+        Ok((wd_temp, os))
+    }
+
     #[test]
     fn test_object_store() {
-        let (key, data) =
-            (ObjectKey::from_hex("69342c5c39e5ae5f0077aecc32c0f81811fb8193")
+        let (key, data) = (
+            dag::ObjectKey::from_hex("69342c5c39e5ae5f0077aecc32c0f81811fb8193")
                 .unwrap(),
-             "Hello!".to_string());
+            "Hello!".to_string()
+        );
 
         let mut store = create_temp_object_store();
 
@@ -124,4 +189,75 @@ pub mod test {
             assert_eq!(read_string, data);
         }
     }
+
+    #[test]
+    fn test_store_file_empty() {
+        let (temp, mut objectstore) = create_temp_repository().unwrap();
+        let filepath = temp.path().join("foo");
+        testutil::write_str_file(&filepath, "").unwrap();
+
+        let hash = objectstore.store_file(&filepath).unwrap();
+
+        let obj = objectstore.read_object(&hash).unwrap();
+        let mut obj = io::BufReader::new(obj);
+
+        let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
+        assert_eq!(header.object_type, dag::ObjectType::Blob);
+        assert_eq!(header.content_size, 0);
+
+        let blob = dag::Blob::read_from(&mut obj).unwrap();
+        assert_eq!(String::from_utf8(blob.content).unwrap(), "");
+    }
+
+    #[test]
+    fn test_store_file_small() {
+        let (temp, mut objectstore) = create_temp_repository().unwrap();
+        let filepath = temp.path().join("foo");
+
+        testutil::write_str_file(&filepath, "foo").unwrap();
+
+        let hash = objectstore.store_file(&filepath).unwrap();
+
+        let obj = objectstore.read_object(&hash).unwrap();
+        let mut obj = io::BufReader::new(obj);
+
+        let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
+        assert_eq!(header.object_type, dag::ObjectType::Blob);
+
+        let blob = dag::Blob::read_from(&mut obj).unwrap();
+        assert_eq!(String::from_utf8(blob.content).unwrap(), "foo");
+    }
+
+    #[test]
+    fn test_store_file_chunked() {
+        let (temp, mut objectstore) = create_temp_repository().unwrap();
+        let filepath = temp.path().join("foo");
+        let filesize = 3 * rollinghash::CHUNK_TARGET_SIZE as u64;
+
+        let mut rng = testutil::RandBytes::new();
+        rng.write_file(&filepath, filesize).unwrap();
+
+        let hash = objectstore.store_file(&filepath).unwrap();
+
+        let obj = objectstore.read_object(&hash).unwrap();
+        let mut obj = io::BufReader::new(obj);
+        let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
+
+        assert_eq!(header.object_type, dag::ObjectType::ChunkedBlob);
+
+        let chunked = dag::ChunkedBlob::read_from(&mut obj).unwrap();
+        assert_eq!(chunked.total_size, filesize);
+        assert_eq!(chunked.chunks.len(), 5);
+
+        for chunkrecord in chunked.chunks {
+            let obj = objectstore.read_object(&chunkrecord.hash).unwrap();
+            let mut obj = io::BufReader::new(obj);
+            let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
+            assert_eq!(header.object_type, dag::ObjectType::Blob);
+
+            let blob = dag::Blob::read_from(&mut obj).unwrap();
+            assert_eq!(blob.size(), chunkrecord.size);
+        }
+    }
+
 }
