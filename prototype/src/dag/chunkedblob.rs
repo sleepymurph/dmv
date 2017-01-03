@@ -1,3 +1,4 @@
+use siprefix;
 use std::io;
 use std::io::Write;
 
@@ -41,22 +42,22 @@ impl ChunkedBlob {
         write!(&mut output,
                "Chunked Blob
 
-Object content size:    {}
-Total file size:        {}
+Object content size:    {:>10}
+Total file size:        {:>10}
 
 ",
-               self.content_size(),
-               self.total_size)
+               siprefix::human_bytes(self.content_size()),
+               siprefix::human_bytes(self.total_size))
             .unwrap();
 
-        write!(&mut output, "{:-10} {:-6} {}\n", "offset", "size", "hash")
+        write!(&mut output, "{:10}  {:10}  {}\n", "offset", "size", "hash")
             .unwrap();
 
         for chunk in &self.chunks {
             write!(&mut output,
-                   "{:010x} {:06x} {}\n",
+                   "{:>010x}  {:>10}  {}\n",
                    chunk.offset,
-                   chunk.size,
+                   siprefix::human_bytes(chunk.size),
                    chunk.hash)
                 .unwrap();
         }
