@@ -13,7 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 byteorder = "0.5"
-clap = "2"
+clap = {version = "2", features = ["yaml"]}
 rand = "0.3"
 rustc-serialize = "0.3"
 rust-crypto = "0.2"

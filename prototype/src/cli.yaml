@@ -1,0 +1,9 @@
+name: prototype
+author: Mike Murphy <sleepymurph@gmail.com>
+args:
+subcommands:
+    - hash-object:
+        args:
+          - filepath:
+              required: true
+              index: 1
