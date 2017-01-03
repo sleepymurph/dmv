@@ -16,16 +16,17 @@ pub struct IncomingObject {
 }
 
 impl ObjectStore {
-    pub fn new(path: &path::Path) -> Self {
-        ObjectStore { path: path.to_owned() }
+    pub fn init(path: path::PathBuf) -> io::Result<Self> {
+        try!(fs::create_dir_all(&path));
+        Self::load(path)
+    }
+
+    pub fn load(path: path::PathBuf) -> io::Result<Self> {
+        Ok(ObjectStore { path: path })
     }
 
     pub fn path(&self) -> &path::Path {
         &self.path
-    }
-
-    pub fn init(&self) -> io::Result<()> {
-        fs::create_dir_all(&self.path)
     }
 
     fn object_path(&self, key: &dag::ObjectKey) -> path::PathBuf {
@@ -146,9 +147,7 @@ pub mod test {
     pub fn create_temp_object_store() -> ObjectStore {
         let tmp = tempdir::TempDir::new_in("/dev/shm", "object_store_test")
             .expect("create tempdir");
-        let object_store = ObjectStore::new(tmp.path());
-        object_store.init().expect("initialize object store");
-        object_store
+        ObjectStore::init(tmp.path().to_owned()).expect("init")
     }
 
     fn create_temp_repository
@@ -160,8 +159,7 @@ pub mod test {
         let wd_path = wd_temp.path().to_path_buf();
         try!(fs::create_dir_all(&wd_path));
         let os_path = wd_path.join("object_store");
-        let os = ObjectStore::new(&os_path);
-        try!(os.init());
+        let os = try!(ObjectStore::init(os_path));
 
         Ok((wd_temp, os))
     }

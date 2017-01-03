@@ -11,7 +11,7 @@ pub struct WorkDir {
     path: path::PathBuf,
     current_branch: Option<dag::ObjectKey>,
     cache: cache::FileCache,
-    objectstore: objectstore::ObjectStore,
+    pub objectstore: objectstore::ObjectStore,
 }
 
 impl WorkDir {
@@ -20,8 +20,22 @@ impl WorkDir {
     pub fn init(wd_path: path::PathBuf) -> io::Result<Self> {
 
         let os_path = wd_path.join(constants::HIDDEN_DIR_NAME);
-        let os = objectstore::ObjectStore::new(&os_path);
-        try!(os.init());
+        let os = try!(objectstore::ObjectStore::init(os_path));
+
+        let wd = WorkDir {
+            path: wd_path,
+            current_branch: None,
+            cache: cache::FileCache::new(),
+            objectstore: os,
+        };
+
+        Ok(wd)
+    }
+
+    /// Load a working directory that has already been initialized
+    pub fn load(wd_path: path::PathBuf) -> io::Result<Self> {
+        let os_path = wd_path.join(constants::HIDDEN_DIR_NAME);
+        let os = try!(objectstore::ObjectStore::load(os_path));
 
         let wd = WorkDir {
             path: wd_path,
