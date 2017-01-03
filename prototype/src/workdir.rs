@@ -1,4 +1,5 @@
 use cache;
+use constants;
 use dag;
 use objectstore;
 use status;
@@ -14,6 +15,24 @@ pub struct WorkDir {
 }
 
 impl WorkDir {
+
+    /// Initialize the given directory as a working directory
+    pub fn init(wd_path: path::PathBuf) -> io::Result<Self> {
+
+        let os_path = wd_path.join(constants::HIDDEN_DIR_NAME);
+        let os = objectstore::ObjectStore::new(&os_path);
+        try!(os.init());
+
+        let wd = WorkDir {
+            path: wd_path,
+            current_branch: None,
+            cache: cache::FileCache::new(),
+            objectstore: os,
+        };
+
+        Ok(wd)
+    }
+
     pub fn path(&self) -> &path::Path {
         &self.path
     }
@@ -107,10 +126,8 @@ impl WorkDir {
 mod test {
     extern crate tempdir;
 
-    use cache;
     use dag;
     use dag::Object;
-    use objectstore;
     use rollinghash;
     use std::fs;
     use std::io;
@@ -124,17 +141,7 @@ mod test {
         let wd_path = wd_temp.path().to_path_buf();
         try!(fs::create_dir_all(&wd_path));
 
-        let os_path = wd_path.join(".prototype");
-        let os = objectstore::ObjectStore::new(&os_path);
-        try!(os.init());
-
-        let wd = WorkDir {
-            path: wd_path.clone(),
-            current_branch: None,
-            cache: cache::FileCache::new(),
-            objectstore: os,
-        };
-
+        let wd = try!(WorkDir::init(wd_path));
         Ok((wd_temp, wd))
     }
 

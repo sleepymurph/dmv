@@ -4,6 +4,7 @@
 
 extern crate rustc_serialize;
 
+pub mod constants;
 pub mod rollinghash;
 pub mod testutil;
 pub mod dag;

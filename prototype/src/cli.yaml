@@ -2,8 +2,14 @@ name: prototype
 author: Mike Murphy <sleepymurph@gmail.com>
 args:
 subcommands:
+    - init:
+        args:
+            - bare:
+                help: "create bare object store without working directory"
     - hash-object:
         args:
-          - filepath:
-              required: true
-              index: 1
+            - filepath:
+                required: true
+                index: 1
+
+# vim: set sts=4 sw=4 et:
