@@ -40,7 +40,7 @@ impl ChunkedBlob {
         use std::fmt::Write;
         let mut output = String::new();
         write!(&mut output,
-               "Chunked Blob
+               "Chunked Blob Index
 
 Object content size:    {:>10}
 Total file size:        {:>10}

@@ -8,6 +8,7 @@ use prototypelib::workdir;
 use std::env;
 use std::io;
 use std::path;
+use prototypelib::siprefix;
 
 fn main() {
 
@@ -61,7 +62,9 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
             .expect("read header");
 
         match header.object_type {
-            dag::ObjectType::Blob => println!("binary data"),
+            dag::ObjectType::Blob => {
+                println!("Blob, size: {}", siprefix::human_bytes(header.content_size));
+            }
             dag::ObjectType::ChunkedBlob => {
                 let obj = dag::ChunkedBlob::read_from(&mut reader)
                     .expect("read");
