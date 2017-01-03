@@ -15,7 +15,6 @@ pub struct WorkDir {
 }
 
 impl WorkDir {
-
     /// Initialize the given directory as a working directory
     pub fn init(wd_path: path::PathBuf) -> io::Result<Self> {
 
