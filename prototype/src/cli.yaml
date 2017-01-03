@@ -6,9 +6,16 @@ subcommands:
         args:
             - bare:
                 help: "create bare object store without working directory"
+
     - hash-object:
         args:
             - filepath:
+                required: true
+                index: 1
+
+    - show-object:
+        args:
+            - hash:
                 required: true
                 index: 1
 

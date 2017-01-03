@@ -3,9 +3,11 @@ extern crate clap;
 
 extern crate prototypelib;
 
-use std::env;
-use std::path;
+use prototypelib::dag;
 use prototypelib::workdir;
+use std::env;
+use std::io;
+use std::path;
 
 fn main() {
 
@@ -18,6 +20,7 @@ fn main() {
             let subfn = match name {
                 "init" => cmd_init,
                 "hash-object" => cmd_hash_object,
+                "show-object" => cmd_show_object,
                 _ => unimplemented!(),
             };
             let submatch = argmatch.subcommand_matches(name).unwrap();
@@ -35,8 +38,42 @@ fn cmd_init(_argmatch: &clap::ArgMatches, _submatch: &clap::ArgMatches) {
 fn cmd_hash_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
     let filepath = path::Path::new(submatch.value_of("filepath").unwrap());
 
+    let mut wd = find_workdir_from_current_dir();
+    let hash = wd.objectstore.store_file(filepath).expect("store");
+    println!("{} {}", hash, filepath.display());
+}
+
+fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
+    use prototypelib::dag::Object;
+
+    let hash = dag::ObjectKey::from_hex(submatch.value_of("hash").unwrap());
+    let hash = hash.expect("parse key");
+
+    let wd = find_workdir_from_current_dir();
+
+    if !wd.objectstore.has_object(&hash) {
+        println!("No such object");
+    } else {
+        let mut reader = io::BufReader::new(wd.objectstore
+            .read_object(&hash)
+            .expect("read object"));
+        let header = dag::ObjectHeader::read_from(&mut reader)
+            .expect("read header");
+
+        match header.object_type {
+            dag::ObjectType::Blob => println!("binary data"),
+            dag::ObjectType::ChunkedBlob => {
+                let obj = dag::ChunkedBlob::read_from(&mut reader)
+                    .expect("read");
+                print!("{}", obj.pretty_print());
+            }
+            dag::ObjectType::Tree => println!("tree"),
+            dag::ObjectType::Commit => println!("commit"),
+        }
+    }
+}
+
+fn find_workdir_from_current_dir() -> workdir::WorkDir {
     let current_dir = env::current_dir().expect("current dir");
-    let mut wd = workdir::WorkDir::load(current_dir).expect("load");
-    let objectkey = wd.objectstore.store_file(filepath).expect("store");
-    println!("{} {}", objectkey, filepath.display());
+    workdir::WorkDir::load(current_dir).expect("load")
 }

@@ -34,6 +34,40 @@ impl ChunkedBlob {
         self.chunks.push(new_chunk);
         self.total_size += size;
     }
+
+    pub fn pretty_print(&self) -> String {
+        use std::fmt::Write;
+        let mut output = String::new();
+        write!(&mut output,
+               "Chunked Blob
+
+Object content size:    {}
+Total file size:        {}
+
+",
+               self.content_size(),
+               self.total_size)
+            .unwrap();
+
+        write!(&mut output, "{:-10} {:-6} {}\n", "offset", "size", "hash")
+            .unwrap();
+
+        for chunk in &self.chunks {
+            write!(&mut output,
+                   "{:010x} {:06x} {}\n",
+                   chunk.offset,
+                   chunk.size,
+                   chunk.hash)
+                .unwrap();
+        }
+        output
+    }
+
+    fn content_size(&self) -> ObjectSize {
+        (OBJECT_SIZE_BYTES +
+         self.chunks.len() *
+         CHUNK_RECORD_SIZE) as ObjectSize
+    }
 }
 
 const CHUNK_RECORD_SIZE: usize = OBJECT_SIZE_BYTES * 2 + KEY_SIZE_BYTES;
@@ -44,10 +78,7 @@ impl Object for ChunkedBlob {
 
         let header = ObjectHeader {
             object_type: ObjectType::ChunkedBlob,
-            content_size:
-                (OBJECT_SIZE_BYTES +
-                 self.chunks.len() *
-                 CHUNK_RECORD_SIZE) as ObjectSize,
+            content_size: self.content_size(),
         };
 
         try!(header.write_to(&mut writer));
