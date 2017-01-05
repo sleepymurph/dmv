@@ -1,4 +1,4 @@
-use siprefix;
+use humanreadable;
 use std::io;
 use std::io::Write;
 
@@ -46,8 +46,8 @@ Object content size:    {:>10}
 Total file size:        {:>10}
 
 ",
-               siprefix::human_bytes(self.content_size()),
-               siprefix::human_bytes(self.total_size))
+               humanreadable::human_bytes(self.content_size()),
+               humanreadable::human_bytes(self.total_size))
             .unwrap();
 
         write!(&mut output, "{:10}  {:10}  {}\n", "offset", "size", "hash")
@@ -57,7 +57,7 @@ Total file size:        {:>10}
             write!(&mut output,
                    "{:>010x}  {:>10}  {}\n",
                    chunk.offset,
-                   siprefix::human_bytes(chunk.size),
+                   humanreadable::human_bytes(chunk.size),
                    chunk.hash)
                 .unwrap();
         }

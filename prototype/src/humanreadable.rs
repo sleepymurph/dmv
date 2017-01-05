@@ -8,7 +8,7 @@
 ///
 /// ```
 /// extern crate prototypelib;
-/// use prototypelib::siprefix::human_bytes;
+/// use prototypelib::humanreadable::human_bytes;
 ///
 /// fn main() {
 ///     // Bytes endings are right-padded for alignment
@@ -63,6 +63,6 @@ pub fn human_bytes<N: Into<u64>>(num: N) -> String {
 
     match pindex {
         0 => format!("{} bytes", mant),
-        _ => format!("{}.{} {}", mant, tenths, prefixes[pindex])
+        _ => format!("{}.{} {}", mant, tenths, prefixes[pindex]),
     }
 }
