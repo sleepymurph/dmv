@@ -12,9 +12,9 @@
 ///
 /// fn main() {
 ///     // Bytes endings are right-padded for alignment
-///     assert_eq!(human_bytes(0_u8),                   "0.0   B");
-///     assert_eq!(human_bytes(999_u32),              "999.0   B");
-///     assert_eq!(human_bytes(1000_u32),            "1000.0   B");
+///     assert_eq!(human_bytes(0_u8),                   "0 bytes");
+///     assert_eq!(human_bytes(999_u32),              "999 bytes");
+///     assert_eq!(human_bytes(1000_u32),            "1000 bytes");
 ///
 ///     assert_eq!(human_bytes(1024_u32),               "1.0 KiB");
 ///     assert_eq!(human_bytes((1024 + 512) as u64),    "1.5 KiB");
@@ -41,7 +41,7 @@
 ///
 pub fn human_bytes<N: Into<u64>>(num: N) -> String {
 
-    let prefixes = ["  B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB"];
+    let prefixes = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB"];
     let pindex_limit = prefixes.len() - 1;
     let num: u64 = num.into();
 
@@ -61,5 +61,8 @@ pub fn human_bytes<N: Into<u64>>(num: N) -> String {
         tenths = 0;
     }
 
-    format!("{}.{} {}", mant, tenths, prefixes[pindex])
+    match pindex {
+        0 => format!("{} bytes", mant),
+        _ => format!("{}.{} {}", mant, tenths, prefixes[pindex])
+    }
 }
