@@ -93,7 +93,7 @@ impl ObjectStore {
         let basename = path.file_name().unwrap();
 
         let file_cache = cache::FileCache::load_in_dir(parent_dir).unwrap();
-        if let Some(cache_entry) = file_cache.as_ref().get(&basename.into()) {
+        if let Some(cache_entry) = file_cache.get(&basename.into()) {
             if cache_entry.filestats == file_stats {
                 return Ok(cache_entry.hash);
             }

@@ -11,6 +11,7 @@ use std::fs;
 use std::io;
 use std::io::Read;
 use std::io::Write;
+use std::ops;
 use std::path;
 use std::time;
 
@@ -88,6 +89,19 @@ impl FileCache {
                           filestats: file_stats,
                           hash: hash,
                       });
+    }
+}
+
+impl ops::Deref for FileCache {
+    type Target = CacheMap;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl convert::Into<CacheMap> for FileCache {
+    fn into(self) -> CacheMap {
+        self.0
     }
 }
 
