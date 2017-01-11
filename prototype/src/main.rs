@@ -40,7 +40,7 @@ fn cmd_hash_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
     let filepath = path::Path::new(submatch.value_of("filepath").unwrap());
 
     let mut wd = find_workdir_from_current_dir();
-    let hash = wd.objectstore.store_file(filepath).expect("store");
+    let hash = wd.objectstore.store_file_with_caching(filepath).unwrap();
     println!("{} {}", hash, filepath.display());
 }
 

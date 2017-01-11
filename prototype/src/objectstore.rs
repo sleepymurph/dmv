@@ -88,19 +88,6 @@ impl ObjectStore {
                       path: &path::Path)
                       -> io::Result<dag::ObjectKey> {
 
-        let file_stats = cache::FileStats::read(path).unwrap();
-
-        let parent_dir = path.parent().unwrap();
-        let basename = path.file_name().unwrap();
-
-        let cache_file_name = parent_dir.join(constants::CACHE_FILE_NAME);
-        let mut file_cache = cache::HashCacheFile::open(cache_file_name).unwrap();
-        if let Some(cache_entry) = file_cache.get(&basename.into()) {
-            if cache_entry.filestats == file_stats {
-                return Ok(cache_entry.hash);
-            }
-        }
-
         let file = try!(fs::File::open(path));
         let file = io::BufReader::new(file);
 
@@ -108,7 +95,7 @@ impl ObjectStore {
         let chunk1 = chunker.next();
         let chunk2 = chunker.next();
 
-        let save_result = match (chunk1, chunk2) {
+        match (chunk1, chunk2) {
             (None, None) => {
                 // Empty file
                 let blob = dag::Blob::from_vec(vec![0u8;0]);
@@ -132,14 +119,34 @@ impl ObjectStore {
                 self.store_object(&chunkedblob)
             }
             (None, Some(_)) => unreachable!(),
-        };
+        }
+    }
 
-        if let Ok(key) = save_result {
+    pub fn store_file_with_caching(&mut self,
+                      path: &path::Path)
+                      -> io::Result<dag::ObjectKey> {
+
+        let file_stats = cache::FileStats::read(path).unwrap();
+
+        let parent_dir = path.parent().unwrap();
+        let basename = path.file_name().unwrap();
+
+        let cache_file_name = parent_dir.join(constants::CACHE_FILE_NAME);
+        let mut file_cache = cache::HashCacheFile::open(cache_file_name)
+            .unwrap();
+        if let cache::CacheStatus::Cached { hash } =
+               file_cache.check(&basename, &file_stats) {
+            return Ok(hash);
+        }
+
+        let result = self.store_file(path);
+
+        if let Ok(key) = result {
             file_cache.as_mut().insert(basename, file_stats, key.clone());
         }
 
-        save_result
-    }
+        result
+      }
 }
 
 impl io::Write for IncomingObject {

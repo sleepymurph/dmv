@@ -15,6 +15,13 @@ use std::path;
 use std::time;
 
 #[derive(Clone,Eq,PartialEq,Debug)]
+pub enum CacheStatus {
+    NotCached { size: dag::ObjectSize },
+    Modified { size: dag::ObjectSize },
+    Cached { hash: dag::ObjectKey },
+}
+
+#[derive(Clone,Eq,PartialEq,Debug)]
 pub struct HashCache(CacheMap);
 
 pub type CacheMap = collections::HashMap<CachePath, CacheEntry>;
@@ -61,6 +68,22 @@ impl HashCache {
                           filestats: file_stats,
                           hash: hash,
                       });
+    }
+
+    pub fn check<P: Into<CachePath>>(&self,
+                                     file_path: P,
+                                     file_stats: &FileStats)
+                                     -> CacheStatus {
+        match self.0.get(&file_path.into()) {
+            Some(cache_entry) => {
+                if cache_entry.filestats == *file_stats {
+                    CacheStatus::Cached { hash: cache_entry.hash }
+                } else {
+                    CacheStatus::Modified { size: file_stats.size }
+                }
+            }
+            None => CacheStatus::NotCached { size: file_stats.size },
+        }
     }
 }
 
