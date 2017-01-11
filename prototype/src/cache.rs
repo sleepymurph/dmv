@@ -16,7 +16,7 @@ use std::path;
 use std::time;
 
 #[derive(Clone,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
-pub struct FileCache(CacheMap);
+pub struct HashCache(CacheMap);
 
 pub type CacheMap = collections::HashMap<CachePath, CacheEntry>;
 
@@ -40,15 +40,15 @@ pub struct CacheTime(time::SystemTime);
 pub struct CachePath(path::PathBuf);
 
 
-impl FileCache {
+impl HashCache {
     pub fn new() -> Self {
-        FileCache(CacheMap::new())
+        HashCache(CacheMap::new())
     }
 
     pub fn save_in_dir(&self, dir_path: &path::Path) -> io::Result<()> {
         let encoded = json::encode(self).unwrap();
 
-        let cache_file_path = FileCache::cache_file_path(dir_path);
+        let cache_file_path = HashCache::cache_file_path(dir_path);
         let mut cache_file = try!(fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -62,17 +62,17 @@ impl FileCache {
     }
 
     pub fn load_in_dir(dir_path: &path::Path) -> io::Result<Self> {
-        let cache_file_path = FileCache::cache_file_path(dir_path);
+        let cache_file_path = HashCache::cache_file_path(dir_path);
 
         if !cache_file_path.exists() {
-            return Ok(FileCache::new());
+            return Ok(HashCache::new());
         }
 
         let mut cache_file = fs::File::open(cache_file_path).unwrap();
 
         let mut json_str = String::new();
         cache_file.read_to_string(&mut json_str).unwrap();
-        let decoded: FileCache = json::decode(&json_str).unwrap();
+        let decoded: HashCache = json::decode(&json_str).unwrap();
         Ok(decoded)
     }
 
@@ -92,26 +92,26 @@ impl FileCache {
     }
 }
 
-impl ops::Deref for FileCache {
+impl ops::Deref for HashCache {
     type Target = CacheMap;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl convert::Into<CacheMap> for FileCache {
+impl convert::Into<CacheMap> for HashCache {
     fn into(self) -> CacheMap {
         self.0
     }
 }
 
-impl convert::AsRef<CacheMap> for FileCache {
+impl convert::AsRef<CacheMap> for HashCache {
     fn as_ref(&self) -> &CacheMap {
         &self.0
     }
 }
 
-impl convert::AsMut<CacheMap> for FileCache {
+impl convert::AsMut<CacheMap> for HashCache {
     fn as_mut(&mut self) -> &mut CacheMap {
         &mut self.0
     }
@@ -215,7 +215,7 @@ mod test {
 
     #[test]
     fn test_serialize_filecache() {
-        let mut obj = FileCache::new();
+        let mut obj = HashCache::new();
         obj.as_mut().insert(CachePath::from_str("patha/x"), CacheEntry{
             filestats: FileStats{
                 mtime: CacheTime(
@@ -226,13 +226,13 @@ mod test {
                 ::from_hex("d3486ae9136e7856bc42212385ea797094475802").unwrap(),
         });
         let encoded = json::encode(&obj).unwrap();
-        let decoded: FileCache = json::decode(&encoded).unwrap();
+        let decoded: HashCache = json::decode(&encoded).unwrap();
         assert_eq!(decoded, obj);
     }
 
     #[test]
     fn test_save_load() {
-        let mut obj = FileCache::new();
+        let mut obj = HashCache::new();
         obj.as_mut().insert(CachePath::from_str("patha/x"), CacheEntry{
             filestats: FileStats{
                 mtime: CacheTime(
@@ -247,16 +247,16 @@ mod test {
         obj.save_in_dir(tempdir.path()).unwrap();
         assert!(tempdir.path().join(".prototype_cache").exists());
 
-        let decoded = FileCache::load_in_dir(tempdir.path()).unwrap();
+        let decoded = HashCache::load_in_dir(tempdir.path()).unwrap();
         assert_eq!(decoded, obj);
     }
 
     #[test]
     fn test_load_nonexistent_as_empty() {
-        let empty = FileCache::new();
+        let empty = HashCache::new();
 
         let tempdir = testutil::in_mem_tempdir("cache_test").unwrap();
-        let decoded = FileCache::load_in_dir(tempdir.path()).unwrap();
+        let decoded = HashCache::load_in_dir(tempdir.path()).unwrap();
         assert_eq!(decoded, empty);
     }
 }
