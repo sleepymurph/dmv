@@ -1,3 +1,4 @@
+use cache;
 use dag;
 use fsutil;
 use rollinghash;
@@ -86,6 +87,18 @@ impl ObjectStore {
                       path: &path::Path)
                       -> io::Result<dag::ObjectKey> {
 
+        let file_stats = cache::FileStats::read(path).unwrap();
+
+        let parent_dir = path.parent().unwrap();
+        let basename = path.file_name().unwrap();
+
+        let file_cache = cache::FileCache::load_in_dir(parent_dir).unwrap();
+        if let Some(cache_entry) = file_cache.as_ref().get(&basename.into()) {
+            if cache_entry.filestats == file_stats {
+                return Ok(cache_entry.hash);
+            }
+        }
+
         let file = try!(fs::File::open(path));
         let file = io::BufReader::new(file);
 
@@ -93,7 +106,7 @@ impl ObjectStore {
         let chunk1 = chunker.next();
         let chunk2 = chunker.next();
 
-        match (chunk1, chunk2) {
+        let save_result = match (chunk1, chunk2) {
             (None, None) => {
                 // Empty file
                 let blob = dag::Blob::from_vec(vec![0u8;0]);
@@ -117,7 +130,16 @@ impl ObjectStore {
                 self.store_object(&chunkedblob)
             }
             (None, Some(_)) => unreachable!(),
+        };
+
+        if let Ok(key) = save_result {
+            let mut file_cache = cache::FileCache::load_in_dir(parent_dir)
+                .unwrap();
+            file_cache.insert(basename, file_stats, key.clone());
+            file_cache.save_in_dir(parent_dir).unwrap();
         }
+
+        save_result
     }
 }
 
