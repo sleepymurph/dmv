@@ -1,4 +1,3 @@
-use constants::CACHE_FILE_NAME;
 use dag;
 use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
@@ -15,7 +14,7 @@ use std::ops;
 use std::path;
 use std::time;
 
-#[derive(Clone,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
+#[derive(Clone,Eq,PartialEq,Debug)]
 pub struct HashCache(CacheMap);
 
 pub type CacheMap = collections::HashMap<CachePath, CacheEntry>;
@@ -40,44 +39,17 @@ pub struct CacheTime(time::SystemTime);
 pub struct CachePath(path::PathBuf);
 
 
+/// A file-backed cache. Saves updates on drop.
+pub struct HashCacheFile {
+    cache_file: fs::File,
+    cache: HashCache,
+}
+
+// HashCache
+
 impl HashCache {
     pub fn new() -> Self {
         HashCache(CacheMap::new())
-    }
-
-    pub fn save_in_dir(&self, dir_path: &path::Path) -> io::Result<()> {
-        let encoded = json::encode(self).unwrap();
-
-        let cache_file_path = HashCache::cache_file_path(dir_path);
-        let mut cache_file = try!(fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open(cache_file_path.clone())
-            .map_err(|e| {
-                io::Error::new(e.kind(),
-                               format!("{}", &cache_file_path.display()))
-            }));
-
-        cache_file.write_all(encoded.as_bytes())
-    }
-
-    pub fn load_in_dir(dir_path: &path::Path) -> io::Result<Self> {
-        let cache_file_path = HashCache::cache_file_path(dir_path);
-
-        if !cache_file_path.exists() {
-            return Ok(HashCache::new());
-        }
-
-        let mut cache_file = fs::File::open(cache_file_path).unwrap();
-
-        let mut json_str = String::new();
-        cache_file.read_to_string(&mut json_str).unwrap();
-        let decoded: HashCache = json::decode(&json_str).unwrap();
-        Ok(decoded)
-    }
-
-    fn cache_file_path(dir_path: &path::Path) -> path::PathBuf {
-        dir_path.join(CACHE_FILE_NAME)
     }
 
     pub fn insert<P: Into<CachePath>>(&mut self,
@@ -117,6 +89,7 @@ impl convert::AsMut<CacheMap> for HashCache {
     }
 }
 
+// FileStats
 
 impl FileStats {
     pub fn read(file_path: &path::Path) -> io::Result<Self> {
@@ -133,6 +106,7 @@ impl From<fs::Metadata> for FileStats {
     }
 }
 
+// CacheTime
 
 impl Encodable for CacheTime {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
@@ -149,6 +123,7 @@ impl Decodable for CacheTime {
     }
 }
 
+// CachePath
 
 impl CachePath {
     pub fn from_str(s: &str) -> Self {
@@ -172,6 +147,73 @@ impl Decodable for CachePath {
     fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
         let s = try!(String::decode(d));
         Ok(CachePath::from_str(&s))
+    }
+}
+
+// HashCacheFile
+
+impl HashCacheFile {
+    pub fn open(cache_file_path: path::PathBuf) -> io::Result<Self> {
+        let cache = if cache_file_path.exists() {
+            let mut cache_file = try!(fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(cache_file_path));
+
+            let mut json_str = String::new();
+            cache_file.read_to_string(&mut json_str).unwrap();
+            let decoded: CacheMap = try!(json::decode(&json_str)
+                .map_err(|_| {
+                    io::Error::new(io::ErrorKind::Other,
+                                   format!("Could not parse: {:?}", json_str))
+                }));
+
+            HashCacheFile {
+                cache_file: cache_file,
+                cache: HashCache(decoded),
+            }
+        } else {
+            let cache_file = try!(fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(cache_file_path));
+
+            HashCacheFile {
+                cache_file: cache_file,
+                cache: HashCache::new(),
+            }
+        };
+
+        Ok(cache)
+    }
+
+    pub fn flush(&mut self) -> io::Result<()> {
+        use std::io::Seek;
+
+        let encoded = json::encode(&self.cache.0).unwrap();
+        try!(self.cache_file.seek(io::SeekFrom::Start(0)));
+        try!(self.cache_file.set_len(0));
+        self.cache_file.write_all(encoded.as_bytes()).map(|_| ())
+    }
+}
+
+impl ops::Drop for HashCacheFile {
+    fn drop(&mut self) {
+        self.flush().unwrap()
+    }
+}
+
+impl ops::Deref for HashCacheFile {
+    type Target = HashCache;
+    fn deref(&self) -> &HashCache {
+        &self.cache
+    }
+}
+
+impl convert::AsMut<HashCache> for HashCacheFile {
+    fn as_mut(&mut self) -> &mut HashCache {
+        &mut self.cache
     }
 }
 
@@ -225,38 +267,78 @@ mod test {
             hash: dag::ObjectKey
                 ::from_hex("d3486ae9136e7856bc42212385ea797094475802").unwrap(),
         });
-        let encoded = json::encode(&obj).unwrap();
-        let decoded: HashCache = json::decode(&encoded).unwrap();
-        assert_eq!(decoded, obj);
+        let encoded = json::encode(&obj.0).unwrap();
+        let decoded: CacheMap = json::decode(&encoded).unwrap();
+        assert_eq!(HashCache(decoded), obj);
     }
 
     #[test]
-    fn test_save_load() {
-        let mut obj = HashCache::new();
-        obj.as_mut().insert(CachePath::from_str("patha/x"), CacheEntry{
-            filestats: FileStats{
-                mtime: CacheTime(
-                           time::UNIX_EPOCH + time::Duration::new(120, 55)),
-                size: 12345,
-            },
-            hash: dag::ObjectKey
-                ::from_hex("d3486ae9136e7856bc42212385ea797094475802").unwrap(),
-        });
+    fn test_hash_cache_file() {
+        // Define some test values to use later
+        let path0 = CachePath::from_str("patha/x");
+        let stats0 = FileStats {
+            mtime: CacheTime(time::UNIX_EPOCH + time::Duration::new(120, 55)),
+            size: 12345,
+        };
+        let hash0 =
+            dag::ObjectKey::from_hex("d3486ae9136e7856bc42212385ea797094475802")
+                .unwrap();
+
+        let path1 = CachePath::from_str("pathb/y");
+        let stats1 = FileStats {
+            mtime: CacheTime(time::UNIX_EPOCH + time::Duration::new(60, 22)),
+            size: 54321,
+        };
+        let hash1 =
+            dag::ObjectKey::from_hex("e030a4b3fdc15cdcbf9026d83b84c2b4b93309af")
+                .unwrap();
+
+        // Create temporary directory
 
         let tempdir = testutil::in_mem_tempdir("cache_test").unwrap();
-        obj.save_in_dir(tempdir.path()).unwrap();
-        assert!(tempdir.path().join(".prototype_cache").exists());
+        let cache_file_path = tempdir.path().join("cache");
 
-        let decoded = HashCache::load_in_dir(tempdir.path()).unwrap();
-        assert_eq!(decoded, obj);
-    }
+        {
+            // Open nonexistent cache file
+            let mut cache_file = HashCacheFile::open(cache_file_path.clone())
+                .unwrap();
+            assert!(cache_file.is_empty(), "New cache should be empty");
 
-    #[test]
-    fn test_load_nonexistent_as_empty() {
-        let empty = HashCache::new();
+            // Insert a value and let the destructor flush the file
+            cache_file.as_mut()
+                .insert(path0.clone(), stats0.clone(), hash0.clone());
+        }
 
-        let tempdir = testutil::in_mem_tempdir("cache_test").unwrap();
-        let decoded = HashCache::load_in_dir(tempdir.path()).unwrap();
-        assert_eq!(decoded, empty);
+        assert!(cache_file_path.is_file(), "New cache should be saved");
+
+        {
+            // Open the existing cache file
+            let mut cache_file = HashCacheFile::open(cache_file_path.clone())
+                .unwrap();
+            assert!(!cache_file.is_empty(), "Read cache should not be empty");
+            {
+                let entry = cache_file.get(&path0).unwrap();
+
+                assert_eq!(entry.filestats, stats0);
+                assert_eq!(entry.hash, hash0);
+            }
+
+            // Insert another value and let the destructor flush the file
+            cache_file.as_mut()
+                .insert(path1.clone(), stats1.clone(), hash1.clone());
+        }
+
+        {
+            // Re-open the existing cache file
+            let cache_file = HashCacheFile::open(cache_file_path.clone())
+                .unwrap();
+            {
+                let entry = cache_file.get(&path1).unwrap();
+
+                assert_eq!(entry.filestats, stats1);
+                assert_eq!(entry.hash, hash1);
+            }
+        }
+
     }
 }

@@ -1,4 +1,5 @@
 use cache;
+use constants;
 use dag;
 use fsutil;
 use rollinghash;
@@ -92,7 +93,8 @@ impl ObjectStore {
         let parent_dir = path.parent().unwrap();
         let basename = path.file_name().unwrap();
 
-        let file_cache = cache::HashCache::load_in_dir(parent_dir).unwrap();
+        let cache_file_name = parent_dir.join(constants::CACHE_FILE_NAME);
+        let mut file_cache = cache::HashCacheFile::open(cache_file_name).unwrap();
         if let Some(cache_entry) = file_cache.get(&basename.into()) {
             if cache_entry.filestats == file_stats {
                 return Ok(cache_entry.hash);
@@ -133,10 +135,7 @@ impl ObjectStore {
         };
 
         if let Ok(key) = save_result {
-            let mut file_cache = cache::HashCache::load_in_dir(parent_dir)
-                .unwrap();
-            file_cache.insert(basename, file_stats, key.clone());
-            file_cache.save_in_dir(parent_dir).unwrap();
+            file_cache.as_mut().insert(basename, file_stats, key.clone());
         }
 
         save_result
