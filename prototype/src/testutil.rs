@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 extern crate rand;
+extern crate tempdir;
 
 use fsutil;
 use self::rand::{Rng, SeedableRng, Generator, XorShiftRng};
@@ -91,6 +92,14 @@ pub fn write_file<R: Read>(path: &path::Path,
 
 pub fn write_str_file(path: &path::Path, contents: &str) -> io::Result<u64> {
     write_file(path, contents.as_bytes())
+}
+
+/// Bring TempDir into namespace so users don't need `extern crate tempdir;`
+pub type TempDir = tempdir::TempDir;
+
+/// Create a temporary directory in an in-memory filesystem
+pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
+    TempDir::new_in("/dev/shm", prefix)
 }
 
 #[test]

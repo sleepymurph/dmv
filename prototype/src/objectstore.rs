@@ -132,8 +132,6 @@ impl io::Write for IncomingObject {
 
 #[cfg(test)]
 pub mod test {
-    extern crate tempdir;
-
     use dag;
     use dag::Object;
     use rollinghash;
@@ -144,18 +142,11 @@ pub mod test {
     use super::*;
     use testutil;
 
-    pub fn create_temp_object_store() -> ObjectStore {
-        let tmp = tempdir::TempDir::new_in("/dev/shm", "object_store_test")
-            .expect("create tempdir");
-        ObjectStore::init(tmp.path().to_owned()).expect("init")
-    }
-
     fn create_temp_repository
         ()
-        -> io::Result<(tempdir::TempDir, ObjectStore)>
+        -> io::Result<(testutil::TempDir, ObjectStore)>
     {
-        let wd_temp = try!(tempdir::TempDir::new_in("/dev/shm",
-                                                    "test_directory"));
+        let wd_temp = try!(testutil::in_mem_tempdir("test_directory"));
         let wd_path = wd_temp.path().to_path_buf();
         try!(fs::create_dir_all(&wd_path));
         let os_path = wd_path.join("object_store");
@@ -172,7 +163,7 @@ pub mod test {
             "Hello!".to_string()
         );
 
-        let mut store = create_temp_object_store();
+        let (_tempdir, mut store) = create_temp_repository().unwrap();
 
         assert_eq!(store.has_object(&key), false);
         {

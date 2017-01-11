@@ -137,8 +137,6 @@ impl WorkDir {
 
 #[cfg(test)]
 mod test {
-    extern crate tempdir;
-
     use dag;
     use dag::Object;
     use rollinghash;
@@ -148,9 +146,8 @@ mod test {
     use super::*;
     use testutil;
 
-    fn create_temp_repository() -> io::Result<(tempdir::TempDir, WorkDir)> {
-        let wd_temp = try!(tempdir::TempDir::new_in("/dev/shm",
-                                                    "test_repository"));
+    fn create_temp_repository() -> io::Result<(testutil::TempDir, WorkDir)> {
+        let wd_temp = try!(testutil::in_mem_tempdir("test_repository"));
         let wd_path = wd_temp.path().to_path_buf();
         try!(fs::create_dir_all(&wd_path));
 
