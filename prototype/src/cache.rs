@@ -1,8 +1,5 @@
 use dag;
-use rustc_serialize::Decodable;
-use rustc_serialize::Decoder;
-use rustc_serialize::Encodable;
-use rustc_serialize::Encoder;
+use encodable;
 use rustc_serialize::json;
 use std::collections;
 use std::convert;
@@ -12,7 +9,6 @@ use std::io::Read;
 use std::io::Write;
 use std::ops;
 use std::path;
-use std::time;
 
 #[derive(Clone,Eq,PartialEq,Debug)]
 pub enum CacheStatus {
@@ -24,7 +20,7 @@ pub enum CacheStatus {
 #[derive(Clone,Eq,PartialEq,Debug)]
 pub struct HashCache(CacheMap);
 
-pub type CacheMap = collections::HashMap<CachePath, CacheEntry>;
+pub type CacheMap = collections::HashMap<encodable::PathBuf, CacheEntry>;
 
 #[derive(Clone,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
 pub struct CacheEntry {
@@ -36,14 +32,8 @@ pub struct CacheEntry {
 #[derive(Clone,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
 pub struct FileStats {
     size: dag::ObjectSize,
-    mtime: CacheTime,
+    mtime: encodable::SystemTime,
 }
-
-#[derive(Clone,Eq,PartialEq,Debug)]
-pub struct CacheTime(time::SystemTime);
-
-#[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
-pub struct CachePath(path::PathBuf);
 
 
 /// A file-backed cache that saves updates on drop
@@ -63,10 +53,10 @@ impl HashCache {
         HashCache(CacheMap::new())
     }
 
-    pub fn insert<P: Into<CachePath>>(&mut self,
-                                      file_path: P,
-                                      file_stats: FileStats,
-                                      hash: dag::ObjectKey) {
+    pub fn insert(&mut self,
+                  file_path: path::PathBuf,
+                  file_stats: FileStats,
+                  hash: dag::ObjectKey) {
         self.0.insert(file_path.into(),
                       CacheEntry {
                           filestats: file_stats,
@@ -74,10 +64,16 @@ impl HashCache {
                       });
     }
 
-    pub fn check<P: Into<CachePath>>(&self,
-                                     file_path: P,
-                                     file_stats: &FileStats)
-                                     -> CacheStatus {
+    pub fn get<'a, P: ?Sized + AsRef<path::Path>>(&self,
+                                                  file_path: &'a P)
+                                                  -> Option<&CacheEntry> {
+        self.0.get(&file_path.into())
+    }
+
+    pub fn check<'a, P: ?Sized + AsRef<path::Path>>(&self,
+                                                    file_path: &'a P,
+                                                    file_stats: &FileStats)
+                                                    -> CacheStatus {
         match self.0.get(&file_path.into()) {
             Some(cache_entry) => {
                 if cache_entry.filestats == *file_stats {
@@ -128,59 +124,10 @@ impl From<fs::Metadata> for FileStats {
     fn from(metadata: fs::Metadata) -> FileStats {
         FileStats {
             size: metadata.len(),
-            mtime: CacheTime(metadata.modified()
-                .expect("system has no mod time in file stats")),
+            mtime: metadata.modified()
+                .expect("system has no mod time in file stats")
+                .into(),
         }
-    }
-}
-
-// CacheTime
-
-impl Encodable for CacheTime {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        let since_epoch = self.0
-            .duration_since(time::UNIX_EPOCH)
-            .expect("mod time was before the Unix Epoch");
-        let secs_nanos = (since_epoch.as_secs(), since_epoch.subsec_nanos());
-        secs_nanos.encode(s)
-    }
-}
-
-impl Decodable for CacheTime {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        let (secs, nanos) = try!(<(u64, u32)>::decode(d));
-        Ok(CacheTime(time::UNIX_EPOCH + time::Duration::new(secs, nanos)))
-    }
-}
-
-// CachePath
-
-impl CachePath {
-    pub fn from_str(s: &str) -> Self {
-        CachePath(path::PathBuf::from(s))
-    }
-}
-
-impl<P: Into<path::PathBuf>> From<P> for CachePath {
-    fn from(p: P) -> Self {
-        CachePath(p.into())
-    }
-}
-
-impl Encodable for CachePath {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        self.0
-            .to_str()
-            .expect("path cannot be encoded to JSON because it has invalid \
-                     unicode")
-            .encode(s)
-    }
-}
-
-impl Decodable for CachePath {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        let s = try!(String::decode(d));
-        Ok(CachePath::from_str(&s))
     }
 }
 
@@ -292,20 +239,11 @@ impl From<io::Error> for CacheError {
 #[cfg(test)]
 mod test {
     use dag;
+    use encodable;
     use rustc_serialize::json;
     use std::path;
-    use std::time;
     use super::*;
     use testutil;
-
-    #[test]
-    fn test_serialize_cachetime() {
-        let obj = CacheTime(time::UNIX_EPOCH + time::Duration::new(120, 55));
-        let encoded = json::encode(&obj).unwrap();
-        assert_eq!(encoded, "[120,55]");
-        let decoded: CacheTime = json::decode(&encoded).unwrap();
-        assert_eq!(decoded, obj);
-    }
 
     /// PathBufs are serialized as byte arrays instead of strings. Booo.
     #[test]
@@ -318,21 +256,11 @@ mod test {
     }
 
     #[test]
-    fn test_serialize_cachepath() {
-        let obj = CachePath::from_str("hello/world");
-        let encoded = json::encode(&obj).unwrap();
-        assert_eq!(encoded, "\"hello/world\"");
-        let decoded: CachePath = json::decode(&encoded).unwrap();
-        assert_eq!(decoded, obj);
-    }
-
-    #[test]
     fn test_serialize_filecache() {
         let mut obj = HashCache::new();
-        obj.as_mut().insert(CachePath::from_str("patha/x"), CacheEntry{
+        obj.as_mut().insert(encodable::PathBuf::from("patha/x"), CacheEntry{
             filestats: FileStats{
-                mtime: CacheTime(
-                           time::UNIX_EPOCH + time::Duration::new(120, 55)),
+                mtime: encodable::SystemTime::unix_epoch_plus(120, 55),
                 size: 12345,
             },
             hash: dag::ObjectKey
@@ -346,18 +274,18 @@ mod test {
     #[test]
     fn test_hash_cache_file() {
         // Define some test values to use later
-        let path0 = CachePath::from_str("patha/x");
+        let path0 = path::PathBuf::from("patha/x");
         let stats0 = FileStats {
-            mtime: CacheTime(time::UNIX_EPOCH + time::Duration::new(120, 55)),
+            mtime: encodable::SystemTime::unix_epoch_plus(120, 55),
             size: 12345,
         };
         let hash0 =
             dag::ObjectKey::from_hex("d3486ae9136e7856bc42212385ea797094475802")
                 .unwrap();
 
-        let path1 = CachePath::from_str("pathb/y");
+        let path1 = path::PathBuf::from("pathb/y");
         let stats1 = FileStats {
-            mtime: CacheTime(time::UNIX_EPOCH + time::Duration::new(60, 22)),
+            mtime: encodable::SystemTime::unix_epoch_plus(60, 22),
             size: 54321,
         };
         let hash1 =

@@ -142,7 +142,8 @@ impl ObjectStore {
         let result = self.store_file(path);
 
         if let Ok(key) = result {
-            file_cache.as_mut().insert(basename, file_stats, key.clone());
+            file_cache.as_mut()
+                .insert(basename.into(), file_stats, key.clone());
         }
 
         result

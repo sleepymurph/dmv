@@ -1,0 +1,173 @@
+//! Wrappers that allow common types to implement Encodable and Decodable
+
+use rustc_serialize::Decodable;
+use rustc_serialize::Decoder;
+use rustc_serialize::Encodable;
+use rustc_serialize::Encoder;
+use std::ops;
+use std::path;
+use std::time;
+
+
+/// Encodable wrapper for `std::path::PathBuf` that encodes to a string
+///
+/// Rustc Serialize does implement Encodable for Path and PathBuf, but it
+/// serializes them as arrays of bytes. This accommodates bad Unicode sequences,
+/// but it makes the output hard to read, and it makes it impossible to use
+/// paths as map/object keys.
+///
+/// This wrapper sacrifices Unicode error tolerance for clear serialization as a
+/// string. It will panic if it attempts to encode a path with a bad Unicode
+/// sequence.
+///
+/// ```
+/// extern crate prototypelib;
+/// extern crate rustc_serialize;
+///
+/// use rustc_serialize::json;
+/// use prototypelib::encodable;
+/// use std::path;
+///
+/// fn main() {
+///     let path = path::PathBuf::from("hello/world");
+///     let encoded = json::encode(&path).unwrap();
+///     assert_eq!(encoded, "[104,101,108,108,111,47,119,111,114,108,100]");
+///
+///     let path = encodable::PathBuf::from("hello/world");
+///     let encoded = json::encode(&path).unwrap();
+///     assert_eq!(encoded, "\"hello/world\"");
+/// }
+/// ```
+///
+#[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
+pub struct PathBuf(path::PathBuf);
+
+impl From<path::PathBuf> for PathBuf {
+    fn from(p: path::PathBuf) -> Self {
+        PathBuf(p.into())
+    }
+}
+
+impl<'a, P: ?Sized + AsRef<path::Path>> From<&'a P> for PathBuf {
+    fn from(p: &'a P) -> Self {
+        PathBuf(p.as_ref().to_path_buf())
+    }
+}
+
+impl ops::Deref for PathBuf {
+    type Target = path::Path;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Encodable for PathBuf {
+    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+        self.to_str()
+            .expect("path cannot be encoded to because it contains invalid \
+                     unicode")
+            .encode(s)
+    }
+}
+
+impl Decodable for PathBuf {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
+        let s = try!(String::decode(d));
+        Ok(PathBuf::from(&s))
+    }
+}
+
+
+/// Encodable wrapper for `std::time::SystemTime`
+///
+/// Serializes the system time as an array of [secs,nanos], relative to the Unix
+/// epoch.
+///
+/// ```
+/// extern crate prototypelib;
+/// extern crate rustc_serialize;
+///
+/// use rustc_serialize::json;
+/// use prototypelib::encodable;
+/// use std::time;
+///
+/// fn main() {
+///     let time = encodable::SystemTime::from(
+///         time::UNIX_EPOCH + time::Duration::new(120, 55));
+///     let encoded = json::encode(&time).unwrap();
+///     assert_eq!(encoded, "[120,55]");
+/// }
+/// ```
+///
+#[derive(Clone,Eq,PartialEq,Debug)]
+pub struct SystemTime(time::SystemTime);
+
+impl SystemTime {
+    /// Construct a test system time relative to the Unix epoch
+    ///
+    /// This is a convenience method for testing, since constructing a specific
+    /// SystemTime instance is quite verbose.
+    ///
+    #[cfg(test)]
+    pub fn unix_epoch_plus(secs: u64, nanos: u32) -> Self {
+        SystemTime(time::UNIX_EPOCH + time::Duration::new(secs, nanos))
+    }
+}
+
+impl From<time::SystemTime> for SystemTime {
+    fn from(systime: time::SystemTime) -> Self {
+        SystemTime(systime)
+    }
+}
+
+impl ops::Deref for SystemTime {
+    type Target = time::SystemTime;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Encodable for SystemTime {
+    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+        let since_epoch = self.duration_since(time::UNIX_EPOCH)
+            .expect("mod time was before the Unix Epoch");
+        let secs_nanos = (since_epoch.as_secs(), since_epoch.subsec_nanos());
+        secs_nanos.encode(s)
+    }
+}
+
+impl Decodable for SystemTime {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
+        let (secs, nanos) = try!(<(u64, u32)>::decode(d));
+        Ok(SystemTime(time::UNIX_EPOCH + time::Duration::new(secs, nanos)))
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use rustc_serialize::json;
+    use super::*;
+
+    #[test]
+    fn test_serialize_pathbuf() {
+        let obj = PathBuf::from("hello/world");
+        let encoded = json::encode(&obj).unwrap();
+        assert_eq!(encoded, "\"hello/world\"");
+        let decoded: PathBuf = json::decode(&encoded).unwrap();
+        assert_eq!(decoded, obj);
+    }
+
+    #[test]
+    fn test_serialize_bad_pathbuf() {}
+
+    #[test]
+    fn test_serialize_systemtime() {
+        let obj = SystemTime::unix_epoch_plus(120, 55);
+        let encoded = json::encode(&obj).unwrap();
+        assert_eq!(encoded, "[120,55]");
+        let decoded: SystemTime = json::decode(&encoded).unwrap();
+        assert_eq!(decoded, obj);
+    }
+
+}
