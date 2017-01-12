@@ -46,9 +46,13 @@ pub struct CacheTime(time::SystemTime);
 pub struct CachePath(path::PathBuf);
 
 
-/// A file-backed cache. Saves updates on drop.
+/// A file-backed cache that saves updates on drop
 pub struct HashCacheFile {
+    /// Path to the file that stores the cache
+    cache_file_path: path::PathBuf,
+    /// Open File object that stores the cache
     cache_file: fs::File,
+    /// The cache map itself
     cache: HashCache,
 }
 
@@ -124,7 +128,8 @@ impl From<fs::Metadata> for FileStats {
     fn from(metadata: fs::Metadata) -> FileStats {
         FileStats {
             size: metadata.len(),
-            mtime: CacheTime(metadata.modified().unwrap()),
+            mtime: CacheTime(metadata.modified()
+                .expect("system has no mod time in file stats")),
         }
     }
 }
@@ -133,7 +138,9 @@ impl From<fs::Metadata> for FileStats {
 
 impl Encodable for CacheTime {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        let since_epoch = self.0.duration_since(time::UNIX_EPOCH).unwrap();
+        let since_epoch = self.0
+            .duration_since(time::UNIX_EPOCH)
+            .expect("mod time was before the Unix Epoch");
         let secs_nanos = (since_epoch.as_secs(), since_epoch.subsec_nanos());
         secs_nanos.encode(s)
     }
@@ -162,7 +169,11 @@ impl<P: Into<path::PathBuf>> From<P> for CachePath {
 
 impl Encodable for CachePath {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        self.0.to_str().unwrap().encode(s)
+        self.0
+            .to_str()
+            .expect("path cannot be encoded to JSON because it has invalid \
+                     unicode")
+            .encode(s)
     }
 }
 
@@ -177,50 +188,46 @@ impl Decodable for CachePath {
 
 impl HashCacheFile {
     pub fn open(cache_file_path: path::PathBuf) -> CacheResult<Self> {
-        let cache = if cache_file_path.exists() {
-            let mut cache_file = try!(fs::OpenOptions::new()
-                .read(true)
-                .write(true)
-                .open(cache_file_path));
+        let cache_file_exists = cache_file_path.exists();
 
+        let mut cache_file = try!(fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&cache_file_path));
+
+        let cache_map = if cache_file_exists {
             let mut json_str = String::new();
-            cache_file.read_to_string(&mut json_str).unwrap();
-            let decoded: CacheMap = try!(json::decode(&json_str)
-                .map_err(|e| CacheError::from_json_decoder_error(e, json_str)));
-
-            HashCacheFile {
-                cache_file: cache_file,
-                cache: HashCache(decoded),
-            }
+            try!(cache_file.read_to_string(&mut json_str));
+            try!(json::decode(&json_str)
+                .map_err(|e| CacheError::from_json_decoder_error(e, json_str)))
         } else {
-            let cache_file = try!(fs::OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .open(cache_file_path));
-
-            HashCacheFile {
-                cache_file: cache_file,
-                cache: HashCache::new(),
-            }
+            CacheMap::new()
         };
 
-        Ok(cache)
+        Ok(HashCacheFile {
+            cache_file_path: cache_file_path,
+            cache_file: cache_file,
+            cache: HashCache(cache_map),
+        })
     }
 
-    pub fn flush(&mut self) -> io::Result<()> {
+    pub fn flush(&mut self) -> CacheResult<()> {
         use std::io::Seek;
 
-        let encoded = json::encode(&self.cache.0).unwrap();
+        let encoded = try!(json::encode(&self.cache.0).map_err(|e| {
+            CacheError::from_json_encoder_error(e, self.cache.0.clone())
+        }));
         try!(self.cache_file.seek(io::SeekFrom::Start(0)));
         try!(self.cache_file.set_len(0));
-        self.cache_file.write_all(encoded.as_bytes()).map(|_| ())
+        try!(self.cache_file.write_all(encoded.as_bytes()));
+        Ok(())
     }
 }
 
 impl ops::Drop for HashCacheFile {
     fn drop(&mut self) {
-        self.flush().unwrap()
+        self.flush().expect("Could not flush hash file")
     }
 }
 
@@ -248,6 +255,10 @@ pub enum CacheError {
         cause: json::DecoderError,
         bad_json: String,
     },
+    SerializeError {
+        cause: json::EncoderError,
+        bad_cache: CacheMap,
+    },
     IoError { cause: io::Error },
 }
 
@@ -258,6 +269,15 @@ impl CacheError {
         CacheError::CorruptJson {
             cause: err,
             bad_json: bad_json,
+        }
+    }
+
+    fn from_json_encoder_error(err: json::EncoderError,
+                               bad_cache: CacheMap)
+                               -> CacheError {
+        CacheError::SerializeError {
+            cause: err,
+            bad_cache: bad_cache,
         }
     }
 }
