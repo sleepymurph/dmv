@@ -123,10 +123,10 @@ impl ObjectStore {
     }
 
     pub fn store_file_with_caching(&mut self,
-                      path: &path::Path)
-                      -> io::Result<dag::ObjectKey> {
+                                   path: &path::Path)
+                                   -> io::Result<dag::ObjectKey> {
 
-        let file_stats = cache::FileStats::read(path).unwrap();
+        let file_stats = try!(cache::FileStats::read(path));
 
         let parent_dir = path.parent().unwrap();
         let basename = path.file_name().unwrap();
@@ -146,7 +146,7 @@ impl ObjectStore {
         }
 
         result
-      }
+    }
 }
 
 impl io::Write for IncomingObject {

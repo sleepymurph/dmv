@@ -176,7 +176,7 @@ impl Decodable for CachePath {
 // HashCacheFile
 
 impl HashCacheFile {
-    pub fn open(cache_file_path: path::PathBuf) -> io::Result<Self> {
+    pub fn open(cache_file_path: path::PathBuf) -> CacheResult<Self> {
         let cache = if cache_file_path.exists() {
             let mut cache_file = try!(fs::OpenOptions::new()
                 .read(true)
@@ -186,10 +186,7 @@ impl HashCacheFile {
             let mut json_str = String::new();
             cache_file.read_to_string(&mut json_str).unwrap();
             let decoded: CacheMap = try!(json::decode(&json_str)
-                .map_err(|_| {
-                    io::Error::new(io::ErrorKind::Other,
-                                   format!("Could not parse: {:?}", json_str))
-                }));
+                .map_err(|e| CacheError::from_json_decoder_error(e, json_str)));
 
             HashCacheFile {
                 cache_file: cache_file,
@@ -237,6 +234,37 @@ impl ops::Deref for HashCacheFile {
 impl convert::AsMut<HashCache> for HashCacheFile {
     fn as_mut(&mut self) -> &mut HashCache {
         &mut self.cache
+    }
+}
+
+// --------------------------------------------------
+// Errors
+
+type CacheResult<T> = Result<T, CacheError>;
+
+#[derive(Debug)]
+pub enum CacheError {
+    CorruptJson {
+        cause: json::DecoderError,
+        bad_json: String,
+    },
+    IoError { cause: io::Error },
+}
+
+impl CacheError {
+    fn from_json_decoder_error(err: json::DecoderError,
+                               bad_json: String)
+                               -> CacheError {
+        CacheError::CorruptJson {
+            cause: err,
+            bad_json: bad_json,
+        }
+    }
+}
+
+impl From<io::Error> for CacheError {
+    fn from(err: io::Error) -> CacheError {
+        CacheError::IoError { cause: err }
     }
 }
 
@@ -324,7 +352,7 @@ mod test {
         {
             // Open nonexistent cache file
             let mut cache_file = HashCacheFile::open(cache_file_path.clone())
-                .unwrap();
+                .expect("Open non-existent cache file");
             assert!(cache_file.is_empty(), "New cache should be empty");
 
             // Insert a value and let the destructor flush the file
@@ -337,7 +365,7 @@ mod test {
         {
             // Open the existing cache file
             let mut cache_file = HashCacheFile::open(cache_file_path.clone())
-                .unwrap();
+                .expect("Re-open cache file for firts time");
             assert!(!cache_file.is_empty(), "Read cache should not be empty");
             {
                 let entry = cache_file.get(&path0).unwrap();
@@ -354,7 +382,7 @@ mod test {
         {
             // Re-open the existing cache file
             let cache_file = HashCacheFile::open(cache_file_path.clone())
-                .unwrap();
+                .expect("Re-open cache file for second time");
             {
                 let entry = cache_file.get(&path1).unwrap();
 
