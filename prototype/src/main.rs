@@ -22,6 +22,7 @@ fn main() {
                 "init" => cmd_init,
                 "hash-object" => cmd_hash_object,
                 "show-object" => cmd_show_object,
+                "cache-status" => cmd_cache_status,
                 _ => unimplemented!(),
             };
             let submatch = argmatch.subcommand_matches(name).unwrap();
@@ -75,6 +76,27 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
             dag::ObjectType::Commit => println!("commit"),
         }
     }
+}
+
+fn cmd_cache_status(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
+    use prototypelib::cache;
+    use prototypelib::constants;
+    use std::path;
+
+    let filepath = path::Path::new(submatch.value_of("filepath").unwrap());
+
+    let file_stats = cache::FileStats::read(filepath).expect("get file stats");
+
+    let parent_dir = filepath.parent().unwrap();
+    let basename = filepath.file_name().unwrap();
+
+    let cache_file_name = parent_dir.join(constants::CACHE_FILE_NAME);
+    let file_cache = cache::HashCacheFile::open(cache_file_name)
+        .unwrap();
+
+    let cache_status = file_cache.check(&basename, &file_stats);
+
+    println!("{:?}", cache_status);
 }
 
 fn find_workdir_from_current_dir() -> workdir::WorkDir {

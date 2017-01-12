@@ -19,4 +19,10 @@ subcommands:
                 required: true
                 index: 1
 
+    - cache-status:
+        args:
+            - filepath:
+                required: true
+                index: 1
+
 # vim: set sts=4 sw=4 et:
