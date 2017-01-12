@@ -4,6 +4,7 @@ use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
+use std::ffi;
 use std::ops;
 use std::path;
 use std::time;
@@ -12,11 +13,11 @@ use std::time;
 /// Encodable wrapper for `std::path::PathBuf` that encodes to a string
 ///
 /// Rustc Serialize does implement Encodable for Path and PathBuf, but it
-/// serializes them as arrays of bytes. This accommodates bad Unicode sequences,
+/// serializes them as arrays of bytes. This accommodates bad UTF-8 sequences,
 /// but it makes the output hard to read, and it makes it impossible to use
 /// paths as map/object keys.
 ///
-/// This wrapper sacrifices Unicode error tolerance for clear serialization as a
+/// This wrapper sacrifices UTF-8 error tolerance for clear serialization as a
 /// string. It will panic if it attempts to encode a path with a bad Unicode
 /// sequence.
 ///
@@ -38,13 +39,19 @@ use std::time;
 ///     assert_eq!(encoded, "\"hello/world\"");
 /// }
 /// ```
-///
+
 #[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub struct PathBuf(path::PathBuf);
 
 impl From<path::PathBuf> for PathBuf {
     fn from(p: path::PathBuf) -> Self {
         PathBuf(p.into())
+    }
+}
+
+impl From<ffi::OsString> for PathBuf {
+    fn from(s: ffi::OsString) -> Self {
+        PathBuf(s.into())
     }
 }
 
@@ -147,27 +154,16 @@ impl Decodable for SystemTime {
 #[cfg(test)]
 mod test {
     use rustc_serialize::json;
+    use std::ffi;
     use super::*;
 
     #[test]
-    fn test_serialize_pathbuf() {
-        let obj = PathBuf::from("hello/world");
-        let encoded = json::encode(&obj).unwrap();
-        assert_eq!(encoded, "\"hello/world\"");
-        let decoded: PathBuf = json::decode(&encoded).unwrap();
-        assert_eq!(decoded, obj);
+    #[should_panic]
+    fn test_serialize_bad_uft8() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let obj = PathBuf::from(ffi::OsString::from_vec(vec![0xc3,0x28]));
+        let _ = json::encode(&obj);
+        // Panics
     }
-
-    #[test]
-    fn test_serialize_bad_pathbuf() {}
-
-    #[test]
-    fn test_serialize_systemtime() {
-        let obj = SystemTime::unix_epoch_plus(120, 55);
-        let encoded = json::encode(&obj).unwrap();
-        assert_eq!(encoded, "[120,55]");
-        let decoded: SystemTime = json::decode(&encoded).unwrap();
-        assert_eq!(decoded, obj);
-    }
-
 }
