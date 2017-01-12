@@ -78,7 +78,8 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
     }
 }
 
-fn cmd_cache_status(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
+fn cmd_cache_status(_argmatch: &clap::ArgMatches,
+                    submatch: &clap::ArgMatches) {
     use prototypelib::cache;
     use prototypelib::constants;
     use std::path;
@@ -91,8 +92,7 @@ fn cmd_cache_status(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
     let basename = filepath.file_name().unwrap();
 
     let cache_file_name = parent_dir.join(constants::CACHE_FILE_NAME);
-    let file_cache = cache::HashCacheFile::open(cache_file_name)
-        .unwrap();
+    let file_cache = cache::HashCacheFile::open(cache_file_name).unwrap();
 
     let cache_status = file_cache.check(&basename, &file_stats);
 
