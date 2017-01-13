@@ -4,7 +4,6 @@ use encodable;
 use rustc_serialize;
 use rustc_serialize::json;
 use std::collections;
-use std::convert;
 use std::ffi;
 use std::fs;
 use std::io;
@@ -106,12 +105,6 @@ impl ops::Deref for HashCache {
 impl ops::DerefMut for HashCache {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
-    }
-}
-
-impl convert::AsRef<CacheMap> for HashCache {
-    fn as_ref(&self) -> &CacheMap {
-        &self.0
     }
 }
 
