@@ -1,5 +1,4 @@
 use cache;
-use constants;
 use dag;
 use fsutil;
 use rollinghash;
@@ -123,23 +122,21 @@ impl ObjectStore {
     }
 
     pub fn store_file_with_caching(&mut self,
-                                   path: &path::Path)
+                                   file_path: &path::Path)
                                    -> io::Result<dag::ObjectKey> {
 
-        let file_stats = try!(cache::FileStats::read(path));
+        let file_stats = try!(cache::FileStats::read(file_path));
+        let basename = file_path.file_name().expect("file has no basename");
 
-        let parent_dir = path.parent().unwrap();
-        let basename = path.file_name().unwrap();
-
-        let cache_file_name = parent_dir.join(constants::CACHE_FILE_NAME);
-        let mut file_cache = cache::HashCacheFile::open(cache_file_name)
-            .unwrap();
+        let mut file_cache =
+            cache::HashCacheFile::open_in_parent_dir(file_path)
+                .expect("open cache file");
         if let cache::CacheStatus::Cached { hash } =
                file_cache.check(&basename, &file_stats) {
             return Ok(hash);
         }
 
-        let result = self.store_file(path);
+        let result = self.store_file(file_path);
 
         if let Ok(key) = result {
             file_cache.as_mut()

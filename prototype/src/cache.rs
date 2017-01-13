@@ -1,3 +1,4 @@
+use constants;
 use dag;
 use encodable;
 use rustc_serialize::json;
@@ -153,6 +154,16 @@ impl HashCacheFile {
         })
     }
 
+    pub fn open_in_dir(dir_path: &path::Path) -> CacheResult<Self> {
+        Self::open(dir_path.join(constants::CACHE_FILE_NAME))
+    }
+
+    pub fn open_in_parent_dir(child_path: &path::Path) -> CacheResult<Self> {
+        let dir_path = try!(child_path.parent()
+            .ok_or_else(|| CacheError::NoParent(child_path.to_path_buf())));
+        Self::open_in_dir(dir_path)
+    }
+
     pub fn flush(&mut self) -> CacheResult<()> {
         use std::io::Seek;
 
@@ -192,15 +203,20 @@ type CacheResult<T> = Result<T, CacheError>;
 
 #[derive(Debug)]
 pub enum CacheError {
+    /// Trouble deserializing the cache from disk
     CorruptJson {
         cause: json::DecoderError,
         bad_json: String,
     },
+    /// Trouble serializing the cache to save to disk
     SerializeError {
         cause: json::EncoderError,
         bad_cache: CacheMap,
     },
+    /// An IO Error occured while working with the cache file
     IoError { cause: io::Error },
+    /// Asked to create a cache in the parent directory of a path with no parent
+    NoParent(path::PathBuf),
 }
 
 impl CacheError {
