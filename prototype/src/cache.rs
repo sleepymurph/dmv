@@ -62,10 +62,10 @@ impl HashCache {
         HashCache(CacheMap::new())
     }
 
-    pub fn insert(&mut self,
-                  file_path: path::PathBuf,
-                  file_stats: FileStats,
-                  hash: dag::ObjectKey) {
+    pub fn insert_entry(&mut self,
+                        file_path: path::PathBuf,
+                        file_stats: FileStats,
+                        hash: dag::ObjectKey) {
         self.0.insert(file_path.into(),
                       CacheEntry {
                           filestats: file_stats,
@@ -103,15 +103,15 @@ impl ops::Deref for HashCache {
     }
 }
 
-impl convert::AsRef<CacheMap> for HashCache {
-    fn as_ref(&self) -> &CacheMap {
-        &self.0
+impl ops::DerefMut for HashCache {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
-impl convert::AsMut<CacheMap> for HashCache {
-    fn as_mut(&mut self) -> &mut CacheMap {
-        &mut self.0
+impl convert::AsRef<CacheMap> for HashCache {
+    fn as_ref(&self) -> &CacheMap {
+        &self.0
     }
 }
 
@@ -231,7 +231,7 @@ impl HashCacheFile {
     ///     let result = store_file(file_path);
     ///
     ///     if let Ok(key) = result {
-    ///         cache.as_mut().insert(basename.into(), file_stats, key.clone());
+    ///         cache.insert_entry(basename.into(), file_stats, key.clone());
     ///     }
     ///
     ///     result
@@ -276,13 +276,13 @@ impl ops::Drop for HashCacheFile {
 
 impl ops::Deref for HashCacheFile {
     type Target = HashCache;
-    fn deref(&self) -> &HashCache {
+    fn deref(&self) -> &Self::Target {
         &self.cache
     }
 }
 
-impl convert::AsMut<HashCache> for HashCacheFile {
-    fn as_mut(&mut self) -> &mut HashCache {
+impl ops::DerefMut for HashCacheFile {
+    fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.cache
     }
 }
@@ -362,7 +362,7 @@ mod test {
     #[test]
     fn test_serialize_filecache() {
         let mut obj = HashCache::new();
-        obj.as_mut().insert(encodable::PathBuf::from("patha/x"), CacheEntry{
+        obj.insert(encodable::PathBuf::from("patha/x"), CacheEntry{
             filestats: FileStats{
                 mtime: encodable::SystemTime::unix_epoch_plus(120, 55),
                 size: 12345,
@@ -408,8 +408,8 @@ mod test {
             assert!(cache_file.is_empty(), "New cache should be empty");
 
             // Insert a value and let the destructor flush the file
-            cache_file.as_mut()
-                .insert(path0.clone(), stats0.clone(), hash0.clone());
+            cache_file
+                .insert_entry(path0.clone(), stats0.clone(), hash0.clone());
         }
 
         assert!(cache_file_path.is_file(), "New cache should be saved");
@@ -427,8 +427,8 @@ mod test {
             }
 
             // Insert another value and let the destructor flush the file
-            cache_file.as_mut()
-                .insert(path1.clone(), stats1.clone(), hash1.clone());
+            cache_file
+                .insert_entry(path1.clone(), stats1.clone(), hash1.clone());
         }
 
         {
