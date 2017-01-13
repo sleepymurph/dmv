@@ -3,6 +3,7 @@ extern crate clap;
 
 extern crate prototypelib;
 
+use prototypelib::cache;
 use prototypelib::dag;
 use prototypelib::humanreadable;
 use prototypelib::workdir;
@@ -80,17 +81,12 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
 
 fn cmd_cache_status(_argmatch: &clap::ArgMatches,
                     submatch: &clap::ArgMatches) {
-    use prototypelib::cache;
-    use std::path;
 
     let file_path = path::Path::new(submatch.value_of("filepath").unwrap());
 
-    let file_stats = cache::FileStats::read(file_path).expect("get file stats");
-    let basename = file_path.file_name().unwrap();
-
-    let file_cache = cache::HashCacheFile::open_in_parent_dir(file_path)
-        .expect("open cache file");
-    let cache_status = file_cache.check(&basename, &file_stats);
+    let (cache_status, _cache, _basename, _file_stats) =
+        cache::HashCacheFile::open_and_check_file(file_path)
+            .expect("could not check file cache status");
 
     println!("{:?}", cache_status);
 }

@@ -4,6 +4,7 @@ use encodable;
 use rustc_serialize::json;
 use std::collections;
 use std::convert;
+use std::ffi;
 use std::fs;
 use std::io;
 use std::io::Read;
@@ -129,6 +130,7 @@ impl From<fs::Metadata> for FileStats {
 // HashCacheFile
 
 impl HashCacheFile {
+    /// Create/open a cache file at a specific location
     pub fn open(cache_file_path: path::PathBuf) -> CacheResult<Self> {
         let cache_file_exists = cache_file_path.exists();
 
@@ -154,14 +156,79 @@ impl HashCacheFile {
         })
     }
 
+    /// Create/open a cache file in the given directory
+    ///
+    /// The file will be named according to `constants::CACHE_FILE_NAME`.
     pub fn open_in_dir(dir_path: &path::Path) -> CacheResult<Self> {
         Self::open(dir_path.join(constants::CACHE_FILE_NAME))
     }
 
+    /// Create/open a cache file in the parent directory of the given file
+    ///
+    /// For this app, cache files for files in a directory are stored in that
+    /// directory. This is a convenience method to find/create the cache file
+    /// responsible for the given file.
     pub fn open_in_parent_dir(child_path: &path::Path) -> CacheResult<Self> {
         let dir_path = try!(child_path.parent()
             .ok_or_else(|| CacheError::NoParent(child_path.to_path_buf())));
         Self::open_in_dir(dir_path)
+    }
+
+    /// Create/open the appropriate cache and check the given file's status
+    ///
+    /// Returns a tuple: (cache_status, cache, file_name, file_stats)
+    ///
+    /// - cache_status: the status of the given file
+    /// - cache: the cache itself
+    /// - file_name: the file_name of the file as looked up in the cache
+    /// - file_stats: the file stats used to determine if it has been modified
+    ///
+    /// The extra values are returned so that you can update the cache
+    ///
+    /// ```
+    /// extern crate prototypelib;
+    ///
+    /// use prototypelib::dag;
+    /// use prototypelib::cache;
+    /// use std::io;
+    /// use std::path;
+    ///
+    /// pub fn store_file_with_caching(file_path: &path::Path)
+    ///                                -> io::Result<dag::ObjectKey> {
+    ///
+    ///     let (cache_status, mut cache, basename, file_stats) =
+    ///         cache::HashCacheFile::open_and_check_file(file_path)
+    ///             .expect("could not check file cache status");
+    ///
+    ///     if let cache::CacheStatus::Cached { hash } = cache_status {
+    ///         return Ok(hash);
+    ///     }
+    ///
+    ///     let result = store_file(file_path);
+    ///
+    ///     if let Ok(key) = result {
+    ///         cache.as_mut().insert(basename.into(), file_stats, key.clone());
+    ///     }
+    ///
+    ///     result
+    /// }
+    ///
+    /// # pub fn store_file(path: &path::Path) -> io::Result<dag::ObjectKey> {
+    /// #   unimplemented!();
+    /// # }
+    /// # pub fn main() {}
+    /// ```
+    pub fn open_and_check_file
+        (file_path: &path::Path)
+         -> CacheResult<(CacheStatus, Self, &ffi::OsStr, FileStats)> {
+
+        let file_stats = try!(FileStats::read(file_path));
+        let basename = try!(file_path.file_name()
+            .ok_or_else(|| CacheError::NoFileName(file_path.to_owned())));
+
+        let file_cache = try!(HashCacheFile::open_in_parent_dir(file_path));
+        let cache_status = file_cache.check(&basename, &file_stats);
+        Ok((cache_status, file_cache, basename, file_stats))
     }
 
     pub fn flush(&mut self) -> CacheResult<()> {
@@ -217,6 +284,8 @@ pub enum CacheError {
     IoError { cause: io::Error },
     /// Asked to create a cache in the parent directory of a path with no parent
     NoParent(path::PathBuf),
+    /// Asked to check cache status for a path with no file name
+    NoFileName(path::PathBuf),
 }
 
 impl CacheError {

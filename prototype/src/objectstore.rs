@@ -125,22 +125,18 @@ impl ObjectStore {
                                    file_path: &path::Path)
                                    -> io::Result<dag::ObjectKey> {
 
-        let file_stats = try!(cache::FileStats::read(file_path));
-        let basename = file_path.file_name().expect("file has no basename");
+        let (cache_status, mut cache, basename, file_stats) =
+            cache::HashCacheFile::open_and_check_file(file_path)
+                .expect("could not check file cache status");
 
-        let mut file_cache =
-            cache::HashCacheFile::open_in_parent_dir(file_path)
-                .expect("open cache file");
-        if let cache::CacheStatus::Cached { hash } =
-               file_cache.check(&basename, &file_stats) {
+        if let cache::CacheStatus::Cached { hash } = cache_status {
             return Ok(hash);
         }
 
         let result = self.store_file(file_path);
 
         if let Ok(key) = result {
-            file_cache.as_mut()
-                .insert(basename.into(), file_stats, key.clone());
+            cache.as_mut().insert(basename.into(), file_stats, key.clone());
         }
 
         result
