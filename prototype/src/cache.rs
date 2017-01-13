@@ -94,12 +94,6 @@ impl ops::Deref for HashCache {
     }
 }
 
-impl convert::Into<CacheMap> for HashCache {
-    fn into(self) -> CacheMap {
-        self.0
-    }
-}
-
 impl convert::AsRef<CacheMap> for HashCache {
     fn as_ref(&self) -> &CacheMap {
         &self.0
