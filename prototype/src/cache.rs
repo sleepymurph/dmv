@@ -1,6 +1,7 @@
 use constants;
 use dag;
 use encodable;
+use rustc_serialize;
 use rustc_serialize::json;
 use std::collections;
 use std::convert;
@@ -12,25 +13,31 @@ use std::io::Write;
 use std::ops;
 use std::path;
 
+/// Status of a file's cached hash
 #[derive(Clone,Eq,PartialEq,Debug)]
 pub enum CacheStatus {
+    /// File's hash is not cached
     NotCached { size: dag::ObjectSize },
+    /// File's hash is cached, but it has been modified since
     Modified { size: dag::ObjectSize },
+    /// File's hash is cached
     Cached { hash: dag::ObjectKey },
 }
 
+type CacheMap = collections::HashMap<encodable::PathBuf, CacheEntry>;
+
+/// A cache of known file hashes
 #[derive(Clone,Eq,PartialEq,Debug)]
 pub struct HashCache(CacheMap);
 
-pub type CacheMap = collections::HashMap<encodable::PathBuf, CacheEntry>;
-
+/// Data stored in the cache for each file
 #[derive(Clone,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
 pub struct CacheEntry {
     pub filestats: FileStats,
     pub hash: dag::ObjectKey,
 }
 
-/// Status used to detect file changes
+/// Subset of file metadata used to determine if file has been modified
 #[derive(Clone,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
 pub struct FileStats {
     size: dag::ObjectSize,
@@ -105,6 +112,23 @@ impl convert::AsRef<CacheMap> for HashCache {
 impl convert::AsMut<CacheMap> for HashCache {
     fn as_mut(&mut self) -> &mut CacheMap {
         &mut self.0
+    }
+}
+
+impl rustc_serialize::Encodable for HashCache {
+    fn encode<S: rustc_serialize::Encoder>(&self,
+                                           s: &mut S)
+                                           -> Result<(), S::Error> {
+        rustc_serialize::Encodable::encode(&self.0, s)
+    }
+}
+
+impl rustc_serialize::Decodable for HashCache {
+    fn decode<D: rustc_serialize::Decoder>(d: &mut D)
+                                           -> Result<Self, D::Error> {
+        let cache_map =
+            try!(<CacheMap as rustc_serialize::Decodable>::decode(d));
+        Ok(HashCache(cache_map))
     }
 }
 
@@ -268,6 +292,7 @@ impl convert::AsMut<HashCache> for HashCacheFile {
 
 type CacheResult<T> = Result<T, CacheError>;
 
+/// Error when using the cache
 #[derive(Debug)]
 pub enum CacheError {
     /// Trouble deserializing the cache from disk
@@ -345,9 +370,9 @@ mod test {
             hash: dag::ObjectKey
                 ::from_hex("d3486ae9136e7856bc42212385ea797094475802").unwrap(),
         });
-        let encoded = json::encode(&obj.0).unwrap();
-        let decoded: CacheMap = json::decode(&encoded).unwrap();
-        assert_eq!(HashCache(decoded), obj);
+        let encoded = json::encode(&obj).unwrap();
+        let decoded: HashCache = json::decode(&encoded).unwrap();
+        assert_eq!(decoded, obj);
     }
 
     #[test]
