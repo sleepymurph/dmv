@@ -39,7 +39,6 @@ use std::time;
 ///     assert_eq!(encoded, "\"hello/world\"");
 /// }
 /// ```
-
 #[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub struct PathBuf(path::PathBuf);
 
@@ -162,7 +161,7 @@ mod test {
     fn test_serialize_bad_uft8() {
         use std::os::unix::ffi::OsStringExt;
 
-        let obj = PathBuf::from(ffi::OsString::from_vec(vec![0xc3,0x28]));
+        let obj = PathBuf::from(ffi::OsString::from_vec(vec![0xc3, 0x28]));
         let _ = json::encode(&obj);
         // Panics
     }
