@@ -38,6 +38,14 @@ macro_rules! impl_deref {
     };
 }
 
+macro_rules! wrapper_struct {
+    (struct $wrapper:tt($inner:ty);) => {
+        struct $wrapper($inner);
+        impl_from!($inner => $wrapper);
+        impl_deref!($wrapper => $inner);
+    }
+}
+
 #[cfg(test)]
 mod test {
 
@@ -69,4 +77,17 @@ mod test {
         wrap.insert("Hello".to_owned(), "World".to_owned());
         assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
     }
+
+    wrapper_struct!{
+        struct MapWrapDefinedInMacro(StringMap);
+    }
+
+    #[test]
+    fn test_wrapper_struct_macro() {
+        let str_map = StringMap::new();
+        let mut wrap = MapWrapDefinedInMacro::from(str_map);
+        wrap.insert("Hello".to_owned(), "World".to_owned());
+        assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
+    }
+
 }
