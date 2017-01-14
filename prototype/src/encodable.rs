@@ -5,11 +5,11 @@ use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
 use std::ffi;
-use std::ops;
 use std::path;
 use std::time;
 
 
+wrapper_struct!{
 /// Encodable wrapper for `std::path::PathBuf` that encodes to a string
 ///
 /// Rustc Serialize does implement Encodable for Path and PathBuf, but it
@@ -41,11 +41,6 @@ use std::time;
 /// ```
 #[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub struct PathBuf(path::PathBuf);
-
-impl From<path::PathBuf> for PathBuf {
-    fn from(p: path::PathBuf) -> Self {
-        PathBuf(p.into())
-    }
 }
 
 impl From<ffi::OsString> for PathBuf {
@@ -57,13 +52,6 @@ impl From<ffi::OsString> for PathBuf {
 impl<'a, P: ?Sized + AsRef<path::Path>> From<&'a P> for PathBuf {
     fn from(p: &'a P) -> Self {
         PathBuf(p.as_ref().to_path_buf())
-    }
-}
-
-impl ops::Deref for PathBuf {
-    type Target = path::Path;
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 
@@ -84,6 +72,7 @@ impl Decodable for PathBuf {
 }
 
 
+wrapper_struct!{
 /// Encodable wrapper for `std::time::SystemTime`
 ///
 /// Serializes the system time as an array of [secs,nanos], relative to the Unix
@@ -107,6 +96,7 @@ impl Decodable for PathBuf {
 ///
 #[derive(Clone,Eq,PartialEq,Debug)]
 pub struct SystemTime(time::SystemTime);
+}
 
 impl SystemTime {
     /// Construct a test system time relative to the Unix epoch
@@ -117,19 +107,6 @@ impl SystemTime {
     #[cfg(test)]
     pub fn unix_epoch_plus(secs: u64, nanos: u32) -> Self {
         SystemTime(time::UNIX_EPOCH + time::Duration::new(secs, nanos))
-    }
-}
-
-impl From<time::SystemTime> for SystemTime {
-    fn from(systime: time::SystemTime) -> Self {
-        SystemTime(systime)
-    }
-}
-
-impl ops::Deref for SystemTime {
-    type Target = time::SystemTime;
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 
