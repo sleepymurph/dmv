@@ -1,7 +1,35 @@
-
+/// Quickly implement the From trait for single-field structs
+///
+/// Works with one-field structs, or one-field tuple structs.
+///
+/// ```
+/// #[macro_use]
+/// extern crate prototypelib;
+///
+/// struct StringWrapTuple(String);
+/// impl_from!(String => StringWrapTuple);
+///
+/// struct StringWrapStruct{inner: String}
+/// impl_from!(String => StringWrapStruct, inner);
+///
+/// fn main() {
+///     let s = "Hello world!".to_owned();
+///     let wt = StringWrapTuple::from(s.clone());
+///     let ws = StringWrapStruct::from(s.clone());
+///     assert_eq!(wt.0, ws.inner);
+/// }
+/// ```
+///
+/// Macro hygiene note: Ideally, $into would be a type (ty), but as of Rust
+/// 1.14.0, the compiler does not allow types to be used in the constructor
+/// expressions inside the macros (like `$into{ $field: f}`). It will give an
+/// error that it expected an expression but found the type. We compromise by
+/// specifying a path instead.
+///
+#[macro_export]
 macro_rules! impl_from {
     // For tuple structs
-    ($from:ty => $into:tt) => {
+    ($from:ty => $into:path) => {
         impl From<$from> for $into {
             fn from(f: $from) -> Self {
                 $into(f)
@@ -9,7 +37,7 @@ macro_rules! impl_from {
         }
     };
     // For structs with one named field
-    ($from:ty => $into:tt, $field:tt) => {
+    ($from:ty => $into:path, $field:ident) => {
         impl ::std::convert::From<$from> for $into {
             fn from(f: $from) -> Self {
                 $into{ $field: f }
@@ -18,9 +46,42 @@ macro_rules! impl_from {
     };
 }
 
+/// Quickly implement Deref and DerefMut by referring to a single field
+///
+/// Works with structs, or tuple structs.
+///
+/// ```
+/// #[macro_use]
+/// extern crate prototypelib;
+///
+/// struct StringWrapTuple(String);
+/// impl_deref!(StringWrapTuple => String);
+///
+/// struct StringWrapStruct{inner: String}
+/// impl_deref!(StringWrapStruct => String, inner);
+///
+/// fn main() {
+///     let s = "Hello".to_owned();
+///
+///     let mut wt = StringWrapTuple(s.clone());
+///     wt.push_str(" world!");
+///     assert_eq!(wt.0, "Hello world!");
+///
+///     let mut ws = StringWrapStruct{inner: s.clone()};
+///     ws.push_str(" world!");
+///     assert_eq!(ws.inner, "Hello world!");
+/// }
+/// ```
+///
+/// Macro hygiene note: Ideally, $field would be an identifier (ident), but as
+/// of Rust 1.14.0, the compiler does not accept integers as identifiers, so so
+/// we would not be able to use this macro with tuple structs (like
+/// `impl_deref!(TwoFieldTupleStruct => String, 1);`).
+///
+#[macro_export]
 macro_rules! impl_deref {
     // For tuple structs
-    ($ptr:ty => $deref:tt) => { impl_deref!($ptr => $deref, 0); };
+    ($ptr:ty => $deref:ty) => { impl_deref!($ptr => $deref, 0); };
     // For structs with a named field
     ($ptr:ty => $deref:ty, $field:tt) => {
         impl ::std::ops::Deref for $ptr {
@@ -38,27 +99,60 @@ macro_rules! impl_deref {
     };
 }
 
+/// Easily create simple structs that act as transparent wrappers
+///
+/// Define a single-field struct or single-field tuple struct inside this macro,
+/// and it will automatically implement From, Deref, and DerefMut appropriately.
+///
+/// ```
+/// #[macro_use]
+/// extern crate prototypelib;
+///
+/// wrapper_struct!{
+///     /// Simple string wrapper (tuple struct)
+///     pub struct StringWrapTuple(String);
+/// }
+///
+/// wrapper_struct!{
+///     /// Simple string wrapper (with named field)
+///     pub struct StringWrapStruct{inner: String}
+/// }
+///
+/// fn main() {
+///     let s = "Hello".to_owned();
+///
+///     let mut wt = StringWrapTuple::from(s.clone());
+///     wt.push_str(" world!");
+///     assert_eq!(wt.0, "Hello world!");
+///
+///     let mut ws = StringWrapStruct::from(s.clone());
+///     ws.push_str(" world!");
+///     assert_eq!(ws.inner, "Hello world!");
+/// }
+/// ```
+///
+#[macro_export]
 macro_rules! wrapper_struct {
-    ($(#[$attr:meta])* pub struct $wrapper:tt($inner:ty);) => {
+    ($(#[$attr:meta])* pub struct $wrapper:ident($inner:ty);) => {
         $(#[$attr])*
         pub struct $wrapper($inner);
         impl_from!($inner => $wrapper);
         impl_deref!($wrapper => $inner);
     };
-    ($(#[$attr:meta])* struct $wrapper:tt($inner:ty);) => {
+    ($(#[$attr:meta])* struct $wrapper:ident($inner:ty);) => {
         $(#[$attr])*
         struct $wrapper($inner);
         impl_from!($inner => $wrapper);
         impl_deref!($wrapper => $inner);
     };
 
-    ($(#[$attr:meta])* pub struct $wrapper:tt{$field:ident: $inner:ty}) => {
+    ($(#[$attr:meta])* pub struct $wrapper:ident{$field:ident: $inner:ty}) => {
         $(#[$attr])*
         pub struct $wrapper{ $field: $inner }
         impl_from!($inner => $wrapper, $field);
         impl_deref!($wrapper => $inner, $field);
     };
-    ($(#[$attr:meta])* struct $wrapper:tt{$field:ident: $inner:ty};) => {
+    ($(#[$attr:meta])* struct $wrapper:ident{$field:ident: $inner:ty};) => {
         $(#[$attr])*
         struct $wrapper{ $field: $inner }
         impl_from!($inner => $wrapper, $field);

@@ -5,6 +5,7 @@
 extern crate rustc_serialize;
 
 pub mod humanreadable;
+#[macro_use]
 pub mod wrapperstruct;
 pub mod encodable;
 pub mod constants;
