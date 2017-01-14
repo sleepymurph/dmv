@@ -4,9 +4,9 @@
 
 extern crate rustc_serialize;
 
-pub mod humanreadable;
 #[macro_use]
 pub mod wrapperstruct;
+pub mod humanreadable;
 pub mod encodable;
 pub mod constants;
 pub mod rollinghash;

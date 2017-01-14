@@ -25,9 +25,11 @@ pub enum CacheStatus {
 
 type CacheMap = collections::HashMap<encodable::PathBuf, CacheEntry>;
 
+wrapper_struct!{
 /// A cache of known file hashes
 #[derive(Clone,Eq,PartialEq,Debug)]
 pub struct HashCache(CacheMap);
+}
 
 /// Data stored in the cache for each file
 #[derive(Clone,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
@@ -95,19 +97,6 @@ impl HashCache {
     }
 }
 
-impl ops::Deref for HashCache {
-    type Target = CacheMap;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl ops::DerefMut for HashCache {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 impl rustc_serialize::Encodable for HashCache {
     fn encode<S: rustc_serialize::Encoder>(&self,
                                            s: &mut S)
@@ -145,6 +134,8 @@ impl From<fs::Metadata> for FileStats {
 }
 
 // HashCacheFile
+
+impl_deref!(HashCacheFile => HashCache, cache);
 
 impl HashCacheFile {
     /// Create/open a cache file at a specific location
@@ -264,19 +255,6 @@ impl HashCacheFile {
 impl ops::Drop for HashCacheFile {
     fn drop(&mut self) {
         self.flush().expect("Could not flush hash file")
-    }
-}
-
-impl ops::Deref for HashCacheFile {
-    type Target = HashCache;
-    fn deref(&self) -> &Self::Target {
-        &self.cache
-    }
-}
-
-impl ops::DerefMut for HashCacheFile {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.cache
     }
 }
 
