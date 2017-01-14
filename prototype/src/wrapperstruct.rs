@@ -39,11 +39,18 @@ macro_rules! impl_deref {
 }
 
 macro_rules! wrapper_struct {
-    (struct $wrapper:tt($inner:ty);) => {
+    ($(#[$attr:meta])* pub struct $wrapper:tt($inner:ty);) => {
+        $(#[$attr])*
+        pub struct $wrapper($inner);
+        impl_from!($inner => $wrapper);
+        impl_deref!($wrapper => $inner);
+    };
+    ($(#[$attr:meta])* struct $wrapper:tt($inner:ty);) => {
+        $(#[$attr])*
         struct $wrapper($inner);
         impl_from!($inner => $wrapper);
         impl_deref!($wrapper => $inner);
-    }
+    };
 }
 
 #[cfg(test)]
@@ -86,6 +93,32 @@ mod test {
     fn test_wrapper_struct_macro() {
         let str_map = StringMap::new();
         let mut wrap = MapWrapDefinedInMacro::from(str_map);
+        wrap.insert("Hello".to_owned(), "World".to_owned());
+        assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
+    }
+
+    wrapper_struct!{
+        pub struct PubMapWrapDefinedInMacro(StringMap);
+    }
+
+    #[test]
+    fn test_wrapper_struct_macro_pub() {
+        let str_map = StringMap::new();
+        let mut wrap = PubMapWrapDefinedInMacro::from(str_map);
+        wrap.insert("Hello".to_owned(), "World".to_owned());
+        assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
+    }
+
+    wrapper_struct!{
+        /// Wrapper struct defined by macro with comments and attributes
+        #[derive(Eq,PartialEq,Debug)]
+        pub struct PubMapWrapWithCommentsAndAttributes(StringMap);
+    }
+
+    #[test]
+    fn test_wrapper_struct_macro_pub_comments() {
+        let str_map = StringMap::new();
+        let mut wrap = PubMapWrapWithCommentsAndAttributes::from(str_map);
         wrap.insert("Hello".to_owned(), "World".to_owned());
         assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
     }
