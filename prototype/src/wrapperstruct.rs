@@ -51,6 +51,19 @@ macro_rules! wrapper_struct {
         impl_from!($inner => $wrapper);
         impl_deref!($wrapper => $inner);
     };
+
+    ($(#[$attr:meta])* pub struct $wrapper:tt{$field:ident: $inner:ty}) => {
+        $(#[$attr])*
+        pub struct $wrapper{ $field: $inner }
+        impl_from!($inner => $wrapper, $field);
+        impl_deref!($wrapper => $inner, $field);
+    };
+    ($(#[$attr:meta])* struct $wrapper:tt{$field:ident: $inner:ty};) => {
+        $(#[$attr])*
+        struct $wrapper{ $field: $inner }
+        impl_from!($inner => $wrapper, $field);
+        impl_deref!($wrapper => $inner, $field);
+    };
 }
 
 #[cfg(test)]
@@ -69,6 +82,7 @@ mod test {
         let mut wrap = MapWrapTupleStruct::from(str_map);
         wrap.insert("Hello".to_owned(), "World".to_owned());
         assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
+        wrap.0.insert("Hello".to_owned(), "World".to_owned());
     }
 
     struct MapWrapStruct {
@@ -83,6 +97,7 @@ mod test {
         let mut wrap = MapWrapStruct::from(str_map);
         wrap.insert("Hello".to_owned(), "World".to_owned());
         assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
+        wrap.inner.insert("Hello".to_owned(), "World".to_owned());
     }
 
     wrapper_struct!{
@@ -95,6 +110,7 @@ mod test {
         let mut wrap = MapWrapDefinedInMacro::from(str_map);
         wrap.insert("Hello".to_owned(), "World".to_owned());
         assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
+        wrap.0.insert("Hello".to_owned(), "World".to_owned());
     }
 
     wrapper_struct!{
@@ -107,6 +123,7 @@ mod test {
         let mut wrap = PubMapWrapDefinedInMacro::from(str_map);
         wrap.insert("Hello".to_owned(), "World".to_owned());
         assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
+        wrap.0.insert("Hello".to_owned(), "World".to_owned());
     }
 
     wrapper_struct!{
@@ -121,6 +138,22 @@ mod test {
         let mut wrap = PubMapWrapWithCommentsAndAttributes::from(str_map);
         wrap.insert("Hello".to_owned(), "World".to_owned());
         assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
+        wrap.0.insert("Hello".to_owned(), "World".to_owned());
+    }
+
+    wrapper_struct!{
+        /// Wrapper struct defined by macro with comments and attributes
+        #[derive(Eq,PartialEq,Debug)]
+        pub struct MapWrapWithField{map: StringMap}
+    }
+
+    #[test]
+    fn test_wrapper_struct_with_field_name() {
+        let str_map = StringMap::new();
+        let mut wrap = MapWrapWithField::from(str_map);
+        wrap.insert("Hello".to_owned(), "World".to_owned());
+        assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
+        wrap.map.insert("Hello".to_owned(), "World".to_owned());
     }
 
 }
