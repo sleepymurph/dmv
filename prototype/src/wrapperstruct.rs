@@ -1,45 +1,71 @@
 
-macro_rules! from_deref {
-    // $outer must be a path so that it can be called as a constructor in From.
-    // For some reason it will not let you invoke a type as a constructor.
-    ($outer:path => $inner:ty) => {
-
-        use std;
-
-        impl From<$inner> for $outer {
-            fn from(inner: $inner) -> Self {
-                $outer(inner)
+macro_rules! impl_from {
+    // For tuple structs
+    ($from:ty => $into:tt) => {
+        impl From<$from> for $into {
+            fn from(f: $from) -> Self {
+                $into(f)
             }
         }
+    };
+    // For structs with one named field
+    ($from:ty => $into:tt, $field:tt) => {
+        impl ::std::convert::From<$from> for $into {
+            fn from(f: $from) -> Self {
+                $into{ $field: f }
+            }
+        }
+    };
+}
 
-        impl std::ops::Deref for $outer {
-            type Target = $inner;
+macro_rules! impl_deref {
+    // For tuple structs
+    ($ptr:ty => $deref:tt) => { impl_deref!($ptr => $deref, 0); };
+    // For structs with a named field
+    ($ptr:ty => $deref:ty, $field:tt) => {
+        impl ::std::ops::Deref for $ptr {
+            type Target = $deref;
             fn deref(&self) -> &Self::Target {
-                &self.0
+                &self.$field
             }
         }
 
-        impl std::ops::DerefMut for $outer {
+        impl ::std::ops::DerefMut for $ptr {
             fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut self.0
+                &mut self.$field
             }
         }
-    }
+    };
 }
 
 #[cfg(test)]
 mod test {
 
     use std::collections::HashMap;
+    type StringMap = HashMap<String, String>;
 
-    type StringMap = HashMap<String,String>;
-    pub struct MapWrap(StringMap);
-    from_deref!(MapWrap => StringMap);
+    struct MapWrapTupleStruct(StringMap);
+    impl_from!(StringMap => MapWrapTupleStruct);
+    impl_deref!(MapWrapTupleStruct => StringMap);
 
     #[test]
-    fn test_macro() {
+    fn test_impl_from_tuple() {
         let str_map = StringMap::new();
-        let mut wrap = MapWrap::from(str_map);
+        let mut wrap = MapWrapTupleStruct::from(str_map);
+        wrap.insert("Hello".to_owned(), "World".to_owned());
+        assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
+    }
+
+    struct MapWrapStruct {
+        inner: StringMap,
+    }
+    impl_from!(StringMap => MapWrapStruct, inner);
+    impl_deref!(MapWrapStruct => StringMap, inner);
+
+    #[test]
+    fn test_impl_from_field() {
+        let str_map = StringMap::new();
+        let mut wrap = MapWrapStruct::from(str_map);
         wrap.insert("Hello".to_owned(), "World".to_owned());
         assert_eq!(wrap.get("Hello"), Some(&"World".to_owned()));
     }
