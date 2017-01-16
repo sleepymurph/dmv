@@ -80,7 +80,7 @@ pub fn write_file<R: Read>(path: &path::Path,
                            mut contents: R)
                            -> io::Result<u64> {
 
-    try!(fsutil::create_parents(path));
+    try!(fsutil::create_parents(&path));
     let mut file = try!(fs::OpenOptions::new()
         .write(true)
         .create(true)

@@ -1,8 +1,11 @@
 use cache;
 use constants;
 use dag;
+use error::*;
+use fsutil;
 use objectstore;
 use status;
+use std::env;
 use std::fs;
 use std::io;
 use std::path;
@@ -44,6 +47,29 @@ impl WorkDir {
         };
 
         Ok(wd)
+    }
+
+    /// Search the given path and its parents for a working directory
+    pub fn find<P: AsRef<path::Path>>(start_path: &P) -> Result<Self> {
+        let start_path = start_path.as_ref();
+        for path in fsutil::up_from(&start_path) {
+            let hidden_path = path.join(constants::HIDDEN_DIR_NAME);
+            if hidden_path.is_dir() {
+                return Self::load(path.to_owned()).chain_err(|| {
+                    format!("Found working directory {} but could not load it",
+                            hidden_path.display())
+                });
+            }
+        }
+        Err(format!("Could not find working directory in \"{}\" or its \
+                     parents",
+                    start_path.display())
+            .into())
+    }
+
+    /// Search for a working directory, starting with the current dir
+    pub fn find_from_current_dir() -> Result<Self> {
+        Self::find(&env::current_dir()?)
     }
 
     pub fn path(&self) -> &path::Path {
@@ -137,12 +163,13 @@ impl WorkDir {
 
 #[cfg(test)]
 mod test {
+
     use dag;
     use dag::Object;
+    use fsutil;
     use rollinghash;
     use std::fs;
     use std::io;
-
     use super::*;
     use testutil;
 
@@ -207,6 +234,15 @@ mod test {
 
         // Uncomment to examine status value
         // panic!("{:?}", status);
+    }
+
+    #[test]
+    fn test_find_workdir() {
+        let (_temp, workdir) = create_temp_repository().unwrap();
+        let child = workdir.path().join("a/b/c/d");
+        fsutil::create_parents(&child).expect("could not create child dir");
+        let found = WorkDir::find(&child).expect("could not find workdir");
+        assert_eq!(found.path(), workdir.path());
     }
 
     // TODO: Commit and create cache

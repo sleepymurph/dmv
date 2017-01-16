@@ -41,7 +41,7 @@ fn cmd_init(_argmatch: &clap::ArgMatches, _submatch: &clap::ArgMatches) {
 fn cmd_hash_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
     let filepath = path::Path::new(submatch.value_of("filepath").unwrap());
 
-    let mut wd = find_workdir_from_current_dir();
+    let mut wd = find_workdir();
     let hash = wd.objectstore.store_file_with_caching(filepath).unwrap();
     println!("{} {}", hash, filepath.display());
 }
@@ -52,7 +52,7 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
     let hash = dag::ObjectKey::from_hex(submatch.value_of("hash").unwrap());
     let hash = hash.expect("parse key");
 
-    let wd = find_workdir_from_current_dir();
+    let wd = find_workdir();
 
     if !wd.objectstore.has_object(&hash) {
         println!("No such object");
@@ -91,7 +91,6 @@ fn cmd_cache_status(_argmatch: &clap::ArgMatches,
     println!("{:?}", cache_status);
 }
 
-fn find_workdir_from_current_dir() -> workdir::WorkDir {
-    let current_dir = env::current_dir().expect("current dir");
-    workdir::WorkDir::load(current_dir).expect("load")
+fn find_workdir() -> workdir::WorkDir {
+    workdir::WorkDir::find_from_current_dir().expect("load")
 }
