@@ -2,7 +2,25 @@
 
 #![allow(dead_code)]
 
+#[macro_use]
+extern crate error_chain;
 extern crate rustc_serialize;
+
+pub mod error {
+    //! Error types for the project
+    //!
+    //! This project uses the [error-chain crate](
+    //! https://crates.io/crates/error-chain), and follows its conventions.
+
+    error_chain!{
+        foreign_links {
+            IoError(::std::io::Error);
+        }
+        errors {
+        }
+    }
+
+}
 
 #[macro_use]
 pub mod wrapperstruct;
