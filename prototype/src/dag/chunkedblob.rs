@@ -36,34 +36,6 @@ impl ChunkedBlob {
         self.total_size += size;
     }
 
-    pub fn pretty_print(&self) -> String {
-        use std::fmt::Write;
-        let mut output = String::new();
-        write!(&mut output,
-               "Chunked Blob Index
-
-Object content size:    {:>10}
-Total file size:        {:>10}
-
-",
-               humanreadable::human_bytes(self.content_size()),
-               humanreadable::human_bytes(self.total_size))
-            .unwrap();
-
-        write!(&mut output, "{:10}  {:10}  {}\n", "offset", "size", "hash")
-            .unwrap();
-
-        for chunk in &self.chunks {
-            write!(&mut output,
-                   "{:>010x}  {:>10}  {}\n",
-                   chunk.offset,
-                   humanreadable::human_bytes(chunk.size),
-                   chunk.hash)
-                .unwrap();
-        }
-        output
-    }
-
     fn content_size(&self) -> ObjectSize {
         (OBJECT_SIZE_BYTES +
          self.chunks.len() *
@@ -126,6 +98,34 @@ impl Object for ChunkedBlob {
             total_size: total_size,
             chunks: chunks,
         })
+    }
+
+    fn pretty_print(&self) -> String {
+        use std::fmt::Write;
+        let mut output = String::new();
+        write!(&mut output,
+               "Chunked Blob Index
+
+Object content size:    {:>10}
+Total file size:        {:>10}
+
+",
+               humanreadable::human_bytes(self.content_size()),
+               humanreadable::human_bytes(self.total_size))
+            .unwrap();
+
+        write!(&mut output, "{:10}  {:10}  {}\n", "offset", "size", "hash")
+            .unwrap();
+
+        for chunk in &self.chunks {
+            write!(&mut output,
+                   "{:>010x}  {:>10}  {}\n",
+                   chunk.offset,
+                   humanreadable::human_bytes(chunk.size),
+                   chunk.hash)
+                .unwrap();
+        }
+        output
     }
 }
 

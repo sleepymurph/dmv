@@ -1,5 +1,7 @@
 use cache;
+use constants;
 use dag;
+use error::*;
 use fsutil;
 use rollinghash;
 use std::fs;
@@ -140,6 +142,34 @@ impl ObjectStore {
         }
 
         result
+    }
+
+    pub fn store_directory(&mut self,
+                           dir_path: &path::Path)
+                           -> Result<dag::ObjectKey> {
+
+        let mut tree = dag::Tree::new();
+        for entry in try!(fs::read_dir(dir_path)) {
+            let subpath = entry?.path();
+
+            // TODO: ignore list
+            if subpath.ends_with(constants::HIDDEN_DIR_NAME) ||
+               subpath.ends_with(constants::CACHE_FILE_NAME) {
+                continue;
+            }
+
+            let key = if subpath.is_file() {
+                try!(self.store_file_with_caching(&subpath))
+            } else if subpath.is_dir() {
+                unimplemented!()
+            } else {
+                unimplemented!()
+            };
+
+            let name = try!(subpath.strip_prefix(&dir_path));
+            tree.insert(name.to_owned(), key);
+        }
+        self.store_object(&tree).err_into()
     }
 }
 

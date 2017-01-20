@@ -73,6 +73,10 @@ impl Object for Commit {
             message: message,
         })
     }
+
+    fn pretty_print(&self) -> String {
+        unimplemented!()
+    }
 }
 
 

@@ -42,7 +42,14 @@ fn cmd_hash_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
     let filepath = path::Path::new(submatch.value_of("filepath").unwrap());
 
     let mut wd = find_workdir();
-    let hash = wd.objectstore.store_file_with_caching(filepath).unwrap();
+    let hash;
+    if filepath.is_file() {
+        hash = wd.objectstore.store_file_with_caching(filepath).unwrap();
+    } else if filepath.is_dir() {
+        hash = wd.objectstore.store_directory(filepath).unwrap();
+    } else {
+        unimplemented!()
+    }
     println!("{} {}", hash, filepath.display());
 }
 
@@ -65,16 +72,22 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
 
         match header.object_type {
             dag::ObjectType::Blob => {
-                println!("Blob, size: {}",
-                         humanreadable::human_bytes(header.content_size));
+                format!("Blob, size: {}",
+                        humanreadable::human_bytes(header.content_size));
             }
             dag::ObjectType::ChunkedBlob => {
                 let obj = dag::ChunkedBlob::read_from(&mut reader)
                     .expect("read");
                 print!("{}", obj.pretty_print());
             }
-            dag::ObjectType::Tree => println!("tree"),
-            dag::ObjectType::Commit => println!("commit"),
+            dag::ObjectType::Tree => {
+                let obj = dag::Tree::read_from(&mut reader).expect("read");
+                print!("{}", obj.pretty_print());
+            }
+            dag::ObjectType::Commit => {
+                let obj = dag::Commit::read_from(&mut reader).expect("read");
+                print!("{}", obj.pretty_print());
+            }
         }
     }
 }

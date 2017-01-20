@@ -14,12 +14,26 @@ pub mod error {
 
     error_chain!{
         foreign_links {
-            IoError(::std::io::Error);
+            IoError(::std::io::Error)
+                #[doc = "Error caused by an underlying IO error"];
+            StripPrefixError(::std::path::StripPrefixError)
+                #[doc = "An error during path manipulation"];
         }
         errors {
         }
     }
 
+    pub trait ResultInto<T, E> {
+        fn err_into(self) -> Result<T>;
+    }
+
+    impl<T, E> ResultInto<T, E> for ::std::result::Result<T, E>
+        where E: Into<Error>
+    {
+        fn err_into(self) -> Result<T> {
+            self.map_err(|e| e.into())
+        }
+    }
 }
 
 #[macro_use]

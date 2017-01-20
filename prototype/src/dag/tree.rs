@@ -1,3 +1,4 @@
+use humanreadable;
 use std::collections;
 use std::io;
 use std::io::Write;
@@ -32,6 +33,12 @@ impl Tree {
     pub fn len(&self) -> usize {
         self.entries.len()
     }
+
+    pub fn tree_size(&self) -> ObjectSize {
+        self.entries.iter().fold(0, |acc, x| {
+            acc + KEY_SIZE_BYTES + x.0.as_os_str().len() + 1
+        }) as ObjectSize
+    }
 }
 
 const TREE_ENTRY_SEPARATOR: u8 = b'\n';
@@ -40,13 +47,9 @@ impl Object for Tree {
     fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey> {
         let mut writer = HashWriter::wrap(writer);
 
-        let tree_size = self.entries.iter().fold(0, |acc, x| {
-            acc + KEY_SIZE_BYTES + x.0.as_os_str().len() + 1
-        }) as ObjectSize;
-
         let header = ObjectHeader {
             object_type: ObjectType::Tree,
-            content_size: tree_size,
+            content_size: self.tree_size(),
         };
 
         try!(header.write_to(&mut writer));
@@ -81,6 +84,25 @@ impl Object for Tree {
             tree.insert(name, hash);
         }
         Ok(tree)
+    }
+
+    fn pretty_print(&self) -> String {
+        use std::fmt::Write;
+        let mut output = String::new();
+        write!(&mut output,
+               "Tree Index
+
+Object content size:    {:>10}
+
+",
+               humanreadable::human_bytes(self.tree_size()))
+            .unwrap();
+
+        for entry in &self.entries {
+            write!(&mut output, "{} {}\n", entry.1, entry.0.to_str().unwrap())
+                .unwrap();
+        }
+        output
     }
 }
 

@@ -122,4 +122,7 @@ pub trait Object: Sized {
 
     /// Read object, content only, from the given reader
     fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError>;
+
+    /// Print a well-formatted human-readable version of the object
+    fn pretty_print(&self) -> String;
 }

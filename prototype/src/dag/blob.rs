@@ -1,5 +1,3 @@
-
-
 use std::io;
 use std::io::Write;
 use super::*;
@@ -45,10 +43,16 @@ impl Object for Blob {
         try!(writer.write(&self.content));
         Ok(writer.hash())
     }
+
     fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError> {
         let mut content: Vec<u8> = Vec::new();
         try!(reader.read_to_end(&mut content));
         Ok(Blob { content: content })
+    }
+
+    fn pretty_print(&self) -> String {
+        // TODO: Hex dump
+        unimplemented!()
     }
 }
 

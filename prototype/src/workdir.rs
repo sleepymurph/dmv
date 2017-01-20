@@ -125,40 +125,6 @@ impl WorkDir {
             unimplemented!()
         }
     }
-
-    pub fn store_directory<P: AsRef<path::Path>>
-        (&mut self,
-         relpath: &P)
-         -> io::Result<dag::ObjectKey> {
-
-        let abspath = self.path.join(relpath);
-        let mut tree = dag::Tree::new();
-
-        for entry in try!(fs::read_dir(&abspath)) {
-
-            let entry = try!(entry);
-
-            let subpath = entry.path();
-            if subpath == self.objectstore.path() {
-                continue;
-            }
-
-            let name = try!(subpath.strip_prefix(&abspath)
-                .map_err(|spe| io::Error::new(io::ErrorKind::Other, spe)));
-
-            let key;
-            if subpath.is_dir() {
-                key = try!(self.store_directory(&subpath));
-            } else if subpath.is_file() {
-                key = try!(self.objectstore.store_file(&subpath));
-            } else {
-                unimplemented!()
-            };
-
-            tree.insert(name.to_owned(), key);
-        }
-        self.objectstore.store_object(&tree)
-    }
 }
 
 #[cfg(test)]
