@@ -5,6 +5,7 @@
 #[macro_use]
 extern crate error_chain;
 extern crate rustc_serialize;
+extern crate walkdir;
 
 pub mod error {
     //! Error types for the project
