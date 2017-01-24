@@ -161,7 +161,7 @@ mod test {
         let filesize = 3 * rollinghash::CHUNK_TARGET_SIZE as u64;
         rng.write_file(&wd_path.join("baz"), filesize).unwrap();
 
-        let hash = workdir.store_directory(&".").unwrap();
+        let hash = workdir.objectstore.store_directory(&wd_path).unwrap();
 
         let obj = workdir.objectstore.read_object(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);

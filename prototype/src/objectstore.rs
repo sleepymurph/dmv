@@ -144,10 +144,11 @@ impl ObjectStore {
         result
     }
 
-    pub fn store_directory(&mut self,
-                           dir_path: &path::Path)
-                           -> Result<dag::ObjectKey> {
+    pub fn store_directory<P: AsRef<path::Path>>(&mut self,
+                                                 dir_path: &P)
+                                                 -> Result<dag::ObjectKey> {
 
+        let dir_path = dir_path.as_ref();
         let mut tree = dag::Tree::new();
         for entry in try!(fs::read_dir(dir_path)) {
             let subpath = entry?.path();

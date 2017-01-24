@@ -46,7 +46,7 @@ fn cmd_hash_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
     if filepath.is_file() {
         hash = wd.objectstore.store_file_with_caching(filepath).unwrap();
     } else if filepath.is_dir() {
-        hash = wd.objectstore.store_directory(filepath).unwrap();
+        hash = wd.objectstore.store_directory(&filepath).unwrap();
     } else {
         unimplemented!()
     }
