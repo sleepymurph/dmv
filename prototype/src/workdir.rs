@@ -130,8 +130,6 @@ impl WorkDir {
 #[cfg(test)]
 mod test {
 
-    use dag;
-    use dag::Object;
     use fsutil;
     use rollinghash;
     use std::fs;
@@ -146,35 +144,6 @@ mod test {
 
         let wd = try!(WorkDir::init(wd_path));
         Ok((wd_temp, wd))
-    }
-
-    #[test]
-    fn test_store_directory() {
-        let (_temp, mut workdir) = create_temp_repository().unwrap();
-        let mut rng = testutil::RandBytes::new();
-
-        let wd_path = workdir.path().to_owned();
-
-        testutil::write_str_file(&wd_path.join("foo"), "foo").unwrap();
-        testutil::write_str_file(&wd_path.join("bar"), "bar").unwrap();
-
-        let filesize = 3 * rollinghash::CHUNK_TARGET_SIZE as u64;
-        rng.write_file(&wd_path.join("baz"), filesize).unwrap();
-
-        let hash = workdir.objectstore.store_directory(&wd_path).unwrap();
-
-        let obj = workdir.objectstore.read_object(&hash).unwrap();
-        let mut obj = io::BufReader::new(obj);
-        let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
-
-        assert_eq!(header.object_type, dag::ObjectType::Tree);
-
-        let tree = dag::Tree::read_from(&mut obj).unwrap();
-        // assert_eq!(tree, dag::Tree::new());
-        assert_eq!(tree.len(), 3);
-
-        // TODO: nested directories
-        // TODO: consistent sort order
     }
 
     #[test]
