@@ -20,6 +20,23 @@ pub mod error {
                 #[doc = "An error during path manipulation"];
         }
         errors {
+            PathWithNoParent(p: ::std::path::PathBuf) {
+                description("path has no parent")
+                display("path has no parent: '{}'", p.display())
+            }
+            PathWithNoFileName(p: ::std::path::PathBuf) {
+                description("path has no file name component")
+                display("path has no file name component: '{}'", p.display())
+            }
+            CorruptCacheFile{
+                cache_file: ::std::path::PathBuf,
+                cause: ::rustc_serialize::json::DecoderError,
+                bad_json: String,
+            }
+            CacheSerializeError{
+                cause: ::rustc_serialize::json::EncoderError,
+                bad_cache: ::cache::HashCache,
+            }
         }
     }
 
@@ -32,6 +49,29 @@ pub mod error {
     {
         fn err_into(self) -> Result<T> {
             self.map_err(|e| e.into())
+        }
+    }
+
+    /// Extensions for Paths that work with these custom errors
+    pub trait PathExt {
+        /// Like `parent()`, but return a Result instead of an Option
+        fn parent_or_err(&self) -> Result<&::std::path::Path>;
+        /// Like `file_name()`, but return a Result instead of an Option
+        fn file_name_or_err(&self) -> Result<&::std::ffi::OsStr>;
+    }
+
+    impl PathExt for ::std::path::Path {
+        fn parent_or_err(&self) -> Result<&::std::path::Path> {
+            self.parent()
+                .ok_or_else(|| {
+                    ErrorKind::PathWithNoParent(self.to_owned()).into()
+                })
+        }
+        fn file_name_or_err(&self) -> Result<&::std::ffi::OsStr> {
+            self.file_name()
+                .ok_or_else(|| {
+                    ErrorKind::PathWithNoFileName(self.to_owned()).into()
+                })
         }
     }
 }

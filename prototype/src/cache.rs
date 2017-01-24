@@ -1,6 +1,7 @@
 use constants;
 use dag;
 use encodable;
+use error::*;
 use rustc_serialize;
 use rustc_serialize::json;
 use std::collections;
@@ -98,16 +99,18 @@ impl HashCache {
 }
 
 impl rustc_serialize::Encodable for HashCache {
-    fn encode<S: rustc_serialize::Encoder>(&self,
-                                           s: &mut S)
-                                           -> Result<(), S::Error> {
+    fn encode<S: rustc_serialize::Encoder>
+        (&self,
+         s: &mut S)
+         -> ::std::result::Result<(), S::Error> {
         rustc_serialize::Encodable::encode(&self.0, s)
     }
 }
 
 impl rustc_serialize::Decodable for HashCache {
-    fn decode<D: rustc_serialize::Decoder>(d: &mut D)
-                                           -> Result<Self, D::Error> {
+    fn decode<D: rustc_serialize::Decoder>
+        (d: &mut D)
+         -> ::std::result::Result<Self, D::Error> {
         let cache_map =
             try!(<CacheMap as rustc_serialize::Decodable>::decode(d));
         Ok(HashCache(cache_map))
@@ -139,7 +142,7 @@ impl_deref!(HashCacheFile => HashCache, cache);
 
 impl HashCacheFile {
     /// Create/open a cache file at a specific location
-    pub fn open(cache_file_path: path::PathBuf) -> CacheResult<Self> {
+    pub fn open(cache_file_path: path::PathBuf) -> Result<Self> {
         let cache_file_exists = cache_file_path.exists();
 
         let mut cache_file = try!(fs::OpenOptions::new()
@@ -151,8 +154,13 @@ impl HashCacheFile {
         let cache_map = if cache_file_exists {
             let mut json_str = String::new();
             try!(cache_file.read_to_string(&mut json_str));
-            try!(json::decode(&json_str)
-                .map_err(|e| CacheError::from_json_decoder_error(e, json_str)))
+            try!(json::decode(&json_str).map_err(|e| {
+                ErrorKind::CorruptCacheFile {
+                    cache_file: cache_file_path.to_owned(),
+                    cause: e,
+                    bad_json: json_str,
+                }
+            }))
         } else {
             CacheMap::new()
         };
@@ -167,7 +175,7 @@ impl HashCacheFile {
     /// Create/open a cache file in the given directory
     ///
     /// The file will be named according to `constants::CACHE_FILE_NAME`.
-    pub fn open_in_dir(dir_path: &path::Path) -> CacheResult<Self> {
+    pub fn open_in_dir(dir_path: &path::Path) -> Result<Self> {
         Self::open(dir_path.join(constants::CACHE_FILE_NAME))
     }
 
@@ -176,9 +184,8 @@ impl HashCacheFile {
     /// For this app, cache files for files in a directory are stored in that
     /// directory. This is a convenience method to find/create the cache file
     /// responsible for the given file.
-    pub fn open_in_parent_dir(child_path: &path::Path) -> CacheResult<Self> {
-        let dir_path = try!(child_path.parent()
-            .ok_or_else(|| CacheError::NoParent(child_path.to_path_buf())));
+    pub fn open_in_parent_dir(child_path: &path::Path) -> Result<Self> {
+        let dir_path = try!(child_path.parent_or_err());
         Self::open_in_dir(dir_path)
     }
 
@@ -228,22 +235,24 @@ impl HashCacheFile {
     /// ```
     pub fn open_and_check_file
         (file_path: &path::Path)
-         -> CacheResult<(CacheStatus, Self, &ffi::OsStr, FileStats)> {
+         -> Result<(CacheStatus, Self, &ffi::OsStr, FileStats)> {
 
         let file_stats = try!(FileStats::read(file_path));
-        let basename = try!(file_path.file_name()
-            .ok_or_else(|| CacheError::NoFileName(file_path.to_owned())));
+        let basename = try!(file_path.file_name_or_err());
 
         let file_cache = try!(HashCacheFile::open_in_parent_dir(file_path));
         let cache_status = file_cache.check(&basename, &file_stats);
         Ok((cache_status, file_cache, basename, file_stats))
     }
 
-    pub fn flush(&mut self) -> CacheResult<()> {
+    pub fn flush(&mut self) -> Result<()> {
         use std::io::Seek;
 
         let encoded = try!(json::encode(&self.cache.0).map_err(|e| {
-            CacheError::from_json_encoder_error(e, self.cache.0.clone())
+            ErrorKind::CacheSerializeError {
+                cause: e,
+                bad_cache: self.cache.clone(),
+            }
         }));
         try!(self.cache_file.seek(io::SeekFrom::Start(0)));
         try!(self.cache_file.set_len(0));
@@ -255,58 +264,6 @@ impl HashCacheFile {
 impl ops::Drop for HashCacheFile {
     fn drop(&mut self) {
         self.flush().expect("Could not flush hash file")
-    }
-}
-
-// --------------------------------------------------
-// Errors
-
-type CacheResult<T> = Result<T, CacheError>;
-
-/// Error when using the cache
-#[derive(Debug)]
-pub enum CacheError {
-    /// Trouble deserializing the cache from disk
-    CorruptJson {
-        cause: json::DecoderError,
-        bad_json: String,
-    },
-    /// Trouble serializing the cache to save to disk
-    SerializeError {
-        cause: json::EncoderError,
-        bad_cache: CacheMap,
-    },
-    /// An IO Error occured while working with the cache file
-    IoError { cause: io::Error },
-    /// Asked to create a cache in the parent directory of a path with no parent
-    NoParent(path::PathBuf),
-    /// Asked to check cache status for a path with no file name
-    NoFileName(path::PathBuf),
-}
-
-impl CacheError {
-    fn from_json_decoder_error(err: json::DecoderError,
-                               bad_json: String)
-                               -> CacheError {
-        CacheError::CorruptJson {
-            cause: err,
-            bad_json: bad_json,
-        }
-    }
-
-    fn from_json_encoder_error(err: json::EncoderError,
-                               bad_cache: CacheMap)
-                               -> CacheError {
-        CacheError::SerializeError {
-            cause: err,
-            bad_cache: bad_cache,
-        }
-    }
-}
-
-impl From<io::Error> for CacheError {
-    fn from(err: io::Error) -> CacheError {
-        CacheError::IoError { cause: err }
     }
 }
 
