@@ -19,7 +19,6 @@ pub mod error {
                 #[doc = "Error caused by an underlying IO error"];
             StripPrefixError(::std::path::StripPrefixError)
                 #[doc = "An error during path manipulation"];
-            WalkDirError(::walkdir::Error);
         }
         errors {
             PathWithNoParent(p: ::std::path::PathBuf) {
@@ -29,11 +28,6 @@ pub mod error {
             PathWithNoFileName(p: ::std::path::PathBuf) {
                 description("path has no file name component")
                 display("path has no file name component: '{}'", p.display())
-            }
-            NotAFile(p: ::std::path::PathBuf) {
-                description("not a regular file")
-                display("expected a regular file, but path is not: '{}'",
-                        p.display())
             }
             CorruptCacheFile{
                 cache_file: ::std::path::PathBuf,
