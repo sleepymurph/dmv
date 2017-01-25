@@ -13,12 +13,12 @@ mod tree;
 pub use self::tree::*;
 
 mod commit;
-pub use self::commit::*;
 
-extern crate byteorder;
-use self::byteorder::ByteOrder;
-use self::byteorder::ReadBytesExt;
-use self::byteorder::WriteBytesExt;
+use byteorder;
+use byteorder::ByteOrder;
+use byteorder::ReadBytesExt;
+use byteorder::WriteBytesExt;
+pub use self::commit::*;
 
 use std::io;
 

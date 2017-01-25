@@ -2,6 +2,7 @@
 
 #![allow(dead_code)]
 
+extern crate byteorder;
 #[macro_use]
 extern crate error_chain;
 extern crate rustc_serialize;
