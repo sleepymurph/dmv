@@ -1,5 +1,4 @@
 use std::io;
-use std::io::Write;
 use super::*;
 
 /// A binary (file) stored in the DAG
@@ -23,28 +22,25 @@ impl Blob {
         Blob { content: v }
     }
 
-    pub fn size(&self) -> ObjectSize {
-        self.content.len() as ObjectSize
-    }
-
     pub fn content(&self) -> &Vec<u8> {
         &self.content
     }
 }
 
 impl Object for Blob {
-    fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey> {
-        let mut writer = HashWriter::wrap(writer);
-        let header = ObjectHeader {
-            object_type: ObjectType::Blob,
-            content_size: self.content.len() as ObjectSize,
-        };
-        try!(header.write_to(&mut writer));
-        try!(writer.write(&self.content));
-        Ok(writer.hash())
+    fn object_type(&self) -> ObjectType {
+        ObjectType::Blob
+    }
+    fn content_size(&self) -> ObjectSize {
+        self.content.len() as ObjectSize
     }
 
-    fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError> {
+    fn write_content<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        try!(writer.write(&self.content));
+        Ok(())
+    }
+
+    fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError> {
         let mut content: Vec<u8> = Vec::new();
         try!(reader.read_to_end(&mut content));
         Ok(Blob { content: content })

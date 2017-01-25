@@ -117,11 +117,35 @@ impl ObjectHeader {
 }
 
 pub trait Object: Sized {
-    /// Write object, header AND content, to the give writer
-    fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey>;
+    fn object_type(&self) -> ObjectType;
+    fn content_size(&self) -> ObjectSize;
+
+    /// Create a header for this object
+    fn header(&self) -> ObjectHeader {
+        ObjectHeader {
+            object_type: self.object_type(),
+            content_size: self.content_size(),
+        }
+    }
+
+    /// Write object, header AND content, to the given writer
+    fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey> {
+        let mut writer = HashWriter::wrap(writer);
+        try!(self.header().write_to(&mut writer));
+        try!(self.write_content(&mut writer));
+        Ok(writer.hash())
+    }
+
+    /// Write content bytes to the given writer
+    fn write_content<W: io::Write>(&self, writer: &mut W) -> io::Result<()>;
 
     /// Read object, content only, from the given reader
-    fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError>;
+    fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError> {
+        Self::read_content(reader)
+    }
+
+    /// Read object, content only, from the given reader
+    fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError>;
 
     /// Print a well-formatted human-readable version of the object
     fn pretty_print(&self) -> String;

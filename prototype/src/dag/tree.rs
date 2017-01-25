@@ -1,7 +1,6 @@
 use humanreadable;
 use std::collections;
 use std::io;
-use std::io::Write;
 use std::path;
 
 use super::*;
@@ -44,26 +43,26 @@ impl Tree {
 const TREE_ENTRY_SEPARATOR: u8 = b'\n';
 
 impl Object for Tree {
-    fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey> {
-        let mut writer = HashWriter::wrap(writer);
+    fn object_type(&self) -> ObjectType {
+        ObjectType::Tree
+    }
+    fn content_size(&self) -> ObjectSize {
+        self.entries.iter().fold(0, |acc, x| {
+            acc + KEY_SIZE_BYTES + x.0.as_os_str().len() + 1
+        }) as ObjectSize
+    }
 
-        let header = ObjectHeader {
-            object_type: ObjectType::Tree,
-            content_size: self.tree_size(),
-        };
-
-        try!(header.write_to(&mut writer));
-
+    fn write_content<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         for entry in &self.entries {
             try!(writer.write(entry.1.as_ref()));
             try!(writer.write(entry.0.to_str().unwrap().as_bytes()));
             try!(writer.write(&[TREE_ENTRY_SEPARATOR]));
         }
-
-        Ok(writer.hash())
+        Ok(())
     }
 
-    fn read_from<R: io::BufRead>(mut reader: &mut R) -> Result<Self, DagError> {
+    fn read_content<R: io::BufRead>(mut reader: &mut R)
+                                    -> Result<Self, DagError> {
         let mut name_buf: Vec<u8> = Vec::new();
         let mut hash_buf = [0u8; KEY_SIZE_BYTES];
 

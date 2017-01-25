@@ -1,6 +1,7 @@
 use cache;
 use constants;
 use dag;
+use dag::Object;
 use error::*;
 use fsutil;
 use rollinghash;
@@ -114,7 +115,7 @@ impl ObjectStore {
                 for chunk in vec![v1, v2].into_iter().chain(chunker) {
                     let blob = dag::Blob::from_vec(chunk?);
                     let key = try!(self.store_object(&blob));
-                    chunkedblob.add_chunk(blob.size(), key);
+                    chunkedblob.add_chunk(blob.content_size(), key);
                 }
 
                 self.store_object(&chunkedblob)
@@ -298,7 +299,7 @@ pub mod test {
             assert_eq!(header.object_type, dag::ObjectType::Blob);
 
             let blob = dag::Blob::read_from(&mut obj).unwrap();
-            assert_eq!(blob.size(), chunkrecord.size);
+            assert_eq!(blob.content_size(), chunkrecord.size);
         }
     }
 

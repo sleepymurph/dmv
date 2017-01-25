@@ -1,6 +1,4 @@
 use std::io;
-use std::io::Write;
-
 use super::*;
 
 /// A large blob made of many smaller chunks
@@ -22,21 +20,17 @@ impl Commit {
 }
 
 impl Object for Commit {
-    fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey> {
-        let mut writer = HashWriter::wrap(writer);
-
+    fn object_type(&self) -> ObjectType {
+        ObjectType::Commit
+    }
+    fn content_size(&self) -> ObjectSize {
         let content_size = OBJECT_SIZE_BYTES + 1 +
                            OBJECT_SIZE_BYTES * self.parents.len() +
                            self.message.as_bytes().len();
-        let content_size = content_size as ObjectSize;
+        content_size as ObjectSize
+    }
 
-        let header = ObjectHeader {
-            object_type: ObjectType::Commit,
-            content_size: content_size,
-        };
-
-        try!(header.write_to(&mut writer));
-
+    fn write_content<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         try!(writer.write(self.tree.as_ref()));
         try!(writer.write(&[self.parents.len() as u8]));
         for parent in self.parents.iter() {
@@ -44,10 +38,11 @@ impl Object for Commit {
         }
         try!(writer.write(self.message.as_bytes()));
 
-        Ok(writer.hash())
+        Ok(())
     }
 
-    fn read_from<R: io::BufRead>(mut reader: &mut R) -> Result<Self, DagError> {
+    fn read_content<R: io::BufRead>(mut reader: &mut R)
+                                    -> Result<Self, DagError> {
         let mut hash_buf = [0u8; KEY_SIZE_BYTES];
         try!(reader.read_exact(&mut hash_buf));
         let tree = ObjectKey::from_bytes(&hash_buf).unwrap();

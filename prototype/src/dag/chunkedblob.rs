@@ -1,6 +1,5 @@
 use humanreadable;
 use std::io;
-use std::io::Write;
 
 use super::*;
 
@@ -46,16 +45,18 @@ impl ChunkedBlob {
 const CHUNK_RECORD_SIZE: usize = OBJECT_SIZE_BYTES * 2 + KEY_SIZE_BYTES;
 
 impl Object for ChunkedBlob {
-    fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey> {
-        let mut writer = HashWriter::wrap(writer);
+    fn object_type(&self) -> ObjectType {
+        ObjectType::ChunkedBlob
+    }
+    fn content_size(&self) -> ObjectSize {
+        (OBJECT_SIZE_BYTES +
+         self.chunks.len() *
+         CHUNK_RECORD_SIZE) as ObjectSize
+    }
 
-        let header = ObjectHeader {
-            object_type: ObjectType::ChunkedBlob,
-            content_size: self.content_size(),
-        };
-
-        try!(header.write_to(&mut writer));
-
+    fn write_content<W: io::Write>(&self,
+                                   mut writer: &mut W)
+                                   -> io::Result<()> {
         try!(write_object_size(&mut writer, self.total_size));
 
         for chunk in &self.chunks {
@@ -64,10 +65,11 @@ impl Object for ChunkedBlob {
             try!(writer.write(chunk.hash.as_ref()));
         }
 
-        Ok(writer.hash())
+        Ok(())
     }
 
-    fn read_from<R: io::BufRead>(mut reader: &mut R) -> Result<Self, DagError> {
+    fn read_content<R: io::BufRead>(mut reader: &mut R)
+                                    -> Result<Self, DagError> {
         let mut chunk_record_buf = [0u8; CHUNK_RECORD_SIZE];
 
         let total_size = try!(read_object_size(&mut reader));
@@ -159,7 +161,7 @@ mod test {
             for chunk in &mut chunk_read {
                 let blob = Blob::from_vec(chunk.expect("chunk"));
                 let hash = blob.write_to(&mut io::sink()).expect("write chunk");
-                chunkedblob.add_chunk(blob.size(), hash);
+                chunkedblob.add_chunk(blob.content_size(), hash);
                 chunk_store.insert(hash, blob);
             }
         }
