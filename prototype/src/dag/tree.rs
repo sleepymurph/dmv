@@ -42,7 +42,7 @@ impl Tree {
 
 const TREE_ENTRY_SEPARATOR: u8 = b'\n';
 
-impl Object for Tree {
+impl ObjectCommon for Tree {
     fn object_type(&self) -> ObjectType {
         ObjectType::Tree
     }

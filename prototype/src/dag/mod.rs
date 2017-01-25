@@ -116,7 +116,7 @@ impl ObjectHeader {
     }
 }
 
-pub trait Object: Sized {
+pub trait ObjectCommon: Sized {
     fn object_type(&self) -> ObjectType;
     fn content_size(&self) -> ObjectSize;
 

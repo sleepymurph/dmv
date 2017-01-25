@@ -1,7 +1,7 @@
 use cache;
 use constants;
 use dag;
-use dag::Object;
+use dag::ObjectCommon;
 use error::*;
 use fsutil;
 use rollinghash;
@@ -77,9 +77,9 @@ impl ObjectStore {
         fs::rename(&object.temp_path, &permpath)
     }
 
-    pub fn store_object<O: dag::Object>(&mut self,
-                                        obj: &O)
-                                        -> io::Result<dag::ObjectKey> {
+    pub fn store_object<O: dag::ObjectCommon>(&mut self,
+                                              obj: &O)
+                                              -> io::Result<dag::ObjectKey> {
         let mut incoming = try!(self.new_object());
         let key = try!(obj.write_to(&mut incoming));
         try!(self.save_object(key, incoming));
@@ -187,7 +187,7 @@ impl io::Write for IncomingObject {
 #[cfg(test)]
 pub mod test {
     use dag;
-    use dag::Object;
+    use dag::ObjectCommon;
     use rollinghash;
     use std::fs;
     use std::io;

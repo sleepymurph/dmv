@@ -19,7 +19,7 @@ impl Commit {
     }
 }
 
-impl Object for Commit {
+impl ObjectCommon for Commit {
     fn object_type(&self) -> ObjectType {
         ObjectType::Commit
     }

@@ -27,7 +27,7 @@ impl Blob {
     }
 }
 
-impl Object for Blob {
+impl ObjectCommon for Blob {
     fn object_type(&self) -> ObjectType {
         ObjectType::Blob
     }

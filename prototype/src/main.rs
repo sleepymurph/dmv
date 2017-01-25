@@ -54,7 +54,7 @@ fn cmd_hash_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
 }
 
 fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
-    use prototypelib::dag::Object;
+    use prototypelib::dag::ObjectCommon;
 
     let hash = dag::ObjectKey::from_hex(submatch.value_of("hash").unwrap());
     let hash = hash.expect("parse key");
