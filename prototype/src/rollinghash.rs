@@ -1,7 +1,10 @@
+//! Rolling hash implementations, used to break files into chunks
+
 use std::io::{BufRead, Result};
 
 pub type RollingHashValue = u32;
 
+/// A rolling hash calculator
 pub struct RollingHash {
     value: RollingHashValue,
     window: Vec<u8>,
@@ -55,6 +58,7 @@ pub const CHUNK_TARGET_SIZE: usize = 15 * 1024;
 const WINDOW_SIZE: usize = 4096;
 const MATCH_BITS: RollingHashValue = 13;
 
+/// Flags chunk boundaries where the rolling hash has enough zero bits
 pub struct ChunkFlagger {
     hasher: RollingHash,
     mask: RollingHashValue,
@@ -114,7 +118,7 @@ impl ChunkFlagger {
     }
 }
 
-
+/// Iterates over the chunks in a byte stream
 pub struct ChunkReader<R: BufRead> {
     reader: R,
     flagger: ChunkFlagger,
@@ -169,7 +173,6 @@ impl<R: BufRead> Iterator for ChunkReader<R> {
         }
     }
 }
-
 
 
 #[cfg(test)]
