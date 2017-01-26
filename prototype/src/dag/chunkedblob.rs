@@ -41,38 +41,6 @@ impl ChunkedBlob {
          self.chunks.len() *
          CHUNK_RECORD_SIZE) as ObjectSize
     }
-
-    pub fn read_content<R: io::BufRead>(mut reader: &mut R) -> Result<Self> {
-        let mut chunk_record_buf = [0u8; CHUNK_RECORD_SIZE];
-
-        let total_size = try!(read_object_size(&mut reader));
-        let mut chunks: Vec<ChunkOffset> = Vec::new();
-        loop {
-            let bytes_read = try!(reader.read(&mut chunk_record_buf));
-            match bytes_read {
-                0 => break,
-                _ if bytes_read == CHUNK_RECORD_SIZE => {
-                    let chunk_offset =
-                        object_size_from_bytes(&chunk_record_buf[0..8]);
-                    let chunk_size =
-                        object_size_from_bytes(&chunk_record_buf[8..16]);
-                    let chunk_hash =
-                        ObjectKey::from_bytes(&chunk_record_buf[16..]).unwrap();
-
-                    chunks.push(ChunkOffset {
-                        offset: chunk_offset,
-                        size: chunk_size,
-                        hash: chunk_hash,
-                    });
-                }
-                _ => bail!(io::Error::new(io::ErrorKind::UnexpectedEof, "")),
-            }
-        }
-        Ok(ChunkedBlob {
-            total_size: total_size,
-            chunks: chunks,
-        })
-    }
 }
 
 const CHUNK_RECORD_SIZE: usize = OBJECT_SIZE_BYTES * 2 + KEY_SIZE_BYTES;
@@ -128,6 +96,40 @@ Total file size:        {:>10}
     }
 }
 
+
+impl ReadObjectContent for ChunkedBlob {
+    fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self> {
+        let mut chunk_record_buf = [0u8; CHUNK_RECORD_SIZE];
+
+        let total_size = try!(read_object_size(reader));
+        let mut chunks: Vec<ChunkOffset> = Vec::new();
+        loop {
+            let bytes_read = try!(reader.read(&mut chunk_record_buf));
+            match bytes_read {
+                0 => break,
+                _ if bytes_read == CHUNK_RECORD_SIZE => {
+                    let chunk_offset =
+                        object_size_from_bytes(&chunk_record_buf[0..8]);
+                    let chunk_size =
+                        object_size_from_bytes(&chunk_record_buf[8..16]);
+                    let chunk_hash =
+                        ObjectKey::from_bytes(&chunk_record_buf[16..]).unwrap();
+
+                    chunks.push(ChunkOffset {
+                        offset: chunk_offset,
+                        size: chunk_size,
+                        hash: chunk_hash,
+                    });
+                }
+                _ => bail!(io::Error::new(io::ErrorKind::UnexpectedEof, "")),
+            }
+        }
+        Ok(ChunkedBlob {
+            total_size: total_size,
+            chunks: chunks,
+        })
+    }
+}
 
 #[cfg(test)]
 mod test {

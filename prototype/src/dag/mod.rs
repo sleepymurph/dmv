@@ -6,6 +6,7 @@ use byteorder::ReadBytesExt;
 use byteorder::WriteBytesExt;
 use error::*;
 use std::io;
+use std::ops;
 
 mod objectkey;
 pub use self::objectkey::*;
@@ -37,7 +38,7 @@ pub fn write_object_size(writer: &mut io::Write,
 }
 
 /// Read an ObjectSize value from a Read stream
-pub fn read_object_size<R: io::Read>(reader: &mut R) -> io::Result<ObjectSize> {
+pub fn read_object_size(reader: &mut io::Read) -> io::Result<ObjectSize> {
     reader.read_u64::<byteorder::BigEndian>()
 }
 
@@ -101,7 +102,7 @@ impl ObjectHeader {
     }
 }
 
-/// Common operations on all objects
+/// Common operations on all dag object types
 pub trait ObjectCommon {
     fn object_type(&self) -> ObjectType;
     fn content_size(&self) -> ObjectSize;
@@ -127,4 +128,56 @@ pub trait ObjectCommon {
 
     /// Print a well-formatted human-readable version of the object
     fn pretty_print(&self) -> String;
+}
+
+/// Common read operation for all dag object types
+pub trait ReadObjectContent: Sized {
+    /// Read and parse content bytes from reader (after header)
+    fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self>;
+}
+
+/// A container that holds an object of any type
+pub enum Object {
+    Blob(Blob),
+    ChunkedBlob(ChunkedBlob),
+    Tree(Tree),
+    Commit(Commit),
+}
+
+impl Object {
+    /// Reads the entire object, header and content, from the given file
+    pub fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self> {
+        let header = try!(ObjectHeader::read_from(reader));
+        let object = match header.object_type {
+            ObjectType::Blob => Object::Blob(Blob::read_content(reader)?),
+            ObjectType::ChunkedBlob => {
+                Object::ChunkedBlob(ChunkedBlob::read_content(reader)?)
+            }
+            ObjectType::Tree => Object::Tree(Tree::read_content(reader)?),
+            ObjectType::Commit => Object::Commit(Commit::read_content(reader)?),
+        };
+        Ok(object)
+    }
+}
+
+impl ops::Deref for Object {
+    type Target = ObjectCommon;
+    fn deref(&self) -> &Self::Target {
+        match *self {
+            Object::Blob(ref o) => o,
+            Object::ChunkedBlob(ref o) => o,
+            Object::Tree(ref o) => o,
+            Object::Commit(ref o) => o,
+        }
+    }
+}
+impl ops::DerefMut for Object {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match *self {
+            Object::Blob(ref mut o) => o,
+            Object::ChunkedBlob(ref mut o) => o,
+            Object::Tree(ref mut o) => o,
+            Object::Commit(ref mut o) => o,
+        }
+    }
 }

@@ -18,33 +18,6 @@ impl Commit {
             message: String::new(),
         }
     }
-
-    pub fn read_content<R: io::BufRead>(mut reader: &mut R) -> Result<Self> {
-        let mut hash_buf = [0u8; KEY_SIZE_BYTES];
-        try!(reader.read_exact(&mut hash_buf));
-        let tree = ObjectKey::from_bytes(&hash_buf).unwrap();
-
-        let mut num_parents_buf = [0u8; 1];
-        try!(reader.read_exact(&mut num_parents_buf));
-        let num_parents = num_parents_buf[0];
-        let mut parents: Vec<ObjectKey> =
-            Vec::with_capacity(num_parents as usize);
-
-        for _ in 0..num_parents {
-            try!(reader.read_exact(&mut hash_buf));
-            let parent = ObjectKey::from_bytes(&hash_buf).unwrap();
-            parents.push(parent);
-        }
-
-        let mut message = String::new();
-        try!(reader.read_to_string(&mut message));
-
-        Ok(Commit {
-            tree: tree,
-            parents: parents,
-            message: message,
-        })
-    }
 }
 
 impl ObjectCommon for Commit {
@@ -71,6 +44,35 @@ impl ObjectCommon for Commit {
 
     fn pretty_print(&self) -> String {
         unimplemented!()
+    }
+}
+
+impl ReadObjectContent for Commit {
+    fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self> {
+        let mut hash_buf = [0u8; KEY_SIZE_BYTES];
+        try!(reader.read_exact(&mut hash_buf));
+        let tree = ObjectKey::from_bytes(&hash_buf).unwrap();
+
+        let mut num_parents_buf = [0u8; 1];
+        try!(reader.read_exact(&mut num_parents_buf));
+        let num_parents = num_parents_buf[0];
+        let mut parents: Vec<ObjectKey> =
+            Vec::with_capacity(num_parents as usize);
+
+        for _ in 0..num_parents {
+            try!(reader.read_exact(&mut hash_buf));
+            let parent = ObjectKey::from_bytes(&hash_buf).unwrap();
+            parents.push(parent);
+        }
+
+        let mut message = String::new();
+        try!(reader.read_to_string(&mut message));
+
+        Ok(Commit {
+            tree: tree,
+            parents: parents,
+            message: message,
+        })
     }
 }
 

@@ -1,4 +1,5 @@
 use error::*;
+use humanreadable;
 use std::io;
 use super::*;
 
@@ -26,12 +27,6 @@ impl Blob {
     pub fn content(&self) -> &Vec<u8> {
         &self.content
     }
-
-    pub fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self> {
-        let mut content: Vec<u8> = Vec::new();
-        try!(reader.read_to_end(&mut content));
-        Ok(Blob { content: content })
-    }
 }
 
 impl ObjectCommon for Blob {
@@ -48,8 +43,16 @@ impl ObjectCommon for Blob {
     }
 
     fn pretty_print(&self) -> String {
-        // TODO: Hex dump
-        unimplemented!()
+        format!("Blob, size: {}",
+                humanreadable::human_bytes(self.content_size()))
+    }
+}
+
+impl ReadObjectContent for Blob {
+    fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self> {
+        let mut content: Vec<u8> = Vec::new();
+        try!(reader.read_to_end(&mut content));
+        Ok(Blob { content: content })
     }
 }
 

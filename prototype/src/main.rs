@@ -5,7 +5,6 @@ extern crate prototypelib;
 
 use prototypelib::cache;
 use prototypelib::dag;
-use prototypelib::humanreadable;
 use prototypelib::workdir;
 use std::env;
 use std::io;
@@ -54,7 +53,6 @@ fn cmd_hash_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
 }
 
 fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
-    use prototypelib::dag::ObjectCommon;
 
     let hash = dag::ObjectKey::from_hex(submatch.value_of("hash").unwrap());
     let hash = hash.expect("parse key");
@@ -67,28 +65,8 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
         let mut reader = io::BufReader::new(wd.objectstore
             .read_object(&hash)
             .expect("read object"));
-        let header = dag::ObjectHeader::read_from(&mut reader)
-            .expect("read header");
-
-        match header.object_type {
-            dag::ObjectType::Blob => {
-                format!("Blob, size: {}",
-                        humanreadable::human_bytes(header.content_size));
-            }
-            dag::ObjectType::ChunkedBlob => {
-                let obj = dag::ChunkedBlob::read_content(&mut reader)
-                    .expect("read");
-                print!("{}", obj.pretty_print());
-            }
-            dag::ObjectType::Tree => {
-                let obj = dag::Tree::read_content(&mut reader).expect("read");
-                print!("{}", obj.pretty_print());
-            }
-            dag::ObjectType::Commit => {
-                let obj = dag::Commit::read_content(&mut reader).expect("read");
-                print!("{}", obj.pretty_print());
-            }
-        }
+        let object = dag::Object::read_from(&mut reader).expect("read object");
+        object.pretty_print();
     }
 }
 

@@ -188,6 +188,7 @@ impl io::Write for IncomingObject {
 pub mod test {
     use dag;
     use dag::ObjectCommon;
+    use dag::ReadObjectContent;
     use rollinghash;
     use std::fs;
     use std::io;
