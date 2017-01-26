@@ -3,10 +3,11 @@
 use dag;
 use std::io::{BufRead, Result};
 
+/// The integer/byte type used to store a rolling hash's value
 pub type RollingHashValue = u32;
 
 /// A rolling hash calculator
-pub struct RollingHash {
+pub struct RollingHasher {
     value: RollingHashValue,
     window: Vec<u8>,
     window_size: usize,
@@ -14,11 +15,11 @@ pub struct RollingHash {
     full: bool,
 }
 
-impl RollingHash {
+impl RollingHasher {
     pub fn new(window_size: usize) -> Self {
         let mut window = Vec::with_capacity(window_size);
         window.resize(window_size, 0);
-        RollingHash {
+        RollingHasher {
             value: 0,
             window: vec![0; window_size],
             window_size: window_size,
@@ -55,13 +56,18 @@ impl RollingHash {
     }
 }
 
+/// Target size for each chunk
+///
+/// The rolling hash window and the number of bits that have to match will be
+/// adjusted so that the probability of hitting a chunk boundary is one out of
+/// this number of bytes.
 pub const CHUNK_TARGET_SIZE: usize = 15 * 1024;
 const WINDOW_SIZE: usize = 4096;
 const MATCH_BITS: RollingHashValue = 13;
 
 /// Flags chunk boundaries where the rolling hash has enough zero bits
 pub struct ChunkFlagger {
-    hasher: RollingHash,
+    hasher: RollingHasher,
     mask: RollingHashValue,
 }
 
@@ -72,7 +78,7 @@ impl ChunkFlagger {
             mask = (mask << 1) + 1;
         }
         ChunkFlagger {
-            hasher: RollingHash::new(WINDOW_SIZE),
+            hasher: RollingHasher::new(WINDOW_SIZE),
             mask: mask,
         }
     }
@@ -119,7 +125,7 @@ impl ChunkFlagger {
     }
 }
 
-/// Iterates over the chunks in a byte stream
+/// Breaks a file into chunks and emits them as byte vectors
 pub struct ChunkReader<R: BufRead> {
     reader: R,
     flagger: ChunkFlagger,
@@ -175,7 +181,12 @@ impl<R: BufRead> Iterator for ChunkReader<R> {
     }
 }
 
-
+/// Breaks a file into chunks and emits them as Objects
+///
+/// - If the stream is empty, emits one empty Blob.
+/// - If the stream contains only one chunk, emits it as a Blob and then stops.
+/// - If the stream contains multiple chunks, emits them as Blobs, followed by a
+/// final ChunkedBlob.
 pub struct ObjectReader<R: BufRead> {
     chunker: ChunkReader<R>,
     chunk_index: Option<dag::ChunkedBlob>,
@@ -244,7 +255,7 @@ mod test {
     /// It demonstrates why you need to fill the window before checking the
     /// hash.
     fn test_rolling_hash_values() {
-        let mut hasher = RollingHash::new(256);
+        let mut hasher = RollingHasher::new(256);
         let mut hashvals: Vec<RollingHashValue> = Vec::new();
         for byte in RandBytes::new().into_iter().take(10) {
             hasher.slide(byte);
@@ -378,10 +389,12 @@ mod test {
         let mut object_read = ObjectReader::wrap(input_bytes.as_slice());
 
         let obj = object_read.next().expect("Some").expect("Ok");
-        assert_eq!(obj, dag::Object::blob_from_vec(Vec::new()));
+        assert_eq!(obj,
+                   dag::Object::blob_from_vec(Vec::new()),
+                   "first object should be an empty Blob");
 
         let obj = object_read.next();
-        assert!(obj.is_none());
+        assert!(obj.is_none(), "should not emit any more objects");
     }
 
     #[test]
@@ -391,10 +404,12 @@ mod test {
         let mut object_read = ObjectReader::wrap(input_bytes.as_slice());
 
         let obj = object_read.next().expect("Some").expect("Ok");
-        assert_eq!(obj, dag::Object::blob_from_vec(input_bytes.clone()));
+        assert_eq!(obj,
+                   dag::Object::blob_from_vec(input_bytes.clone()),
+                   "first object should be a blob containing the entire file");
 
         let obj = object_read.next();
-        assert!(obj.is_none());
+        assert!(obj.is_none(), "should not emit any more objects");
     }
 
 
@@ -426,8 +441,10 @@ mod test {
         let reconstructed = reconstruct_file(&objects, &last_key);
         assert_eq!(reconstructed.len(),
                    input_bytes.len(),
-                   "file lengths differ");
-        assert_eq!(reconstructed, input_bytes, "files differ");
+                   "reconstructed file has wrong length");
+        assert_eq!(reconstructed,
+                   input_bytes,
+                   "reconstructed file does not match input");
     }
 
     /// Dump all read objects into an object store, return hash of last object
