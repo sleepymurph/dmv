@@ -29,20 +29,24 @@ pub type ObjectSize = u64;
 /// Size of ObjectSize type in bytes
 pub const OBJECT_SIZE_BYTES: usize = 8;
 
+/// Write an ObjectSize value to a Write stream
 pub fn write_object_size(writer: &mut io::Write,
                          objectsize: ObjectSize)
                          -> io::Result<()> {
     writer.write_u64::<byteorder::BigEndian>(objectsize)
 }
 
+/// Read an ObjectSize value from a Read stream
 pub fn read_object_size<R: io::Read>(reader: &mut R) -> io::Result<ObjectSize> {
     reader.read_u64::<byteorder::BigEndian>()
 }
 
+/// Read an ObjectSize value from a byte array
 pub fn object_size_from_bytes(buf: &[u8]) -> ObjectSize {
     byteorder::BigEndian::read_u64(buf)
 }
 
+/// Simple enum to represent the available object types
 #[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub enum ObjectType {
     Blob,
@@ -51,6 +55,7 @@ pub enum ObjectType {
     Commit,
 }
 
+/// Metadata common to all objects that is written to the header of object files
 #[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub struct ObjectHeader {
     pub object_type: ObjectType,
@@ -103,6 +108,7 @@ impl ObjectHeader {
     }
 }
 
+/// Common operations on all objects
 pub trait ObjectCommon: Sized {
     fn object_type(&self) -> ObjectType;
     fn content_size(&self) -> ObjectSize;
