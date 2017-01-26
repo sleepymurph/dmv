@@ -76,16 +76,16 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
                         humanreadable::human_bytes(header.content_size));
             }
             dag::ObjectType::ChunkedBlob => {
-                let obj = dag::ChunkedBlob::read_from(&mut reader)
+                let obj = dag::ChunkedBlob::read_content(&mut reader)
                     .expect("read");
                 print!("{}", obj.pretty_print());
             }
             dag::ObjectType::Tree => {
-                let obj = dag::Tree::read_from(&mut reader).expect("read");
+                let obj = dag::Tree::read_content(&mut reader).expect("read");
                 print!("{}", obj.pretty_print());
             }
             dag::ObjectType::Commit => {
-                let obj = dag::Commit::read_from(&mut reader).expect("read");
+                let obj = dag::Commit::read_content(&mut reader).expect("read");
                 print!("{}", obj.pretty_print());
             }
         }

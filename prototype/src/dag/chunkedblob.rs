@@ -41,33 +41,8 @@ impl ChunkedBlob {
          self.chunks.len() *
          CHUNK_RECORD_SIZE) as ObjectSize
     }
-}
 
-const CHUNK_RECORD_SIZE: usize = OBJECT_SIZE_BYTES * 2 + KEY_SIZE_BYTES;
-
-impl ObjectCommon for ChunkedBlob {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::ChunkedBlob
-    }
-    fn content_size(&self) -> ObjectSize {
-        (OBJECT_SIZE_BYTES +
-         self.chunks.len() *
-         CHUNK_RECORD_SIZE) as ObjectSize
-    }
-
-    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
-        try!(write_object_size(writer, self.total_size));
-
-        for chunk in &self.chunks {
-            try!(write_object_size(writer, chunk.offset));
-            try!(write_object_size(writer, chunk.size));
-            try!(writer.write(chunk.hash.as_ref()));
-        }
-
-        Ok(())
-    }
-
-    fn read_content<R: io::BufRead>(mut reader: &mut R) -> Result<Self> {
+    pub fn read_content<R: io::BufRead>(mut reader: &mut R) -> Result<Self> {
         let mut chunk_record_buf = [0u8; CHUNK_RECORD_SIZE];
 
         let total_size = try!(read_object_size(&mut reader));
@@ -97,6 +72,31 @@ impl ObjectCommon for ChunkedBlob {
             total_size: total_size,
             chunks: chunks,
         })
+    }
+}
+
+const CHUNK_RECORD_SIZE: usize = OBJECT_SIZE_BYTES * 2 + KEY_SIZE_BYTES;
+
+impl ObjectCommon for ChunkedBlob {
+    fn object_type(&self) -> ObjectType {
+        ObjectType::ChunkedBlob
+    }
+    fn content_size(&self) -> ObjectSize {
+        (OBJECT_SIZE_BYTES +
+         self.chunks.len() *
+         CHUNK_RECORD_SIZE) as ObjectSize
+    }
+
+    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
+        try!(write_object_size(writer, self.total_size));
+
+        for chunk in &self.chunks {
+            try!(write_object_size(writer, chunk.offset));
+            try!(write_object_size(writer, chunk.size));
+            try!(writer.write(chunk.hash.as_ref()));
+        }
+
+        Ok(())
     }
 
     fn pretty_print(&self) -> String {
@@ -202,7 +202,7 @@ mod test {
         assert_ne!(header.content_size, 0);
 
         // Read in object content
-        let readobject = ChunkedBlob::read_from(&mut reader)
+        let readobject = ChunkedBlob::read_content(&mut reader)
             .expect("read object content");
 
         assert_eq!(readobject, chunkedblob);

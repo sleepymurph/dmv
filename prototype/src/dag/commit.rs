@@ -18,31 +18,8 @@ impl Commit {
             message: String::new(),
         }
     }
-}
 
-impl ObjectCommon for Commit {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::Commit
-    }
-    fn content_size(&self) -> ObjectSize {
-        let content_size = OBJECT_SIZE_BYTES + 1 +
-                           OBJECT_SIZE_BYTES * self.parents.len() +
-                           self.message.as_bytes().len();
-        content_size as ObjectSize
-    }
-
-    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
-        try!(writer.write(self.tree.as_ref()));
-        try!(writer.write(&[self.parents.len() as u8]));
-        for parent in self.parents.iter() {
-            try!(writer.write(parent.as_ref()));
-        }
-        try!(writer.write(self.message.as_bytes()));
-
-        Ok(())
-    }
-
-    fn read_content<R: io::BufRead>(mut reader: &mut R) -> Result<Self> {
+    pub fn read_content<R: io::BufRead>(mut reader: &mut R) -> Result<Self> {
         let mut hash_buf = [0u8; KEY_SIZE_BYTES];
         try!(reader.read_exact(&mut hash_buf));
         let tree = ObjectKey::from_bytes(&hash_buf).unwrap();
@@ -67,6 +44,29 @@ impl ObjectCommon for Commit {
             parents: parents,
             message: message,
         })
+    }
+}
+
+impl ObjectCommon for Commit {
+    fn object_type(&self) -> ObjectType {
+        ObjectType::Commit
+    }
+    fn content_size(&self) -> ObjectSize {
+        let content_size = OBJECT_SIZE_BYTES + 1 +
+                           OBJECT_SIZE_BYTES * self.parents.len() +
+                           self.message.as_bytes().len();
+        content_size as ObjectSize
+    }
+
+    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
+        try!(writer.write(self.tree.as_ref()));
+        try!(writer.write(&[self.parents.len() as u8]));
+        for parent in self.parents.iter() {
+            try!(writer.write(parent.as_ref()));
+        }
+        try!(writer.write(self.message.as_bytes()));
+
+        Ok(())
     }
 
     fn pretty_print(&self) -> String {
@@ -111,7 +111,7 @@ mod test {
         assert_ne!(header.content_size, 0);
 
         // Read in object content
-        let readobject = Commit::read_from(&mut reader)
+        let readobject = Commit::read_content(&mut reader)
             .expect("read object content");
 
         assert_eq!(readobject, object);

@@ -248,7 +248,7 @@ pub mod test {
         assert_eq!(header.object_type, dag::ObjectType::Blob);
         assert_eq!(header.content_size, 0);
 
-        let blob = dag::Blob::read_from(&mut obj).unwrap();
+        let blob = dag::Blob::read_content(&mut obj).unwrap();
         assert_eq!(String::from_utf8(blob.content).unwrap(), "");
     }
 
@@ -267,7 +267,7 @@ pub mod test {
         let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
         assert_eq!(header.object_type, dag::ObjectType::Blob);
 
-        let blob = dag::Blob::read_from(&mut obj).unwrap();
+        let blob = dag::Blob::read_content(&mut obj).unwrap();
         assert_eq!(String::from_utf8(blob.content).unwrap(), "foo");
     }
 
@@ -288,7 +288,7 @@ pub mod test {
 
         assert_eq!(header.object_type, dag::ObjectType::ChunkedBlob);
 
-        let chunked = dag::ChunkedBlob::read_from(&mut obj).unwrap();
+        let chunked = dag::ChunkedBlob::read_content(&mut obj).unwrap();
         assert_eq!(chunked.total_size, filesize);
         assert_eq!(chunked.chunks.len(), 5);
 
@@ -298,7 +298,7 @@ pub mod test {
             let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
             assert_eq!(header.object_type, dag::ObjectType::Blob);
 
-            let blob = dag::Blob::read_from(&mut obj).unwrap();
+            let blob = dag::Blob::read_content(&mut obj).unwrap();
             assert_eq!(blob.content_size(), chunkrecord.size);
         }
     }
@@ -324,7 +324,7 @@ pub mod test {
 
         assert_eq!(header.object_type, dag::ObjectType::Tree);
 
-        let tree = dag::Tree::read_from(&mut obj).unwrap();
+        let tree = dag::Tree::read_content(&mut obj).unwrap();
         // assert_eq!(tree, dag::Tree::new());
         assert_eq!(tree.len(), 3);
 

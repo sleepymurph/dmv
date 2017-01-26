@@ -102,7 +102,7 @@ impl ObjectHeader {
 }
 
 /// Common operations on all objects
-pub trait ObjectCommon: Sized {
+pub trait ObjectCommon {
     fn object_type(&self) -> ObjectType;
     fn content_size(&self) -> ObjectSize;
 
@@ -124,14 +124,6 @@ pub trait ObjectCommon: Sized {
 
     /// Write content bytes to the given writer
     fn write_content(&self, writer: &mut io::Write) -> io::Result<()>;
-
-    /// Read object, content only, from the given reader
-    fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self> {
-        Self::read_content(reader)
-    }
-
-    /// Read object, content only, from the given reader
-    fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self>;
 
     /// Print a well-formatted human-readable version of the object
     fn pretty_print(&self) -> String;

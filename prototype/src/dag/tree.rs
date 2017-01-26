@@ -39,6 +39,29 @@ impl Tree {
             acc + KEY_SIZE_BYTES + x.0.as_os_str().len() + 1
         }) as ObjectSize
     }
+
+    pub fn read_content<R: io::BufRead>(mut reader: &mut R) -> Result<Self> {
+        let mut name_buf: Vec<u8> = Vec::new();
+        let mut hash_buf = [0u8; KEY_SIZE_BYTES];
+
+        let mut tree = Tree::new();
+
+        loop {
+            let bytes_read = try!(reader.read(&mut hash_buf));
+            if bytes_read == 0 {
+                break;
+            }
+
+            let hash = try!(ObjectKey::from_bytes(&hash_buf));
+
+            try!(reader.read_until(TREE_ENTRY_SEPARATOR, &mut name_buf));
+            name_buf.pop(); // Drop the string-ending separator
+            let name = String::from_utf8(name_buf.clone()).unwrap();
+            let name = path::PathBuf::from(&name);
+            tree.insert(name, hash);
+        }
+        Ok(tree)
+    }
 }
 
 const TREE_ENTRY_SEPARATOR: u8 = b'\n';
@@ -60,29 +83,6 @@ impl ObjectCommon for Tree {
             try!(writer.write(&[TREE_ENTRY_SEPARATOR]));
         }
         Ok(())
-    }
-
-    fn read_content<R: io::BufRead>(mut reader: &mut R) -> Result<Self> {
-        let mut name_buf: Vec<u8> = Vec::new();
-        let mut hash_buf = [0u8; KEY_SIZE_BYTES];
-
-        let mut tree = Tree::new();
-
-        loop {
-            let bytes_read = try!(reader.read(&mut hash_buf));
-            if bytes_read == 0 {
-                break;
-            }
-
-            let hash = try!(ObjectKey::from_bytes(&hash_buf));
-
-            try!(reader.read_until(TREE_ENTRY_SEPARATOR, &mut name_buf));
-            name_buf.pop(); // Drop the string-ending separator
-            let name = String::from_utf8(name_buf.clone()).unwrap();
-            let name = path::PathBuf::from(&name);
-            tree.insert(name, hash);
-        }
-        Ok(tree)
     }
 
     fn pretty_print(&self) -> String {
@@ -138,7 +138,7 @@ mod test {
         assert_ne!(header.content_size, 0);
 
         // Read in object content
-        let readobject = Tree::read_from(&mut reader)
+        let readobject = Tree::read_content(&mut reader)
             .expect("read object content");
 
         assert_eq!(readobject, object);

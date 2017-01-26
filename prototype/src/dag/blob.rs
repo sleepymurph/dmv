@@ -26,6 +26,12 @@ impl Blob {
     pub fn content(&self) -> &Vec<u8> {
         &self.content
     }
+
+    pub fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self> {
+        let mut content: Vec<u8> = Vec::new();
+        try!(reader.read_to_end(&mut content));
+        Ok(Blob { content: content })
+    }
 }
 
 impl ObjectCommon for Blob {
@@ -39,12 +45,6 @@ impl ObjectCommon for Blob {
     fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
         try!(writer.write(&self.content));
         Ok(())
-    }
-
-    fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self> {
-        let mut content: Vec<u8> = Vec::new();
-        try!(reader.read_to_end(&mut content));
-        Ok(Blob { content: content })
     }
 
     fn pretty_print(&self) -> String {
@@ -85,7 +85,8 @@ mod test {
                    });
 
         // Read in object content
-        let readblob = Blob::read_from(&mut reader).expect("read rest of blob");
+        let readblob = Blob::read_content(&mut reader)
+            .expect("read rest of blob");
 
         assert_eq!(readblob,
                    blob,
