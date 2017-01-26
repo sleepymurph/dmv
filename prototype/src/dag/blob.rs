@@ -1,5 +1,4 @@
 use error::*;
-use humanreadable;
 use std::io;
 use super::*;
 
@@ -43,8 +42,8 @@ impl ObjectCommon for Blob {
     }
 
     fn pretty_print(&self) -> String {
-        format!("Blob, size: {}",
-                humanreadable::human_bytes(self.content_size()))
+        // TODO: Hex dump
+        unimplemented!()
     }
 }
 

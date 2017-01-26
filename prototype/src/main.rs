@@ -65,8 +65,18 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
         let mut reader = io::BufReader::new(wd.objectstore
             .read_object(&hash)
             .expect("read object"));
-        let object = dag::Object::read_from(&mut reader).expect("read object");
-        object.pretty_print();
+        let header = dag::ObjectHeader::read_from(&mut reader)
+            .expect("read header");
+        match header.object_type {
+            dag::ObjectType::Blob => {
+                println!("{}", header);
+            }
+            _ => {
+                let object = header.read_content(&mut reader)
+                    .expect("read content");
+                println!("{}", object.pretty_print());
+            }
+        }
     }
 }
 

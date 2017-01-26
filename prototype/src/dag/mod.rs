@@ -5,6 +5,8 @@ use byteorder::ByteOrder;
 use byteorder::ReadBytesExt;
 use byteorder::WriteBytesExt;
 use error::*;
+use humanreadable;
+use std::fmt;
 use std::io;
 use std::ops;
 
@@ -100,6 +102,35 @@ impl ObjectHeader {
             content_size: content_size,
         })
     }
+
+    pub fn read_content<R: io::BufRead>(&self,
+                                        reader: &mut R)
+                                        -> Result<Object> {
+        let object = match self.object_type {
+            ObjectType::Blob => Object::Blob(Blob::read_content(reader)?),
+            ObjectType::ChunkedBlob => {
+                Object::ChunkedBlob(ChunkedBlob::read_content(reader)?)
+            }
+            ObjectType::Tree => Object::Tree(Tree::read_content(reader)?),
+            ObjectType::Commit => Object::Commit(Commit::read_content(reader)?),
+        };
+        Ok(object)
+    }
+}
+
+impl fmt::Display for ObjectHeader {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let obj_desc = match self.object_type {
+            ObjectType::Blob => "Blob",
+            ObjectType::ChunkedBlob => "Chunked Blob Index",
+            ObjectType::Tree => "Tree",
+            ObjectType::Commit => "Commit",
+        };
+        write!(f,
+               "{}, size: {}",
+               obj_desc,
+               humanreadable::human_bytes(self.content_size))
+    }
 }
 
 /// Common operations on all dag object types
@@ -148,15 +179,7 @@ impl Object {
     /// Reads the entire object, header and content, from the given file
     pub fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self> {
         let header = try!(ObjectHeader::read_from(reader));
-        let object = match header.object_type {
-            ObjectType::Blob => Object::Blob(Blob::read_content(reader)?),
-            ObjectType::ChunkedBlob => {
-                Object::ChunkedBlob(ChunkedBlob::read_content(reader)?)
-            }
-            ObjectType::Tree => Object::Tree(Tree::read_content(reader)?),
-            ObjectType::Commit => Object::Commit(Commit::read_content(reader)?),
-        };
-        Ok(object)
+        header.read_content(reader)
     }
 }
 
