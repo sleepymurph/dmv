@@ -31,7 +31,7 @@ impl ObjectCommon for Commit {
         content_size as ObjectSize
     }
 
-    fn write_content<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
         try!(writer.write(self.tree.as_ref()));
         try!(writer.write(&[self.parents.len() as u8]));
         for parent in self.parents.iter() {

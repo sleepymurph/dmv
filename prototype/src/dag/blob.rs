@@ -36,7 +36,7 @@ impl ObjectCommon for Blob {
         self.content.len() as ObjectSize
     }
 
-    fn write_content<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
         try!(writer.write(&self.content));
         Ok(())
     }

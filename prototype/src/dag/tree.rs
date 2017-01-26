@@ -53,7 +53,7 @@ impl ObjectCommon for Tree {
         }) as ObjectSize
     }
 
-    fn write_content<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
         for entry in &self.entries {
             try!(writer.write(entry.1.as_ref()));
             try!(writer.write(entry.0.to_str().unwrap().as_bytes()));

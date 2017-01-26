@@ -63,7 +63,7 @@ pub struct ObjectHeader {
 }
 
 impl ObjectHeader {
-    pub fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    pub fn write_to(&self, writer: &mut io::Write) -> io::Result<()> {
         match self.object_type {
             ObjectType::Blob => {
                 try!(writer.write(b"blob"));
@@ -82,7 +82,7 @@ impl ObjectHeader {
         Ok(())
     }
 
-    pub fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self> {
+    pub fn read_from(reader: &mut io::Read) -> Result<Self> {
         let mut header = [0u8; 12];
         try!(reader.read_exact(&mut header));
 
@@ -122,7 +122,7 @@ pub trait ObjectCommon: Sized {
     }
 
     /// Write object, header AND content, to the given writer
-    fn write_to<W: io::Write>(&self, writer: &mut W) -> io::Result<ObjectKey> {
+    fn write_to(&self, writer: &mut io::Write) -> io::Result<ObjectKey> {
         let mut writer = HashWriter::wrap(writer);
         try!(self.header().write_to(&mut writer));
         try!(self.write_content(&mut writer));
@@ -130,7 +130,7 @@ pub trait ObjectCommon: Sized {
     }
 
     /// Write content bytes to the given writer
-    fn write_content<W: io::Write>(&self, writer: &mut W) -> io::Result<()>;
+    fn write_content(&self, writer: &mut io::Write) -> io::Result<()>;
 
     /// Read object, content only, from the given reader
     fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self> {

@@ -55,14 +55,12 @@ impl ObjectCommon for ChunkedBlob {
          CHUNK_RECORD_SIZE) as ObjectSize
     }
 
-    fn write_content<W: io::Write>(&self,
-                                   mut writer: &mut W)
-                                   -> io::Result<()> {
-        try!(write_object_size(&mut writer, self.total_size));
+    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
+        try!(write_object_size(writer, self.total_size));
 
         for chunk in &self.chunks {
-            try!(write_object_size(&mut writer, chunk.offset));
-            try!(write_object_size(&mut writer, chunk.size));
+            try!(write_object_size(writer, chunk.offset));
+            try!(write_object_size(writer, chunk.size));
             try!(writer.write(chunk.hash.as_ref()));
         }
 
