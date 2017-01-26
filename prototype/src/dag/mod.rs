@@ -173,6 +173,7 @@ pub trait ReadObjectContent: Sized {
 }
 
 /// A container that holds an object of any type
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub enum Object {
     Blob(Blob),
     ChunkedBlob(ChunkedBlob),

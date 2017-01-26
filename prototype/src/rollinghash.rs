@@ -2,7 +2,6 @@
 
 use dag;
 use std::io::{BufRead, Result};
-use std::mem;
 
 pub type RollingHashValue = u32;
 
@@ -180,14 +179,6 @@ impl<R: BufRead> Iterator for ChunkReader<R> {
 pub struct ObjectReader<R: BufRead> {
     chunker: ChunkReader<R>,
     chunk_index: Option<dag::ChunkedBlob>,
-    state: ObjectReaderState,
-}
-
-enum ObjectReaderState {
-    Fresh,
-    ChunkOnDeck(Result<Vec<u8>>),
-    Reading,
-    Closed,
 }
 
 impl<R: BufRead> ObjectReader<R> {
@@ -195,83 +186,44 @@ impl<R: BufRead> ObjectReader<R> {
         ObjectReader {
             chunker: ChunkReader::wrap(reader),
             chunk_index: Some(dag::ChunkedBlob::new()),
-            state: ObjectReaderState::Fresh,
         }
     }
-
-    fn add_to_index_if_blob(&mut self,
-                            possible_blob: &Option<Result<dag::Object>>) {
-        if let &Some(Ok(dag::Object::Blob(ref b))) = possible_blob {
-            if let Some(ref mut chunk_index) = self.chunk_index {
-                chunk_index.add_blob(b);
-            }
-        }
-    }
-}
-
-fn blob_result(vr: Result<Vec<u8>>) -> Option<Result<dag::Object>> {
-    Some(vr.map(|v| dag::Object::blob_from_vec(v)))
 }
 
 impl<R: BufRead> Iterator for ObjectReader<R> {
     type Item = Result<dag::Object>;
     fn next(&mut self) -> Option<Self::Item> {
-        use self::ObjectReaderState::*;
-        let next;
-        match self.state {
-            Fresh => {
-                // Need to determine if file has multiple chunks
-                let chunk1 = self.chunker.next();
-                let chunk2 = self.chunker.next();
-
-                match (chunk1, chunk2) {
-                    (None, None) => {
-                        // Empty file: Emit one empty blob, then quit
-                        next = blob_result(Ok(Vec::new()));
-                        self.state = Closed;
-                    }
-                    (Some(v1), None) => {
-                        // File is only one chunk long: emit blob, then quit
-                        next = blob_result(v1);
-                        self.state = Closed;
-                    }
-                    (Some(v1), Some(v2)) => {
-                        // File is multiple chunks: emit first, save second
-                        self.chunk_index = Some(dag::ChunkedBlob::new());
-                        next = blob_result(v1);
-                        self.state = ChunkOnDeck(v2);
-                    }
-                    (None, Some(_)) => unreachable!(),
+        let next_chunk = self.chunker.next();
+        match next_chunk {
+            Some(Err(e)) => Some(Err(e)), // Error: Just pass it on
+            Some(Ok(chunk)) => {
+                // Valid chunk: Wrap as a blob, add to index, and pass on
+                let blob = dag::Blob::from_vec(chunk);
+                if let Some(ref mut index) = self.chunk_index {
+                    index.add_blob(&blob);
                 }
+                Some(Ok(dag::Object::Blob(blob)))
             }
-            ChunkOnDeck(_) => {
-                let old_chunk = mem::replace(&mut self.state, Reading);
-                if let ChunkOnDeck(c) = old_chunk {
-                    next = blob_result(c);
-                } else {
-                    unreachable!()
-                }
-            }
-            Reading => {
-                let next_chunk = self.chunker.next().and_then(blob_result);
-                match next_chunk {
-                    Some(_) => {
-                        next = next_chunk;
-                    }
-                    None => {
-                        next = Some(Ok(dag::Object::ChunkedBlob(self.chunk_index
-                            .take()
-                            .unwrap())));
-                        self.state = Closed;
+            None => {
+                // End of chunks
+                match self.chunk_index.take() {
+                    None => None,   // Index already consumed: End of stream
+                    Some(index) => {
+                        // Chunks finished, but index pending
+                        if index.chunks.len() == 0 {
+                            // Zero chunks, file was empty: Emit one empty blob
+                            Some(Ok(dag::Object::blob_from_vec(Vec::new())))
+                        } else if index.chunks.len() == 1 {
+                            // Just one chunk: End without index
+                            None
+                        } else {
+                            // Multiple chunks: Emit index object
+                            Some(Ok(dag::Object::ChunkedBlob(index)))
+                        }
                     }
                 }
             }
-            Closed => {
-                next = None;
-            }
-        };
-        self.add_to_index_if_blob(&next);
-        next
+        }
     }
 }
 
@@ -279,6 +231,10 @@ impl<R: BufRead> Iterator for ObjectReader<R> {
 #[cfg(test)]
 mod test {
 
+    use dag;
+    use std::collections;
+    use std::io;
+    use std::io::Write;
     use super::*;
     use testutil::RandBytes;
 
@@ -415,4 +371,100 @@ mod test {
         });
         assert_eq!(reconstructed, rand_bytes);
     }
+
+    #[test]
+    fn test_store_file_empty() {
+        let input_bytes = Vec::<u8>::new();
+        let mut object_read = ObjectReader::wrap(input_bytes.as_slice());
+
+        let obj = object_read.next().expect("Some").expect("Ok");
+        assert_eq!(obj, dag::Object::blob_from_vec(Vec::new()));
+
+        let obj = object_read.next();
+        assert!(obj.is_none());
+    }
+
+    #[test]
+    fn test_store_file_one_chunk() {
+        let mut rng = RandBytes::new();
+        let input_bytes = rng.next_many(10);
+        let mut object_read = ObjectReader::wrap(input_bytes.as_slice());
+
+        let obj = object_read.next().expect("Some").expect("Ok");
+        assert_eq!(obj, dag::Object::blob_from_vec(input_bytes.clone()));
+
+        let obj = object_read.next();
+        assert!(obj.is_none());
+    }
+
+
+    #[test]
+    fn test_store_file_two_chunks() {
+        do_object_reconstruction_test(CHUNK_TARGET_SIZE, 2);
+    }
+
+    #[test]
+    fn test_store_file_many_chunks() {
+        do_object_reconstruction_test(CHUNK_TARGET_SIZE * 10, 9);
+    }
+
+    type ObjectStore = collections::HashMap<dag::ObjectKey, dag::Object>;
+
+    fn do_object_reconstruction_test(input_size: usize,
+                                     expected_chunks: usize) {
+        let mut rng = RandBytes::new();
+        let input_bytes = rng.next_many(input_size);
+        let mut object_read = ObjectReader::wrap(input_bytes.as_slice());
+
+        let mut objects = ObjectStore::new();
+        let last_key = dump_into_store(&mut object_read, &mut objects);
+
+        assert_eq!(objects.len(),
+                   expected_chunks + 1,
+                   "unexpected number of chunks");
+
+        let reconstructed = reconstruct_file(&objects, &last_key);
+        assert_eq!(reconstructed.len(),
+                   input_bytes.len(),
+                   "file lengths differ");
+        assert_eq!(reconstructed, input_bytes, "files differ");
+    }
+
+    /// Dump all read objects into an object store, return hash of last object
+    fn dump_into_store<R: io::BufRead>(object_read: &mut ObjectReader<R>,
+                                       object_store: &mut ObjectStore)
+                                       -> dag::ObjectKey {
+        let mut last_key = dag::ObjectKey::zero();
+        for obj in object_read {
+            let obj = obj.unwrap();
+            last_key = obj.calculate_hash();
+            object_store.insert(last_key, obj);
+        }
+        last_key
+    }
+
+    /// Reconstruct file from ChunkedBlob object key
+    fn reconstruct_file(object_store: &ObjectStore,
+                        index_key: &dag::ObjectKey)
+                        -> Vec<u8> {
+        let mut reconstructed = Vec::<u8>::new();
+
+        let index_obj = object_store.get(index_key);
+        if let Some(&dag::Object::ChunkedBlob(ref index)) = index_obj {
+
+            for chunk_offset in &index.chunks {
+                let chunk = object_store.get(&chunk_offset.hash);
+                if let Some(&dag::Object::Blob(ref blob)) = chunk {
+                    reconstructed.write(&blob.content).unwrap();
+                } else {
+                    panic!("Expected Blob, got {:?}", chunk);
+                }
+            }
+
+        } else {
+            panic!("Expected ChunkedBlob, got {:?}", index_obj);
+        }
+        reconstructed
+    }
+
 }
