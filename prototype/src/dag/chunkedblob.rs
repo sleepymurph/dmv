@@ -92,10 +92,7 @@ impl ObjectCommon for ChunkedBlob {
                         hash: chunk_hash,
                     });
                 }
-                _ => {
-                    return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "")
-                        .into())
-                }
+                _ => bail!(io::Error::new(io::ErrorKind::UnexpectedEof, "")),
             }
         }
         Ok(ChunkedBlob {
