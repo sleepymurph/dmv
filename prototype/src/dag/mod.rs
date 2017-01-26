@@ -45,7 +45,6 @@ pub fn object_size_from_bytes(buf: &[u8]) -> ObjectSize {
 
 #[derive(Debug)]
 pub enum DagError {
-    BadObjectHeader { msg: String },
     BadKeyLength { bad_key: Vec<u8> },
     IoError(io::Error),
 }
@@ -101,11 +100,10 @@ impl ObjectHeader {
             b"tree" => ObjectType::Tree,
             b"cmmt" => ObjectType::Commit,
             _ => {
-                return Err(DagError::BadObjectHeader {
-                        msg: format!("Unrecognized object type bytes: {:?}",
-                                     object_type_marker),
-                    }
-                    .into())
+                bail!(ErrorKind::BadObjectHeader(format!("Unrecognized \
+                                                          object type \
+                                                          bytes: {:?}",
+                                                         object_type_marker)))
             }
         };
         let content_size = byteorder::BigEndian::read_u64(&header[4..12]);
