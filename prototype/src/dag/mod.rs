@@ -10,8 +10,8 @@ use std::fmt;
 use std::io;
 use std::ops;
 
-mod objectkey;
-pub use self::objectkey::*;
+mod hash;
+pub use self::hash::*;
 
 mod blob;
 pub use self::blob::*;
