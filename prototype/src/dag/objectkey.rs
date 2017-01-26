@@ -1,5 +1,6 @@
 //! Code relating to the object hashes used to identify objects in the DAG
 
+use error::*;
 use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
@@ -10,8 +11,6 @@ use std::io;
 
 extern crate crypto;
 use self::crypto::digest::Digest;
-
-use super::DagError;
 
 /// Hash type
 pub type Hasher = crypto::sha1::Sha1;
@@ -36,9 +35,9 @@ impl ObjectKey {
         ObjectKey { hash: [0; KEY_SIZE_BYTES] }
     }
 
-    pub fn from_hex(hexstr: &str) -> Result<Self, DagError> {
+    pub fn from_hex(hexstr: &str) -> Result<Self> {
         if hexstr.len() != KEY_SIZE_BYTES * 2 {
-            return Err(DagError::ParseKey { bad_key: hexstr.to_string() });
+            bail!(ErrorKind::ParseKey(hexstr.to_owned()));
         }
         let mut buf = [0u8; KEY_SIZE_BYTES];
         let mut i = 0;
@@ -49,11 +48,7 @@ impl ObjectKey {
                 '0'...'9' => char as u8 - b'0',
                 'a'...'f' => char as u8 - b'a' + 10,
                 'A'...'F' => char as u8 - b'A' + 10,
-                _ => {
-                    return Err(DagError::ParseKey {
-                        bad_key: hexstr.to_string(),
-                    })
-                }
+                _ => bail!(ErrorKind::ParseKey(hexstr.to_owned())),
             };
             if high {
                 nibble <<= 4;
@@ -75,9 +70,9 @@ impl ObjectKey {
         hex
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, DagError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.len() != KEY_SIZE_BYTES {
-            return Err(DagError::BadKeyLength { bad_key: bytes.to_vec() });
+            bail!(ErrorKind::BadKeyLength(bytes.to_vec()));
         }
         let mut key = Self::zero();
         key.hash.clone_from_slice(bytes);
@@ -86,7 +81,7 @@ impl ObjectKey {
 }
 
 impl fmt::LowerHex for ObjectKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for byte in &self.hash {
             try!(write!(f, "{:02x}", byte))
         }
@@ -95,7 +90,7 @@ impl fmt::LowerHex for ObjectKey {
 }
 
 impl fmt::UpperHex for ObjectKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for byte in &self.hash {
             try!(write!(f, "{:02X}", byte))
         }
@@ -104,7 +99,7 @@ impl fmt::UpperHex for ObjectKey {
 }
 
 impl fmt::Display for ObjectKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Delegate to LowerHex
         <Self as fmt::LowerHex>::fmt(self, f)
     }
@@ -123,13 +118,15 @@ impl AsRef<[u8]> for ObjectKey {
 }
 
 impl Encodable for ObjectKey {
-    fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+    fn encode<S: Encoder>(&self,
+                          s: &mut S)
+                          -> ::std::result::Result<(), S::Error> {
         self.to_hex().encode(s)
     }
 }
 
 impl Decodable for ObjectKey {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
+    fn decode<D: Decoder>(d: &mut D) -> ::std::result::Result<Self, D::Error> {
         let hex = try!(<String>::decode(d));
         ObjectKey::from_hex(&hex).map_err(|_e| unimplemented!())
     }
@@ -170,10 +167,10 @@ impl<W: io::Write> io::Write for HashWriter<W> {
 #[cfg(test)]
 mod test {
 
+    use error::*;
     use rustc_serialize::json;
     use std::io::Write;
     use super::*;
-    use super::super::DagError;
 
     #[test]
     fn test_key_hex_conversions() {
@@ -203,7 +200,8 @@ mod test {
 
         for &(desc, bad) in bad_inputs.into_iter() {
             match ObjectKey::from_hex(&bad) {
-                Err(DagError::ParseKey { ref bad_key }) if bad_key == bad => (),
+                Err(Error(ErrorKind::ParseKey(ref bad_key), _)) if bad_key ==
+                                                                   bad => (),
                 other => {
                     panic!(format!("parsing \"{}\" input. Expected error. \
                                     Got: {:?}",

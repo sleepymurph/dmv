@@ -45,7 +45,6 @@ pub fn object_size_from_bytes(buf: &[u8]) -> ObjectSize {
 
 #[derive(Debug)]
 pub enum DagError {
-    ParseKey { bad_key: String },
     BadObjectHeader { msg: String },
     BadKeyLength { bad_key: Vec<u8> },
     IoError(io::Error),
