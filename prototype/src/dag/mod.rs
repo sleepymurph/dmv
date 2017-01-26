@@ -1,5 +1,12 @@
 //! Implementation of the directed acyclic graph (DAG)
 
+use byteorder;
+use byteorder::ByteOrder;
+use byteorder::ReadBytesExt;
+use byteorder::WriteBytesExt;
+use error::*;
+use std::io;
+
 mod objectkey;
 pub use self::objectkey::*;
 
@@ -13,14 +20,8 @@ mod tree;
 pub use self::tree::*;
 
 mod commit;
-
-use byteorder;
-use byteorder::ByteOrder;
-use byteorder::ReadBytesExt;
-use byteorder::WriteBytesExt;
 pub use self::commit::*;
 
-use std::io;
 
 /// Type used for sizing and seeking in objects
 pub type ObjectSize = u64;
@@ -90,7 +91,7 @@ impl ObjectHeader {
         Ok(())
     }
 
-    pub fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError> {
+    pub fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self> {
         let mut header = [0u8; 12];
         try!(reader.read_exact(&mut header));
 
@@ -102,9 +103,10 @@ impl ObjectHeader {
             b"cmmt" => ObjectType::Commit,
             _ => {
                 return Err(DagError::BadObjectHeader {
-                    msg: format!("Unrecognized object type bytes: {:?}",
-                                 object_type_marker),
-                })
+                        msg: format!("Unrecognized object type bytes: {:?}",
+                                     object_type_marker),
+                    }
+                    .into())
             }
         };
         let content_size = byteorder::BigEndian::read_u64(&header[4..12]);
@@ -140,12 +142,12 @@ pub trait ObjectCommon: Sized {
     fn write_content<W: io::Write>(&self, writer: &mut W) -> io::Result<()>;
 
     /// Read object, content only, from the given reader
-    fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError> {
+    fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self> {
         Self::read_content(reader)
     }
 
     /// Read object, content only, from the given reader
-    fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self, DagError>;
+    fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self>;
 
     /// Print a well-formatted human-readable version of the object
     fn pretty_print(&self) -> String;

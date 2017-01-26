@@ -1,3 +1,4 @@
+use error::*;
 use humanreadable;
 use std::collections;
 use std::io;
@@ -61,8 +62,7 @@ impl ObjectCommon for Tree {
         Ok(())
     }
 
-    fn read_content<R: io::BufRead>(mut reader: &mut R)
-                                    -> Result<Self, DagError> {
+    fn read_content<R: io::BufRead>(mut reader: &mut R) -> Result<Self> {
         let mut name_buf: Vec<u8> = Vec::new();
         let mut hash_buf = [0u8; KEY_SIZE_BYTES];
 

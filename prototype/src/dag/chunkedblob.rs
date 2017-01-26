@@ -1,3 +1,4 @@
+use error::*;
 use humanreadable;
 use std::io;
 
@@ -68,8 +69,7 @@ impl ObjectCommon for ChunkedBlob {
         Ok(())
     }
 
-    fn read_content<R: io::BufRead>(mut reader: &mut R)
-                                    -> Result<Self, DagError> {
+    fn read_content<R: io::BufRead>(mut reader: &mut R) -> Result<Self> {
         let mut chunk_record_buf = [0u8; CHUNK_RECORD_SIZE];
 
         let total_size = try!(read_object_size(&mut reader));
@@ -92,8 +92,10 @@ impl ObjectCommon for ChunkedBlob {
                         hash: chunk_hash,
                     });
                 }
-                _ => return Err(DagError::from(io::Error::new(
-                            io::ErrorKind::UnexpectedEof, ""))),
+                _ => {
+                    return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "")
+                        .into())
+                }
             }
         }
         Ok(ChunkedBlob {

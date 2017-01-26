@@ -1,3 +1,4 @@
+use error::*;
 use std::io;
 use super::*;
 
@@ -41,8 +42,7 @@ impl ObjectCommon for Commit {
         Ok(())
     }
 
-    fn read_content<R: io::BufRead>(mut reader: &mut R)
-                                    -> Result<Self, DagError> {
+    fn read_content<R: io::BufRead>(mut reader: &mut R) -> Result<Self> {
         let mut hash_buf = [0u8; KEY_SIZE_BYTES];
         try!(reader.read_exact(&mut hash_buf));
         let tree = ObjectKey::from_bytes(&hash_buf).unwrap();
