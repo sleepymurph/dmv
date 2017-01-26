@@ -157,6 +157,11 @@ pub trait ObjectCommon {
     /// Write content bytes to the given writer
     fn write_content(&self, writer: &mut io::Write) -> io::Result<()>;
 
+    /// Calculate the hash key for this object
+    fn calculate_hash(&self) -> ObjectKey {
+        self.write_to(&mut io::sink()).unwrap()
+    }
+
     /// Print a well-formatted human-readable version of the object
     fn pretty_print(&self) -> String;
 }
@@ -180,6 +185,10 @@ impl Object {
     pub fn read_from<R: io::BufRead>(reader: &mut R) -> Result<Self> {
         let header = try!(ObjectHeader::read_from(reader));
         header.read_content(reader)
+    }
+
+    pub fn blob_from_vec(v: Vec<u8>) -> Self {
+        Object::Blob(Blob::from(v))
     }
 }
 

@@ -36,6 +36,10 @@ impl ChunkedBlob {
         self.total_size += size;
     }
 
+    pub fn add_blob(&mut self, blob: &super::Blob) {
+        self.add_chunk(blob.content_size(), blob.calculate_hash())
+    }
+
     fn content_size(&self) -> ObjectSize {
         (OBJECT_SIZE_BYTES +
          self.chunks.len() *

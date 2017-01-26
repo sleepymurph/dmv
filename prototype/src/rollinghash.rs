@@ -1,6 +1,8 @@
 //! Rolling hash implementations, used to break files into chunks
 
+use dag;
 use std::io::{BufRead, Result};
+use std::mem;
 
 pub type RollingHashValue = u32;
 
@@ -164,13 +166,112 @@ impl<R: BufRead> ChunkReader<R> {
 
 impl<R: BufRead> Iterator for ChunkReader<R> {
     type Item = Result<Vec<u8>>;
-    fn next(&mut self) -> Option<Result<Vec<u8>>> {
+    fn next(&mut self) -> Option<Self::Item> {
         let mut buf: Vec<u8> = Vec::new();
         match self.read_chunk(&mut buf) {
             Ok(0) => None,
             Ok(_n) => Some(Ok(buf)),
             Err(e) => Some(Err(e)),
         }
+    }
+}
+
+
+pub struct ObjectReader<R: BufRead> {
+    chunker: ChunkReader<R>,
+    chunk_index: Option<dag::ChunkedBlob>,
+    state: ObjectReaderState,
+}
+
+enum ObjectReaderState {
+    Fresh,
+    ChunkOnDeck(Result<Vec<u8>>),
+    Reading,
+    Closed,
+}
+
+impl<R: BufRead> ObjectReader<R> {
+    pub fn wrap(reader: R) -> Self {
+        ObjectReader {
+            chunker: ChunkReader::wrap(reader),
+            chunk_index: Some(dag::ChunkedBlob::new()),
+            state: ObjectReaderState::Fresh,
+        }
+    }
+
+    fn add_to_index_if_blob(&mut self,
+                            possible_blob: &Option<Result<dag::Object>>) {
+        if let &Some(Ok(dag::Object::Blob(ref b))) = possible_blob {
+            if let Some(ref mut chunk_index) = self.chunk_index {
+                chunk_index.add_blob(b);
+            }
+        }
+    }
+}
+
+fn blob_result(vr: Result<Vec<u8>>) -> Option<Result<dag::Object>> {
+    Some(vr.map(|v| dag::Object::blob_from_vec(v)))
+}
+
+impl<R: BufRead> Iterator for ObjectReader<R> {
+    type Item = Result<dag::Object>;
+    fn next(&mut self) -> Option<Self::Item> {
+        use self::ObjectReaderState::*;
+        let next;
+        match self.state {
+            Fresh => {
+                // Need to determine if file has multiple chunks
+                let chunk1 = self.chunker.next();
+                let chunk2 = self.chunker.next();
+
+                match (chunk1, chunk2) {
+                    (None, None) => {
+                        // Empty file: Emit one empty blob, then quit
+                        next = blob_result(Ok(Vec::new()));
+                        self.state = Closed;
+                    }
+                    (Some(v1), None) => {
+                        // File is only one chunk long: emit blob, then quit
+                        next = blob_result(v1);
+                        self.state = Closed;
+                    }
+                    (Some(v1), Some(v2)) => {
+                        // File is multiple chunks: emit first, save second
+                        self.chunk_index = Some(dag::ChunkedBlob::new());
+                        next = blob_result(v1);
+                        self.state = ChunkOnDeck(v2);
+                    }
+                    (None, Some(_)) => unreachable!(),
+                }
+            }
+            ChunkOnDeck(_) => {
+                let old_chunk = mem::replace(&mut self.state, Reading);
+                if let ChunkOnDeck(c) = old_chunk {
+                    next = blob_result(c);
+                } else {
+                    unreachable!()
+                }
+            }
+            Reading => {
+                let next_chunk = self.chunker.next().and_then(blob_result);
+                match next_chunk {
+                    Some(_) => {
+                        next = next_chunk;
+                    }
+                    None => {
+                        next = Some(Ok(dag::Object::ChunkedBlob(self.chunk_index
+                            .take()
+                            .unwrap())));
+                        self.state = Closed;
+                    }
+                }
+            }
+            Closed => {
+                next = None;
+            }
+        };
+        self.add_to_index_if_blob(&next);
+        next
     }
 }
 
