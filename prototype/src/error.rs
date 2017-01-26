@@ -24,7 +24,6 @@ error_chain!{
             description("bad object header")
             display("could not object header: {}", msg)
         }
-        DagError(cause: ::dag::DagError)
         PathWithNoParent(p: ::std::path::PathBuf) {
             description("path has no parent")
             display("path has no parent: '{}'", p.display())
@@ -42,12 +41,6 @@ error_chain!{
             cause: ::rustc_serialize::json::EncoderError,
             bad_cache: ::cache::HashCache,
         }
-    }
-}
-
-impl From<::dag::DagError> for Error {
-    fn from(e: ::dag::DagError) -> Self {
-        ErrorKind::DagError(e).into()
     }
 }
 

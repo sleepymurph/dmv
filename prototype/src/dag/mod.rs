@@ -43,18 +43,6 @@ pub fn object_size_from_bytes(buf: &[u8]) -> ObjectSize {
     byteorder::BigEndian::read_u64(buf)
 }
 
-#[derive(Debug)]
-pub enum DagError {
-    BadKeyLength { bad_key: Vec<u8> },
-    IoError(io::Error),
-}
-
-impl From<io::Error> for DagError {
-    fn from(err: io::Error) -> Self {
-        DagError::IoError(err)
-    }
-}
-
 #[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub enum ObjectType {
     Blob,
