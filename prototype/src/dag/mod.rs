@@ -64,20 +64,13 @@ pub struct ObjectHeader {
 
 impl ObjectHeader {
     pub fn write_to(&self, writer: &mut io::Write) -> io::Result<()> {
-        match self.object_type {
-            ObjectType::Blob => {
-                try!(writer.write(b"blob"));
-            }
-            ObjectType::ChunkedBlob => {
-                try!(writer.write(b"ckbl"));
-            }
-            ObjectType::Tree => {
-                try!(writer.write(b"tree"));
-            }
-            ObjectType::Commit => {
-                try!(writer.write(b"cmmt"));
-            }
-        }
+        let object_type_marker = match self.object_type {
+            ObjectType::Blob => b"blob",
+            ObjectType::ChunkedBlob => b"ckbl",
+            ObjectType::Tree => b"tree",
+            ObjectType::Commit => b"cmmt",
+        };
+        try!(writer.write(object_type_marker));
         try!(writer.write_u64::<byteorder::BigEndian>(self.content_size));
         Ok(())
     }
