@@ -187,6 +187,28 @@ impl<R: BufRead> Iterator for ChunkReader<R> {
 /// - If the stream contains only one chunk, emits it as a Blob and then stops.
 /// - If the stream contains multiple chunks, emits them as Blobs, followed by a
 /// final ChunkedBlob.
+///
+/// ```
+/// extern crate prototypelib;
+/// use prototypelib::rollinghash::read_file_objects;
+/// use prototypelib::dag::Object;
+/// use std::io::BufReader;
+///
+/// fn main() {
+///     let file = b"Hello world!".as_ref();
+///     let mut objects = Vec::<Object>::new();
+///     for object in read_file_objects(BufReader::new(file)) {
+///         objects.push(object.unwrap());
+///     }
+/// }
+/// ```
+pub fn read_file_objects<R: BufRead>(reader: R) -> ObjectReader<R> {
+    ObjectReader::wrap(reader)
+}
+
+/// Breaks a file into chunks and emits them as Objects
+///
+/// Usually created by the `read_file_objects` function.
 pub struct ObjectReader<R: BufRead> {
     chunker: ChunkReader<R>,
     chunk_index: Option<dag::ChunkedBlob>,
@@ -384,9 +406,9 @@ mod test {
     }
 
     #[test]
-    fn test_store_file_empty() {
+    fn test_object_iterator_empty() {
         let input_bytes = Vec::<u8>::new();
-        let mut object_read = ObjectReader::wrap(input_bytes.as_slice());
+        let mut object_read = read_file_objects(input_bytes.as_slice());
 
         let obj = object_read.next().expect("Some").expect("Ok");
         assert_eq!(obj,
@@ -398,10 +420,10 @@ mod test {
     }
 
     #[test]
-    fn test_store_file_one_chunk() {
+    fn test_object_iterator_one_chunk() {
         let mut rng = RandBytes::new();
         let input_bytes = rng.next_many(10);
-        let mut object_read = ObjectReader::wrap(input_bytes.as_slice());
+        let mut object_read = read_file_objects(input_bytes.as_slice());
 
         let obj = object_read.next().expect("Some").expect("Ok");
         assert_eq!(obj,
@@ -414,12 +436,12 @@ mod test {
 
 
     #[test]
-    fn test_store_file_two_chunks() {
+    fn test_object_iterator_two_chunks() {
         do_object_reconstruction_test(CHUNK_TARGET_SIZE, 2);
     }
 
     #[test]
-    fn test_store_file_many_chunks() {
+    fn test_object_iterator_many_chunks() {
         do_object_reconstruction_test(CHUNK_TARGET_SIZE * 10, 9);
     }
 
@@ -429,7 +451,7 @@ mod test {
                                      expected_chunks: usize) {
         let mut rng = RandBytes::new();
         let input_bytes = rng.next_many(input_size);
-        let mut object_read = ObjectReader::wrap(input_bytes.as_slice());
+        let mut object_read = read_file_objects(input_bytes.as_slice());
 
         let mut objects = ObjectStore::new();
         let last_key = dump_into_store(&mut object_read, &mut objects);
