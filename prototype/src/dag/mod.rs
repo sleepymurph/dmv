@@ -9,6 +9,7 @@ use humanreadable;
 use std::fmt;
 use std::io;
 use std::ops;
+use std::ops::Deref;
 
 mod hash;
 pub use self::hash::*;
@@ -212,5 +213,20 @@ impl ops::DerefMut for Object {
             Object::Tree(ref mut o) => o,
             Object::Commit(ref mut o) => o,
         }
+    }
+}
+
+impl ObjectCommon for Object {
+    fn object_type(&self) -> ObjectType {
+        self.deref().object_type()
+    }
+    fn content_size(&self) -> ObjectSize {
+        self.deref().content_size()
+    }
+    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
+        self.deref().write_content(writer)
+    }
+    fn pretty_print(&self) -> String {
+        self.deref().pretty_print()
     }
 }

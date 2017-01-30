@@ -1,7 +1,6 @@
 use cache;
 use constants;
 use dag;
-use dag::ObjectCommon;
 use error::*;
 use fsutil;
 use rollinghash;
@@ -77,9 +76,9 @@ impl ObjectStore {
         fs::rename(&object.temp_path, &permpath)
     }
 
-    pub fn store_object<O: dag::ObjectCommon>(&mut self,
-                                              obj: &O)
-                                              -> io::Result<dag::ObjectKey> {
+    pub fn store_object(&mut self,
+                        obj: &dag::ObjectCommon)
+                        -> io::Result<dag::ObjectKey> {
         let mut incoming = try!(self.new_object());
         let key = try!(obj.write_to(&mut incoming));
         try!(self.save_object(key, incoming));
@@ -93,35 +92,13 @@ impl ObjectStore {
         let file = try!(fs::File::open(path));
         let file = io::BufReader::new(file);
 
-        let mut chunker = rollinghash::ChunkReader::wrap(file);
-        let chunk1 = chunker.next();
-        let chunk2 = chunker.next();
+        let mut last_key = Ok(dag::ObjectKey::zero());
 
-        match (chunk1, chunk2) {
-            (None, None) => {
-                // Empty file
-                let blob = dag::Blob::from_vec(vec![0u8;0]);
-                self.store_object(&blob)
-            }
-            (Some(v1), None) => {
-                // File only one-chunk long
-                let blob = dag::Blob::from_vec(v1?);
-                self.store_object(&blob)
-            }
-            (Some(v1), Some(v2)) => {
-                // Multiple chunks
-                let mut chunkedblob = dag::ChunkedBlob::new();
-
-                for chunk in vec![v1, v2].into_iter().chain(chunker) {
-                    let blob = dag::Blob::from_vec(chunk?);
-                    let key = try!(self.store_object(&blob));
-                    chunkedblob.add_chunk(blob.content_size(), key);
-                }
-
-                self.store_object(&chunkedblob)
-            }
-            (None, Some(_)) => unreachable!(),
+        for object in rollinghash::read_file_objects(file) {
+            last_key = self.store_object(&object?);
         }
+
+        last_key
     }
 
     pub fn store_file_with_caching(&mut self,
