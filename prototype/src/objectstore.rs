@@ -43,6 +43,9 @@ impl ObjectStore {
         fs::File::open(self.object_path(key)).err_into()
     }
 
+    /// Writes a single object into the object store
+    ///
+    /// Returns the hash key of the object
     pub fn store_object(&mut self,
                         obj: &dag::ObjectCommon)
                         -> Result<dag::ObjectKey> {
@@ -69,44 +72,49 @@ impl ObjectStore {
         Ok(key)
     }
 
-    pub fn store_file(&mut self, path: &path::Path) -> Result<dag::ObjectKey> {
-
+    /// Breaks a file into chunks and stores it
+    ///
+    /// Returns a tuple containing the hash of the file object (single blob or
+    /// chunk index) and the metadata of the file. The metadata is returned so
+    /// that it can be used for caching.
+    pub fn store_file(&mut self,
+                      path: &path::Path)
+                      -> Result<(dag::ObjectKey, fs::Metadata)> {
         let file = try!(fs::File::open(path));
+        let metadata = try!(file.metadata());
+
         let file = io::BufReader::new(file);
 
-        let mut last_key = Ok(dag::ObjectKey::zero());
+        let mut last_key = Err("No objects produced by file".into());
 
         for object in rollinghash::read_file_objects(file) {
             last_key = self.store_object(&object?);
         }
 
-        last_key
+        last_key.map(|k| (k, metadata))
     }
 
-    pub fn store_file_with_caching(&mut self,
-                                   file_path: &path::Path)
-                                   -> Result<dag::ObjectKey> {
+    pub fn store_file_with_cache(&mut self,
+                                 cache: &mut cache::AllCaches,
+                                 file_path: &path::Path)
+                                 -> Result<dag::ObjectKey> {
 
-        let (cache_status, mut cache, basename, file_stats) =
-            cache::HashCacheFile::open_and_check_file(file_path)
-                .expect("could not check file cache status");
-
-        if let cache::CacheStatus::Cached { hash } = cache_status {
+        use cache::CacheStatus::*;
+        if let Ok(Cached { hash }) = cache.check(&file_path) {
             return Ok(hash);
         }
 
-        let result = self.store_file(file_path);
+        let (hash, metadata) = try!(self.store_file(&file_path));
+        try!(cache.insert(file_path.to_owned(), metadata.into(), hash.clone()));
 
-        if let Ok(key) = result {
-            cache.insert_entry(basename.into(), file_stats, key.clone());
-        }
-
-        result
+        Ok(hash)
     }
 
     pub fn store_directory<P: AsRef<path::Path>>(&mut self,
                                                  dir_path: &P)
                                                  -> Result<dag::ObjectKey> {
+
+        let mut cache = cache::AllCaches::new();
 
         let dir_path = dir_path.as_ref();
         let mut tree = dag::Tree::new();
@@ -120,7 +128,7 @@ impl ObjectStore {
             }
 
             let key = if subpath.is_file() {
-                try!(self.store_file_with_caching(&subpath))
+                try!(self.store_file_with_cache(&mut cache, &subpath))
             } else if subpath.is_dir() {
                 unimplemented!()
             } else {
@@ -191,7 +199,7 @@ pub mod test {
         let filepath = temp.path().join("foo");
         testutil::write_str_file(&filepath, "").unwrap();
 
-        let hash = objectstore.store_file(&filepath).unwrap();
+        let hash = objectstore.store_file(&filepath).unwrap().0;
 
         let obj = objectstore.open_object_file(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);
@@ -211,7 +219,7 @@ pub mod test {
 
         testutil::write_str_file(&filepath, "foo").unwrap();
 
-        let hash = objectstore.store_file(&filepath).unwrap();
+        let hash = objectstore.store_file(&filepath).unwrap().0;
 
         let obj = objectstore.open_object_file(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);
@@ -232,7 +240,7 @@ pub mod test {
         let mut rng = testutil::RandBytes::new();
         rng.write_file(&filepath, filesize).unwrap();
 
-        let hash = objectstore.store_file(&filepath).unwrap();
+        let hash = objectstore.store_file(&filepath).unwrap().0;
 
         let obj = objectstore.open_object_file(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);

@@ -5,7 +5,6 @@ use error::*;
 use rustc_serialize;
 use rustc_serialize::json;
 use std::collections;
-use std::ffi;
 use std::fs;
 use std::io;
 use std::io::Read;
@@ -46,7 +45,6 @@ pub struct FileStats {
     mtime: encodable::SystemTime,
 }
 
-
 /// A file-backed cache that saves updates on drop
 pub struct HashCacheFile {
     /// Path to the file that stores the cache
@@ -55,6 +53,12 @@ pub struct HashCacheFile {
     cache_file: fs::File,
     /// The cache map itself
     cache: HashCache,
+}
+
+/// Cache of caches
+pub struct AllCaches {
+    // TODO: Use an actual cache that can purge entries
+    directory_caches: collections::HashMap<path::PathBuf, HashCacheFile>,
 }
 
 // HashCache
@@ -189,62 +193,6 @@ impl HashCacheFile {
         Self::open_in_dir(dir_path)
     }
 
-    /// Create/open the appropriate cache and check the given file's status
-    ///
-    /// Returns a tuple: (cache_status, cache, file_name, file_stats)
-    ///
-    /// - cache_status: the status of the given file
-    /// - cache: the cache itself
-    /// - file_name: the file_name of the file as looked up in the cache
-    /// - file_stats: the file stats used to determine if it has been modified
-    ///
-    /// The extra values are returned so that you can update the cache
-    ///
-    /// ```
-    /// extern crate prototypelib;
-    ///
-    /// use prototypelib::dag;
-    /// use prototypelib::cache;
-    /// use std::io;
-    /// use std::path;
-    ///
-    /// pub fn store_file_with_caching(file_path: &path::Path)
-    ///                                -> io::Result<dag::ObjectKey> {
-    ///
-    ///     let (cache_status, mut cache, basename, file_stats) =
-    ///         cache::HashCacheFile::open_and_check_file(file_path)
-    ///             .expect("could not check file cache status");
-    ///
-    ///     if let cache::CacheStatus::Cached { hash } = cache_status {
-    ///         return Ok(hash);
-    ///     }
-    ///
-    ///     let result = store_file(file_path);
-    ///
-    ///     if let Ok(key) = result {
-    ///         cache.insert_entry(basename.into(), file_stats, key.clone());
-    ///     }
-    ///
-    ///     result
-    /// }
-    ///
-    /// # pub fn store_file(path: &path::Path) -> io::Result<dag::ObjectKey> {
-    /// #   unimplemented!();
-    /// # }
-    /// # pub fn main() {}
-    /// ```
-    pub fn open_and_check_file
-        (file_path: &path::Path)
-         -> Result<(CacheStatus, Self, &ffi::OsStr, FileStats)> {
-
-        let file_stats = try!(FileStats::read(file_path));
-        let basename = try!(file_path.file_name_or_err());
-
-        let file_cache = try!(HashCacheFile::open_in_parent_dir(file_path));
-        let cache_status = file_cache.check(&basename, &file_stats);
-        Ok((cache_status, file_cache, basename, file_stats))
-    }
-
     pub fn flush(&mut self) -> Result<()> {
         use std::io::Seek;
 
@@ -267,6 +215,53 @@ impl ops::Drop for HashCacheFile {
     }
 }
 
+// AllCaches
+
+impl AllCaches {
+    pub fn new() -> Self {
+        AllCaches { directory_caches: collections::HashMap::new() }
+    }
+
+    fn cache_for_dir(&mut self,
+                     dir_path: &path::Path)
+                     -> Result<&mut HashCacheFile> {
+        if self.directory_caches.get(dir_path).is_none() {
+            let cache_file = try!(HashCacheFile::open_in_dir(dir_path));
+            self.directory_caches.insert(dir_path.into(), cache_file);
+        }
+        Ok(self.directory_caches.get_mut(dir_path).expect("just inserted"))
+    }
+
+    pub fn check(&mut self, file_path: &path::Path) -> Result<CacheStatus> {
+        let metadata = try!(file_path.metadata());
+        self.check_with(file_path, &metadata.into())
+    }
+
+    pub fn check_with(&mut self,
+                      file_path: &path::Path,
+                      stats: &FileStats)
+                      -> Result<CacheStatus> {
+
+        let dir_path = try!(file_path.parent_or_err());
+        let dir_cache = try!(self.cache_for_dir(dir_path));
+
+        let file_name = try!(file_path.file_name_or_err());
+        Ok(dir_cache.check(file_name, stats))
+    }
+
+    pub fn insert(&mut self,
+                  file_path: path::PathBuf,
+                  stats: FileStats,
+                  hash: dag::ObjectKey)
+                  -> Result<()> {
+
+        let dir_path = try!(file_path.parent_or_err());
+        let dir_cache = try!(self.cache_for_dir(dir_path));
+
+        let file_name = try!(file_path.file_name_or_err());
+        Ok(dir_cache.insert_entry(file_name.into(), stats, hash))
+    }
+}
 
 #[cfg(test)]
 mod test {

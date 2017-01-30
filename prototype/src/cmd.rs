@@ -17,10 +17,11 @@ pub fn hash_object(repo_path: path::PathBuf,
                    -> Result<()> {
 
     let mut objectstore = try!(objectstore::ObjectStore::open(repo_path));
+    let mut cache = cache::AllCaches::new();
 
     let hash;
     if file_path.is_file() {
-        hash = try!(objectstore.store_file_with_caching(&file_path))
+        hash = try!(objectstore.store_file_with_cache(&mut cache, &file_path));
     } else if file_path.is_dir() {
         hash = try!(objectstore.store_directory(&file_path))
     } else {
@@ -57,9 +58,8 @@ pub fn show_object(repo_path: path::PathBuf, hash: &str) -> Result<()> {
 }
 
 pub fn cache_status(file_path: path::PathBuf) -> Result<()> {
-    let (cache_status, _cache, _basename, _file_stats) =
-        try!(cache::HashCacheFile::open_and_check_file(&file_path));
-
+    let mut cache = cache::AllCaches::new();
+    let cache_status = try!(cache.check(&file_path));
     println!("{:?}", cache_status);
     Ok(())
 }
