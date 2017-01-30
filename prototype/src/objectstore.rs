@@ -15,10 +15,10 @@ pub struct ObjectStore {
 impl ObjectStore {
     pub fn init(path: path::PathBuf) -> io::Result<Self> {
         try!(fs::create_dir_all(&path));
-        Self::load(path)
+        Self::open(path)
     }
 
-    pub fn load(path: path::PathBuf) -> io::Result<Self> {
+    pub fn open(path: path::PathBuf) -> io::Result<Self> {
         Ok(ObjectStore { path: path })
     }
 
@@ -47,7 +47,7 @@ impl ObjectStore {
 
     pub fn store_object(&mut self,
                         obj: &dag::ObjectCommon)
-                        -> io::Result<dag::ObjectKey> {
+                        -> Result<dag::ObjectKey> {
 
         // Create temporary file
         let temp_path = self.path.join("tmp");
@@ -71,9 +71,7 @@ impl ObjectStore {
         Ok(key)
     }
 
-    pub fn store_file(&mut self,
-                      path: &path::Path)
-                      -> io::Result<dag::ObjectKey> {
+    pub fn store_file(&mut self, path: &path::Path) -> Result<dag::ObjectKey> {
 
         let file = try!(fs::File::open(path));
         let file = io::BufReader::new(file);
@@ -89,7 +87,7 @@ impl ObjectStore {
 
     pub fn store_file_with_caching(&mut self,
                                    file_path: &path::Path)
-                                   -> io::Result<dag::ObjectKey> {
+                                   -> Result<dag::ObjectKey> {
 
         let (cache_status, mut cache, basename, file_stats) =
             cache::HashCacheFile::open_and_check_file(file_path)

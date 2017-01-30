@@ -35,9 +35,9 @@ impl WorkDir {
     }
 
     /// Load a working directory that has already been initialized
-    pub fn load(wd_path: path::PathBuf) -> io::Result<Self> {
+    pub fn open(wd_path: path::PathBuf) -> io::Result<Self> {
         let os_path = wd_path.join(constants::HIDDEN_DIR_NAME);
-        let os = try!(objectstore::ObjectStore::load(os_path));
+        let os = try!(objectstore::ObjectStore::open(os_path));
 
         let wd = WorkDir {
             path: wd_path,
@@ -55,8 +55,8 @@ impl WorkDir {
         for path in fsutil::up_from(&start_path) {
             let hidden_path = path.join(constants::HIDDEN_DIR_NAME);
             if hidden_path.is_dir() {
-                return Self::load(path.to_owned()).chain_err(|| {
-                    format!("Found working directory {} but could not load it",
+                return Self::open(path.to_owned()).chain_err(|| {
+                    format!("Found working directory {} but could not open it",
                             hidden_path.display())
                 });
             }

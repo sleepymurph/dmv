@@ -1,16 +1,18 @@
 #[macro_use]
 extern crate clap;
-
 extern crate prototypelib;
+#[macro_use]
+extern crate error_chain;
 
-use prototypelib::cache;
-use prototypelib::dag;
-use prototypelib::workdir;
+use prototypelib::cmd;
+use prototypelib::error::*;
 use std::env;
-use std::io;
 use std::path;
 
-fn main() {
+// Have error_chain create a main() function that handles Results
+quick_main!(run);
+
+fn run() -> Result<()> {
 
     let arg_yaml = load_yaml!("cli.yaml");
     let argmatch = clap::App::from_yaml(arg_yaml).get_matches();
@@ -25,73 +27,47 @@ fn main() {
                 "cache-status" => cmd_cache_status,
                 _ => unimplemented!(),
             };
-            let submatch = argmatch.subcommand_matches(name).unwrap();
-            subfn(&argmatch, submatch);
+            let submatch = argmatch.subcommand_matches(name)
+                .expect("just matched");
+            subfn(&argmatch, submatch)
         }
         None => unimplemented!(),
     }
 }
 
-fn cmd_init(_argmatch: &clap::ArgMatches, _submatch: &clap::ArgMatches) {
-    let current_dir = env::current_dir().expect("current dir");
-    workdir::WorkDir::init(current_dir).expect("initialize");
+fn cmd_init(_argmatch: &clap::ArgMatches,
+            _submatch: &clap::ArgMatches)
+            -> Result<()> {
+    let repo_path = env::current_dir().expect("current dir");
+
+    cmd::init(repo_path)
 }
 
-fn cmd_hash_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
-    let filepath = path::Path::new(submatch.value_of("filepath").unwrap());
+fn cmd_hash_object(_argmatch: &clap::ArgMatches,
+                   submatch: &clap::ArgMatches)
+                   -> Result<()> {
+    let repo_path = env::current_dir().expect("current dir");
 
-    let mut wd = find_workdir();
-    let hash;
-    if filepath.is_file() {
-        hash = wd.objectstore.store_file_with_caching(filepath).unwrap();
-    } else if filepath.is_dir() {
-        hash = wd.objectstore.store_directory(&filepath).unwrap();
-    } else {
-        unimplemented!()
-    }
-    println!("{} {}", hash, filepath.display());
+    let file_path = submatch.value_of("filepath").expect("required");
+    let file_path = path::PathBuf::from(file_path);
+
+    cmd::hash_object(repo_path, file_path)
 }
 
-fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
+fn cmd_show_object(_argmatch: &clap::ArgMatches,
+                   submatch: &clap::ArgMatches)
+                   -> Result<()> {
+    let repo_path = env::current_dir().expect("current dir");
+    let hash = submatch.value_of("hash").expect("required");
 
-    let hash = dag::ObjectKey::from_hex(submatch.value_of("hash").unwrap());
-    let hash = hash.expect("parse key");
-
-    let wd = find_workdir();
-
-    if !wd.objectstore.has_object(&hash) {
-        println!("No such object");
-    } else {
-        let mut reader = io::BufReader::new(wd.objectstore
-            .open_object_file(&hash)
-            .expect("read object"));
-        let header = dag::ObjectHeader::read_from(&mut reader)
-            .expect("read header");
-        match header.object_type {
-            dag::ObjectType::Blob => {
-                println!("{}", header);
-            }
-            _ => {
-                let object = header.read_content(&mut reader)
-                    .expect("read content");
-                println!("{}", object.pretty_print());
-            }
-        }
-    }
+    cmd::show_object(repo_path, hash)
 }
 
 fn cmd_cache_status(_argmatch: &clap::ArgMatches,
-                    submatch: &clap::ArgMatches) {
+                    submatch: &clap::ArgMatches)
+                    -> Result<()> {
+    let file_path = submatch.value_of("filepath").expect("required");
+    let file_path = path::PathBuf::from(file_path);
 
-    let file_path = path::Path::new(submatch.value_of("filepath").unwrap());
-
-    let (cache_status, _cache, _basename, _file_stats) =
-        cache::HashCacheFile::open_and_check_file(file_path)
-            .expect("could not check file cache status");
-
-    println!("{:?}", cache_status);
-}
-
-fn find_workdir() -> workdir::WorkDir {
-    workdir::WorkDir::find_from_current_dir().expect("load")
+    cmd::cache_status(file_path)
 }

@@ -23,3 +23,4 @@ pub mod cache;
 pub mod status;
 pub mod workdir;
 pub mod pipeline;
+pub mod cmd;
