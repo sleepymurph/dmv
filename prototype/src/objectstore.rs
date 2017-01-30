@@ -6,16 +6,10 @@ use fsutil;
 use rollinghash;
 use std::fs;
 use std::io;
-use std::io::Write;
 use std::path;
 
 pub struct ObjectStore {
     path: path::PathBuf,
-}
-
-pub struct IncomingObject {
-    temp_path: path::PathBuf,
-    file: fs::File,
 }
 
 impl ObjectStore {
@@ -45,43 +39,35 @@ impl ObjectStore {
         self.object_path(key).is_file()
     }
 
-    pub fn read_object(&self, key: &dag::ObjectKey) -> io::Result<fs::File> {
+    pub fn open_object_file(&self,
+                            key: &dag::ObjectKey)
+                            -> io::Result<fs::File> {
         fs::File::open(self.object_path(key))
     }
 
-    pub fn new_object(&mut self) -> io::Result<IncomingObject> {
+    pub fn store_object(&mut self,
+                        obj: &dag::ObjectCommon)
+                        -> io::Result<dag::ObjectKey> {
+
+        // Create temporary file
         let temp_path = self.path.join("tmp");
         try!(fsutil::create_parents(&temp_path));
-        let file = try!(fs::OpenOptions::new()
+        let mut file = try!(fs::OpenOptions::new()
             .write(true)
             .create(true)
             .open(&temp_path)
             .map_err(|e| {
                 io::Error::new(e.kind(), format!("{}", &temp_path.display()))
             }));
-        Ok(IncomingObject {
-            temp_path: temp_path,
-            file: file,
-        })
-    }
 
-    pub fn save_object(&mut self,
-                       key: dag::ObjectKey,
-                       mut object: IncomingObject)
-                       -> io::Result<()> {
+        // Write object to temporary file
+        let key = try!(obj.write_to(&mut file));
 
-        try!(object.flush());
+        // Move file to permanent path
         let permpath = self.object_path(&key);
         try!(fsutil::create_parents(&permpath));
-        fs::rename(&object.temp_path, &permpath)
-    }
+        try!(fs::rename(&temp_path, &permpath));
 
-    pub fn store_object(&mut self,
-                        obj: &dag::ObjectCommon)
-                        -> io::Result<dag::ObjectKey> {
-        let mut incoming = try!(self.new_object());
-        let key = try!(obj.write_to(&mut incoming));
-        try!(self.save_object(key, incoming));
         Ok(key)
     }
 
@@ -152,15 +138,6 @@ impl ObjectStore {
     }
 }
 
-impl io::Write for IncomingObject {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.file.write(buf)
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        self.file.flush()
-    }
-}
-
 #[cfg(test)]
 pub mod test {
     use dag;
@@ -169,8 +146,6 @@ pub mod test {
     use rollinghash;
     use std::fs;
     use std::io;
-    use std::io::Read;
-    use std::io::Write;
     use super::*;
     use testutil;
 
@@ -188,27 +163,32 @@ pub mod test {
     }
 
     #[test]
-    fn test_object_store() {
-        let (key, data) = (
-            dag::ObjectKey::from_hex("69342c5c39e5ae5f0077aecc32c0f81811fb8193")
-                .unwrap(),
-            "Hello!".to_string()
-        );
+    fn test_store_and_retrieve() {
+        let obj = dag::Object::blob_from_vec("Hello!".as_bytes().to_owned());
+        let key = obj.calculate_hash();
 
         let (_tempdir, mut store) = create_temp_repository().unwrap();
 
-        assert_eq!(store.has_object(&key), false);
-        {
-            let mut writer = store.new_object().expect("new incoming object");
-            writer.write(data.as_bytes()).expect("write to incoming");
-            store.save_object(key.clone(), writer).expect("store incoming");
-        }
-        {
-            let mut reader = store.read_object(&key).expect("open object");
-            let mut read_string = String::new();
-            reader.read_to_string(&mut read_string).expect("read object");
-            assert_eq!(read_string, data);
-        }
+        assert!(!store.has_object(&key),
+                "Store should not have key at first");
+
+        let stored_key = store.store_object(&obj).unwrap();
+        assert_eq!(stored_key,
+                   key,
+                   "Key when stored should be the same as given by \
+                    calculate_hash");
+        assert!(store.has_object(&stored_key),
+                "Store should report that key is
+        present");
+
+        let reader = store.open_object_file(&stored_key).unwrap();
+        let retrieved = dag::Object::read_from(&mut io::BufReader::new(reader))
+            .unwrap();
+        assert_eq!(retrieved,
+                   obj,
+                   "Retrieved object should be the same as
+        stored \
+                    object");
     }
 
     #[test]
@@ -219,7 +199,7 @@ pub mod test {
 
         let hash = objectstore.store_file(&filepath).unwrap();
 
-        let obj = objectstore.read_object(&hash).unwrap();
+        let obj = objectstore.open_object_file(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);
 
         let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
@@ -239,7 +219,7 @@ pub mod test {
 
         let hash = objectstore.store_file(&filepath).unwrap();
 
-        let obj = objectstore.read_object(&hash).unwrap();
+        let obj = objectstore.open_object_file(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);
 
         let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
@@ -260,7 +240,7 @@ pub mod test {
 
         let hash = objectstore.store_file(&filepath).unwrap();
 
-        let obj = objectstore.read_object(&hash).unwrap();
+        let obj = objectstore.open_object_file(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);
         let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
 
@@ -271,7 +251,7 @@ pub mod test {
         assert_eq!(chunked.chunks.len(), 5);
 
         for chunkrecord in chunked.chunks {
-            let obj = objectstore.read_object(&chunkrecord.hash).unwrap();
+            let obj = objectstore.open_object_file(&chunkrecord.hash).unwrap();
             let mut obj = io::BufReader::new(obj);
             let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
             assert_eq!(header.object_type, dag::ObjectType::Blob);
@@ -296,7 +276,7 @@ pub mod test {
 
         let hash = objectstore.store_directory(&wd_path).unwrap();
 
-        let obj = objectstore.read_object(&hash).unwrap();
+        let obj = objectstore.open_object_file(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);
         let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
 

@@ -149,9 +149,11 @@ pub trait ObjectCommon {
 
     /// Write object, header AND content, to the given writer
     fn write_to(&self, writer: &mut io::Write) -> io::Result<ObjectKey> {
+        use std::io::Write;
         let mut writer = HashWriter::wrap(writer);
         try!(self.header().write_to(&mut writer));
         try!(self.write_content(&mut writer));
+        try!(writer.flush());
         Ok(writer.hash())
     }
 
@@ -160,7 +162,8 @@ pub trait ObjectCommon {
 
     /// Calculate the hash key for this object
     fn calculate_hash(&self) -> ObjectKey {
-        self.write_to(&mut io::sink()).unwrap()
+        self.write_to(&mut io::sink())
+            .expect("IO error should be impossible when writing to a sink")
     }
 
     /// Print a well-formatted human-readable version of the object

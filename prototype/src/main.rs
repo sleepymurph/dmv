@@ -63,7 +63,7 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches, submatch: &clap::ArgMatches) {
         println!("No such object");
     } else {
         let mut reader = io::BufReader::new(wd.objectstore
-            .read_object(&hash)
+            .open_object_file(&hash)
             .expect("read object"));
         let header = dag::ObjectHeader::read_from(&mut reader)
             .expect("read header");
