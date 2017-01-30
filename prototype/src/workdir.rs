@@ -7,7 +7,6 @@ use objectstore;
 use status;
 use std::env;
 use std::fs;
-use std::io;
 use std::path;
 
 pub struct WorkDir {
@@ -19,7 +18,7 @@ pub struct WorkDir {
 
 impl WorkDir {
     /// Initialize the given directory as a working directory
-    pub fn init(wd_path: path::PathBuf) -> io::Result<Self> {
+    pub fn init(wd_path: path::PathBuf) -> Result<Self> {
 
         let os_path = wd_path.join(constants::HIDDEN_DIR_NAME);
         let os = try!(objectstore::ObjectStore::init(os_path));
@@ -35,7 +34,7 @@ impl WorkDir {
     }
 
     /// Load a working directory that has already been initialized
-    pub fn open(wd_path: path::PathBuf) -> io::Result<Self> {
+    pub fn open(wd_path: path::PathBuf) -> Result<Self> {
         let os_path = wd_path.join(constants::HIDDEN_DIR_NAME);
         let os = try!(objectstore::ObjectStore::open(os_path));
 
@@ -76,7 +75,7 @@ impl WorkDir {
         &self.path
     }
 
-    pub fn check_status(&self) -> io::Result<status::DirStatus> {
+    pub fn check_status(&self) -> Result<status::DirStatus> {
         let meta = try!(self.path.metadata());
         let status = try!(self.check_status_path(self.path(),
                                                  &meta,
@@ -93,7 +92,7 @@ impl WorkDir {
                              path: &path::Path,
                              meta: &fs::Metadata,
                              _expected_hash: Option<&dag::ObjectKey>)
-                             -> io::Result<status::PathStatus> {
+                             -> Result<status::PathStatus> {
 
         if meta.is_dir() {
 
@@ -130,14 +129,14 @@ impl WorkDir {
 #[cfg(test)]
 mod test {
 
+    use error::*;
     use fsutil;
     use rollinghash;
     use std::fs;
-    use std::io;
     use super::*;
     use testutil;
 
-    fn create_temp_repository() -> io::Result<(testutil::TempDir, WorkDir)> {
+    fn create_temp_repository() -> Result<(testutil::TempDir, WorkDir)> {
         let wd_temp = try!(testutil::in_mem_tempdir("test_repository"));
         let wd_path = wd_temp.path().to_path_buf();
         try!(fs::create_dir_all(&wd_path));

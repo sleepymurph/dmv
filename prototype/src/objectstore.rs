@@ -13,12 +13,12 @@ pub struct ObjectStore {
 }
 
 impl ObjectStore {
-    pub fn init(path: path::PathBuf) -> io::Result<Self> {
+    pub fn init(path: path::PathBuf) -> Result<Self> {
         try!(fs::create_dir_all(&path));
         Self::open(path)
     }
 
-    pub fn open(path: path::PathBuf) -> io::Result<Self> {
+    pub fn open(path: path::PathBuf) -> Result<Self> {
         Ok(ObjectStore { path: path })
     }
 
@@ -39,10 +39,8 @@ impl ObjectStore {
         self.object_path(key).is_file()
     }
 
-    pub fn open_object_file(&self,
-                            key: &dag::ObjectKey)
-                            -> io::Result<fs::File> {
-        fs::File::open(self.object_path(key))
+    pub fn open_object_file(&self, key: &dag::ObjectKey) -> Result<fs::File> {
+        fs::File::open(self.object_path(key)).err_into()
     }
 
     pub fn store_object(&mut self,
@@ -141,16 +139,14 @@ pub mod test {
     use dag;
     use dag::ObjectCommon;
     use dag::ReadObjectContent;
+    use error::*;
     use rollinghash;
     use std::fs;
     use std::io;
     use super::*;
     use testutil;
 
-    fn create_temp_repository
-        ()
-        -> io::Result<(testutil::TempDir, ObjectStore)>
-    {
+    fn create_temp_repository() -> Result<(testutil::TempDir, ObjectStore)> {
         let wd_temp = try!(testutil::in_mem_tempdir("test_directory"));
         let wd_path = wd_temp.path().to_path_buf();
         try!(fs::create_dir_all(&wd_path));
