@@ -32,24 +32,23 @@ pub fn hash_object(repo_path: path::PathBuf,
 }
 
 pub fn show_object(repo_path: path::PathBuf, hash: &str) -> Result<()> {
-    let hash = dag::ObjectKey::from_hex(hash).expect("parse key");
 
+    let hash = try!(dag::ObjectKey::from_hex(hash));
     let objectstore = try!(objectstore::ObjectStore::open(repo_path));
 
     if !objectstore.has_object(&hash) {
         println!("No such object");
     } else {
-        let mut reader = io::BufReader::new(objectstore.open_object_file(&hash)
-            .expect("read object"));
-        let header = dag::ObjectHeader::read_from(&mut reader)
-            .expect("read header");
+        let reader = try!(objectstore.open_object_file(&hash));
+        let mut reader = io::BufReader::new(reader);
+
+        let header = try!(dag::ObjectHeader::read_from(&mut reader));
         match header.object_type {
             dag::ObjectType::Blob => {
                 println!("{}", header);
             }
             _ => {
-                let object = header.read_content(&mut reader)
-                    .expect("read content");
+                let object = try!(header.read_content(&mut reader));
                 println!("{}", object.pretty_print());
             }
         }
@@ -59,8 +58,7 @@ pub fn show_object(repo_path: path::PathBuf, hash: &str) -> Result<()> {
 
 pub fn cache_status(file_path: path::PathBuf) -> Result<()> {
     let (cache_status, _cache, _basename, _file_stats) =
-        cache::HashCacheFile::open_and_check_file(&file_path)
-            .expect("could not check file cache status");
+        try!(cache::HashCacheFile::open_and_check_file(&file_path));
 
     println!("{:?}", cache_status);
     Ok(())
