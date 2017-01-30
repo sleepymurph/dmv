@@ -1,4 +1,3 @@
-use cache;
 use constants;
 use dag;
 use error::*;
@@ -12,7 +11,6 @@ use std::path;
 pub struct WorkDir {
     path: path::PathBuf,
     current_branch: Option<dag::ObjectKey>,
-    cache: cache::HashCache,
     pub objectstore: objectstore::ObjectStore,
 }
 
@@ -26,7 +24,6 @@ impl WorkDir {
         let wd = WorkDir {
             path: wd_path,
             current_branch: None,
-            cache: cache::HashCache::new(),
             objectstore: os,
         };
 
@@ -41,7 +38,6 @@ impl WorkDir {
         let wd = WorkDir {
             path: wd_path,
             current_branch: None,
-            cache: cache::HashCache::new(),
             objectstore: os,
         };
 

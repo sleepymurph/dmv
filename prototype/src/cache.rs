@@ -47,10 +47,8 @@ pub struct FileStats {
 
 /// A file-backed cache that saves updates on drop
 pub struct HashCacheFile {
-    /// Path to the file that stores the cache
+    /// Path to the file that backs this cache
     cache_file_path: path::PathBuf,
-    /// Open File object that stores the cache
-    cache_file: fs::File,
     /// The cache map itself
     cache: HashCache,
 }
@@ -149,13 +147,11 @@ impl HashCacheFile {
     pub fn open(cache_file_path: path::PathBuf) -> Result<Self> {
         let cache_file_exists = cache_file_path.exists();
 
-        let mut cache_file = try!(fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(&cache_file_path));
-
         let cache_map = if cache_file_exists {
+            let mut cache_file = try!(fs::OpenOptions::new()
+                .read(true)
+                .open(&cache_file_path));
+
             let mut json_str = String::new();
             try!(cache_file.read_to_string(&mut json_str));
             try!(json::decode(&json_str).map_err(|e| {
@@ -171,7 +167,6 @@ impl HashCacheFile {
 
         Ok(HashCacheFile {
             cache_file_path: cache_file_path,
-            cache_file: cache_file,
             cache: HashCache(cache_map),
         })
     }
@@ -202,9 +197,15 @@ impl HashCacheFile {
                 bad_cache: self.cache.clone(),
             }
         }));
-        try!(self.cache_file.seek(io::SeekFrom::Start(0)));
-        try!(self.cache_file.set_len(0));
-        try!(self.cache_file.write_all(encoded.as_bytes()));
+
+        let mut cache_file = try!(fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&self.cache_file_path));
+
+        try!(cache_file.seek(io::SeekFrom::Start(0)));
+        try!(cache_file.set_len(0));
+        try!(cache_file.write_all(encoded.as_bytes()));
         Ok(())
     }
 }

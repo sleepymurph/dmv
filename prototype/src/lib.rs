@@ -1,7 +1,5 @@
 //! Library for master's thesis prototype
 
-#![allow(dead_code)]
-
 extern crate byteorder;
 #[macro_use]
 extern crate error_chain;
