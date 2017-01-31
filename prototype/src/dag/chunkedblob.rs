@@ -11,6 +11,7 @@ pub struct ChunkedBlob {
     pub chunks: Vec<ChunkOffset>,
 }
 
+/// An individual record inside a ChunkedBlob
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct ChunkOffset {
     pub offset: ObjectSize,

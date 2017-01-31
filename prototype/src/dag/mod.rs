@@ -170,6 +170,9 @@ pub trait ObjectCommon {
 }
 
 /// Common read operation for all dag object types
+///
+/// This trait is separate from `ObjectCommon` so that `ObjectCommon` can be
+/// used as a trait object.
 pub trait ReadObjectContent: Sized {
     /// Read and parse content bytes from reader (after header)
     fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self>;
@@ -205,6 +208,25 @@ impl From<Commit> for Object {
     fn from(o: Commit) -> Self { Object::Commit(o) }
 }
 
+/// An object that can be wrapped in an Object enum
+///
+/// From is already implemented for the different object types, but this trait
+/// provides a convenient `as_object` chain method.
+///
+/// ```
+/// extern crate prototypelib;
+/// use prototypelib::dag;
+/// use prototypelib::dag::AsObject;
+///
+/// fn main() {
+///     let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
+///
+///     let object_by_from = dag::Object::from(blob.clone());
+///     let object_by_chain = blob.clone().as_object();
+///
+///     assert_eq!(object_by_from, object_by_chain);
+/// }
+/// ```
 pub trait AsObject {
     fn as_object(self) -> Object;
 }
@@ -259,6 +281,25 @@ impl<O: Into<Object>> From<O> for HashedObject {
     }
 }
 
+/// An object that can be hashed to yield a HashedObject
+///
+/// From is already implemented for the different object types, but this trait
+/// provides a convenient `as_hashed` chain method.
+///
+/// ```
+/// extern crate prototypelib;
+/// use prototypelib::dag;
+/// use prototypelib::dag::AsHashed;
+///
+/// fn main() {
+///     let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
+///
+///     let hashed_by_from = dag::HashedObject::from(blob.clone());
+///     let hashed_by_chain = blob.clone().as_hashed();
+///
+///     assert_eq!(hashed_by_from, hashed_by_chain);
+/// }
+/// ```
 pub trait AsHashed {
     fn as_hashed(self) -> HashedObject;
 }

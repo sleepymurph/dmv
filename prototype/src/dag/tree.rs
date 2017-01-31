@@ -11,7 +11,7 @@ type PathMapIter<'a> = collections::btree_map::Iter<'a,
                                                     path::PathBuf,
                                                     ObjectKey>;
 
-/// A large blob made of many smaller chunks
+/// The state of a directory
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct Tree {
     entries: PathMap,

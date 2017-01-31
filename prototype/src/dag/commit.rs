@@ -2,7 +2,7 @@ use error::*;
 use std::io;
 use super::*;
 
-/// A large blob made of many smaller chunks
+/// A commit object: a Tree with parents and other metadata
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct Commit {
     pub tree: ObjectKey,
