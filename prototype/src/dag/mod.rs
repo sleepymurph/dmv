@@ -10,7 +10,6 @@ use std::fmt;
 use std::io;
 use std::ops::Deref;
 
-#[macro_use]
 mod hash;
 pub use self::hash::*;
 

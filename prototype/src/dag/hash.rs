@@ -76,10 +76,11 @@ impl ObjectKey {
     }
 }
 
-#[macro_export]
-macro_rules! objectkey_hex {
-    ($hex:expr) => { $crate::dag::ObjectKey::from_hex($hex).unwrap() }
-}
+/// Convenience function to parse and unwrap a hex hash
+///
+/// Not for use in production code.
+#[cfg(test)]
+pub fn parse_hash(s: &str) -> ObjectKey { ObjectKey::from_hex(s).unwrap() }
 
 impl fmt::LowerHex for ObjectKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -179,8 +180,8 @@ mod test {
     fn test_key_hex_conversions() {
         let hex = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
         let upperhex = hex.to_uppercase();
-        let key = objectkey_hex!(hex);
-        let upperkey = objectkey_hex!(&upperhex);
+        let key = parse_hash(hex);
+        let upperkey = parse_hash(&upperhex);
 
         assert_eq!(upperkey, key, "Parse upper hex vs lower hex");
         assert_eq!(format!("{}", key), hex, "Display mismatch");
@@ -234,7 +235,7 @@ mod test {
 
     #[test]
     fn test_serialize_objectkey() {
-        let obj = objectkey_hex!("d3486ae9136e7856bc42212385ea797094475802");
+        let obj = parse_hash("d3486ae9136e7856bc42212385ea797094475802");
         let encoded = json::encode(&obj).unwrap();
         assert_eq!(encoded, "\"d3486ae9136e7856bc42212385ea797094475802\"");
         let decoded: ObjectKey = json::decode(&encoded).unwrap();
