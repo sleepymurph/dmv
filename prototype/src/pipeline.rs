@@ -1,4 +1,5 @@
 use cache::AllCaches;
+use cache::FileStats;
 use dag::ObjectKey;
 use error::*;
 use objectstore::ObjectStore;
@@ -26,17 +27,17 @@ pub fn hash_file(file_path: path::PathBuf,
                  -> Result<ObjectKey> {
 
     let file = try!(File::open(&file_path));
-    let metadata = try!(file.metadata());
+    let file_stats = FileStats::from(file.metadata()?);
     let file = BufReader::new(file);
 
-    return_if_cached!(cache.check(&file_path));
+    return_if_cached!(cache.check_with(&file_path, &file_stats));
 
     let mut last_hash = ObjectKey::zero();
     for object in read_file_objects(file) {
         last_hash = try!(object_store.store_object(&object?));
     }
 
-    try!(cache.insert(file_path, metadata.into(), last_hash.clone()));
+    try!(cache.insert(file_path, file_stats, last_hash.clone()));
 
     Ok(last_hash)
 }
