@@ -195,6 +195,20 @@ impl Object {
     pub fn blob_from_vec(v: Vec<u8>) -> Self { Object::Blob(Blob::from(v)) }
 }
 
+impl From<Blob> for Object {
+    fn from(o: Blob) -> Self { Object::Blob(o) }
+}
+impl From<ChunkedBlob> for Object {
+    fn from(o: ChunkedBlob) -> Self { Object::ChunkedBlob(o) }
+}
+impl From<Tree> for Object {
+    fn from(o: Tree) -> Self { Object::Tree(o) }
+}
+impl From<Commit> for Object {
+    fn from(o: Commit) -> Self { Object::Commit(o) }
+}
+
+
 impl ops::Deref for Object {
     type Target = ObjectCommon;
     fn deref(&self) -> &Self::Target {
@@ -223,5 +237,56 @@ impl ObjectCommon for Object {
     fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
         self.deref().write_content(writer)
     }
+    fn pretty_print(&self) -> String { self.deref().pretty_print() }
+}
+
+
+/// An object and its corresponding known hash
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+pub struct HashedObject {
+    hash: ObjectKey,
+    object: Object,
+}
+
+impl_deref!(HashedObject => Object, object);
+
+impl From<Object> for HashedObject {
+    fn from(obj: Object) -> Self {
+        HashedObject {
+            hash: obj.calculate_hash(),
+            object: obj,
+        }
+    }
+}
+impl From<Blob> for HashedObject {
+    fn from(o: Blob) -> Self { Object::Blob(o).into() }
+}
+impl From<ChunkedBlob> for HashedObject {
+    fn from(o: ChunkedBlob) -> Self { Object::ChunkedBlob(o).into() }
+}
+impl From<Tree> for HashedObject {
+    fn from(o: Tree) -> Self { Object::Tree(o).into() }
+}
+impl From<Commit> for HashedObject {
+    fn from(o: Commit) -> Self { Object::Commit(o).into() }
+}
+
+impl HashedObject {
+    pub fn blob_from_vec(v: Vec<u8>) -> Self { Blob::from(v).into() }
+    /// Get the object's hash
+    pub fn hash(&self) -> &ObjectKey { &self.hash }
+    /// Get the object itself. Also available via Deref
+    pub fn object(&self) -> &Object { &self.object }
+    /// Unwrap and return as (key,object) tuple
+    pub fn as_kv(self) -> (ObjectKey, Object) { (self.hash, self.object) }
+}
+
+impl ObjectCommon for HashedObject {
+    fn object_type(&self) -> ObjectType { self.deref().object_type() }
+    fn content_size(&self) -> ObjectSize { self.deref().content_size() }
+    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
+        self.deref().write_content(writer)
+    }
+    fn calculate_hash(&self) -> ObjectKey { self.hash().to_owned() }
     fn pretty_print(&self) -> String { self.deref().pretty_print() }
 }

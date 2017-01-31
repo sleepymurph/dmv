@@ -36,8 +36,11 @@ impl ChunkedBlob {
         self.total_size += size;
     }
 
-    pub fn add_blob(&mut self, blob: &super::Blob) {
-        self.add_chunk(blob.content_size(), blob.calculate_hash())
+    pub fn add_blob(&mut self, blob: &super::HashedObject) {
+        assert_eq!(blob.object_type(),
+                   super::ObjectType::Blob,
+                   "only blobs may be added to chunked blobs");
+        self.add_chunk(blob.content_size(), blob.hash().clone())
     }
 
     fn content_size(&self) -> ObjectSize {
@@ -160,7 +163,7 @@ mod test {
             let mut chunk_read =
                 rollinghash::ChunkReader::wrap(rand_bytes.as_slice());
             for chunk in &mut chunk_read {
-                let blob = Blob::from_vec(chunk.expect("chunk"));
+                let blob = Blob::from(chunk.expect("chunk"));
                 let hash = blob.write_to(&mut io::sink()).expect("write chunk");
                 chunkedblob.add_chunk(blob.content_size(), hash);
                 chunk_store.insert(hash, blob);

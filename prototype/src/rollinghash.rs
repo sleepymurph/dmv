@@ -187,12 +187,12 @@ impl<R: BufRead> Iterator for ChunkReader<R> {
 /// ```
 /// extern crate prototypelib;
 /// use prototypelib::rollinghash::read_file_objects;
-/// use prototypelib::dag::Object;
+/// use prototypelib::dag::HashedObject;
 /// use std::io::BufReader;
 ///
 /// fn main() {
 ///     let file = b"Hello world!".as_ref();
-///     let mut objects = Vec::<Object>::new();
+///     let mut objects = Vec::<HashedObject>::new();
 ///     for object in read_file_objects(BufReader::new(file)) {
 ///         objects.push(object.unwrap());
 ///     }
@@ -220,18 +220,22 @@ impl<R: BufRead> ObjectReader<R> {
 }
 
 impl<R: BufRead> Iterator for ObjectReader<R> {
-    type Item = Result<dag::Object>;
+    type Item = Result<dag::HashedObject>;
+
     fn next(&mut self) -> Option<Self::Item> {
+        use dag::HashedObject;
+
         let next_chunk = self.chunker.next();
         match next_chunk {
             Some(Err(e)) => Some(Err(e)), // Error: Just pass it on
             Some(Ok(chunk)) => {
                 // Valid chunk: Wrap as a blob, add to index, and pass on
-                let blob = dag::Blob::from_vec(chunk);
-                if let Some(ref mut index) = self.chunk_index {
-                    index.add_blob(&blob);
+                let hashed = HashedObject::blob_from_vec(chunk);
+                match self.chunk_index {
+                    Some(ref mut index) => index.add_blob(&hashed),
+                    None => unreachable!(),
                 }
-                Some(Ok(dag::Object::Blob(blob)))
+                Some(Ok(hashed))
             }
             None => {
                 // End of chunks
@@ -241,13 +245,13 @@ impl<R: BufRead> Iterator for ObjectReader<R> {
                         // Chunks finished, but index pending
                         if index.chunks.len() == 0 {
                             // Zero chunks, file was empty: Emit one empty blob
-                            Some(Ok(dag::Object::blob_from_vec(Vec::new())))
+                            Some(Ok(HashedObject::blob_from_vec(Vec::new())))
                         } else if index.chunks.len() == 1 {
                             // Just one chunk: End without index
                             None
                         } else {
                             // Multiple chunks: Emit index object
-                            Some(Ok(dag::Object::ChunkedBlob(index)))
+                            Some(Ok(HashedObject::from(index)))
                         }
                     }
                 }
@@ -408,7 +412,7 @@ mod test {
 
         let obj = object_read.next().expect("Some").expect("Ok");
         assert_eq!(obj,
-                   dag::Object::blob_from_vec(Vec::new()),
+                   dag::HashedObject::blob_from_vec(Vec::new()),
                    "first object should be an empty Blob");
 
         let obj = object_read.next();
@@ -423,7 +427,7 @@ mod test {
 
         let obj = object_read.next().expect("Some").expect("Ok");
         assert_eq!(obj,
-                   dag::Object::blob_from_vec(input_bytes.clone()),
+                   dag::HashedObject::blob_from_vec(input_bytes.clone()),
                    "first object should be a blob containing the entire file");
 
         let obj = object_read.next();
@@ -472,8 +476,9 @@ mod test {
         let mut last_key = dag::ObjectKey::zero();
         for obj in object_read {
             let obj = obj.unwrap();
-            last_key = obj.calculate_hash();
-            object_store.insert(last_key, obj);
+            let (k, v) = obj.as_kv();
+            object_store.insert(k, v);
+            last_key = k;
         }
         last_key
     }

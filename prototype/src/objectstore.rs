@@ -48,6 +48,12 @@ impl ObjectStore {
                         obj: &dag::ObjectCommon)
                         -> Result<dag::ObjectKey> {
 
+        // If object already exists, no need to store
+        let key = obj.calculate_hash();
+        if self.has_object(&key) {
+            return Ok(key);
+        }
+
         // Create temporary file
         let temp_path = self.path.join("tmp");
         try!(fsutil::create_parents(&temp_path));

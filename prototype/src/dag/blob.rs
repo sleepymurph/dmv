@@ -13,12 +13,10 @@ pub struct Blob {
 }
 
 impl From<Vec<u8>> for Blob {
-    fn from(v: Vec<u8>) -> Blob { Blob::from_vec(v) }
+    fn from(v: Vec<u8>) -> Blob { Blob { content: v } }
 }
 
 impl Blob {
-    pub fn from_vec(v: Vec<u8>) -> Blob { Blob { content: v } }
-
     pub fn content(&self) -> &Vec<u8> { &self.content }
 }
 
@@ -57,7 +55,7 @@ mod test {
         // Construct object
         let content = b"Hello world!";
         let content_size = content.len() as ObjectSize;
-        let blob = Blob::from_vec(content.to_vec());
+        let blob = Blob::from(content.to_vec());
 
         // Write out
         let mut output: Vec<u8> = Vec::new();
