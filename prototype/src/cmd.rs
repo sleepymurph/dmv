@@ -1,25 +1,25 @@
 //! High-level commands
 
-use cache;
-use dag;
+use cache::AllCaches;
 use dag::ObjectCommon;
+use dag::ObjectHeader;
+use dag::ObjectKey;
+use dag::ObjectType;
 use error::*;
-use objectstore;
+use objectstore::ObjectStore;
 use pipeline;
-use std::io;
-use std::path;
+use std::io::BufReader;
+use std::path::PathBuf;
 
-pub fn init(repo_path: path::PathBuf) -> Result<()> {
-    try!(objectstore::ObjectStore::init(repo_path));
+pub fn init(repo_path: PathBuf) -> Result<()> {
+    try!(ObjectStore::init(repo_path));
     Ok(())
 }
 
-pub fn hash_object(repo_path: path::PathBuf,
-                   file_path: path::PathBuf)
-                   -> Result<()> {
+pub fn hash_object(repo_path: PathBuf, file_path: PathBuf) -> Result<()> {
 
-    let mut objectstore = try!(objectstore::ObjectStore::open(repo_path));
-    let mut cache = cache::AllCaches::new();
+    let mut objectstore = try!(ObjectStore::open(repo_path));
+    let mut cache = AllCaches::new();
 
     let hash;
     if file_path.is_file() {
@@ -36,20 +36,20 @@ pub fn hash_object(repo_path: path::PathBuf,
     Ok(())
 }
 
-pub fn show_object(repo_path: path::PathBuf, hash: &str) -> Result<()> {
+pub fn show_object(repo_path: PathBuf, hash: &str) -> Result<()> {
 
-    let hash = try!(dag::ObjectKey::from_hex(hash));
-    let objectstore = try!(objectstore::ObjectStore::open(repo_path));
+    let hash = try!(ObjectKey::from_hex(hash));
+    let objectstore = try!(ObjectStore::open(repo_path));
 
     if !objectstore.has_object(&hash) {
         println!("No such object");
     } else {
         let reader = try!(objectstore.open_object_file(&hash));
-        let mut reader = io::BufReader::new(reader);
+        let mut reader = BufReader::new(reader);
 
-        let header = try!(dag::ObjectHeader::read_from(&mut reader));
+        let header = try!(ObjectHeader::read_from(&mut reader));
         match header.object_type {
-            dag::ObjectType::Blob => {
+            ObjectType::Blob => {
                 println!("{}", header);
             }
             _ => {
@@ -61,8 +61,8 @@ pub fn show_object(repo_path: path::PathBuf, hash: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn cache_status(file_path: path::PathBuf) -> Result<()> {
-    let mut cache = cache::AllCaches::new();
+pub fn cache_status(file_path: PathBuf) -> Result<()> {
+    let mut cache = AllCaches::new();
     let cache_status = try!(cache.check(&file_path));
     println!("{:?}", cache_status);
     Ok(())
