@@ -14,6 +14,7 @@ pub mod encodable;
 pub mod constants;
 pub mod rollinghash;
 pub mod testutil;
+#[macro_use]
 pub mod dag;
 pub mod objectstore;
 pub mod fsutil;

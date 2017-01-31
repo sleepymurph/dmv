@@ -26,6 +26,20 @@ impl Tree {
     pub fn len(&self) -> usize { self.entries.len() }
 }
 
+#[macro_export]
+macro_rules! tree_object {
+    ( $( $path:expr => $hash:expr, )* ) => {
+        {
+            let mut tree = $crate::dag::Tree::new();
+            $(
+                tree.insert(::std::path::PathBuf::from($path),
+                            $crate::dag::ObjectKey::from($hash));
+            )*
+            tree
+        }
+    }
+}
+
 const TREE_ENTRY_SEPARATOR: u8 = b'\n';
 
 impl ObjectCommon for Tree {
@@ -155,7 +169,6 @@ impl UnhashedPath {
 mod test {
 
     use std::io;
-    use std::path::PathBuf;
     use super::super::*;
     use testutil;
 
@@ -169,8 +182,9 @@ mod test {
         // Construct object
         let mut rng = testutil::RandBytes::new();
 
-        let mut object = Tree::new();
-        object.insert(PathBuf::from("foo"), random_hash(&mut rng));
+        let object = tree_object!{
+            "foo" => random_hash(&mut rng),
+        };
 
         // Write out
         let mut output: Vec<u8> = Vec::new();
@@ -198,10 +212,11 @@ mod test {
 
     #[test]
     fn test_tree_sort_by_name() {
-        let mut tree = Tree::new();
-        tree.insert(PathBuf::from("foo"), shortkey(0));
-        tree.insert(PathBuf::from("bar"), shortkey(2));
-        tree.insert(PathBuf::from("baz"), shortkey(1));
+        let tree = tree_object!{
+            "foo" => shortkey(0),
+            "bar" => shortkey(2),
+            "baz" => shortkey(1),
+        };
 
         let names: Vec<String> = tree.iter()
             .map(|ent| ent.0.to_str().unwrap().to_string())

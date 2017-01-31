@@ -19,6 +19,7 @@ pub use self::blob::*;
 mod chunkedblob;
 pub use self::chunkedblob::*;
 
+#[macro_use]
 mod tree;
 pub use self::tree::*;
 
