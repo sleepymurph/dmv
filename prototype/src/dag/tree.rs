@@ -2,29 +2,26 @@ use error::*;
 use humanreadable;
 use std::collections;
 use std::io;
-use std::path;
-
+use std::path::PathBuf;
 use super::*;
 
-type PathMap = collections::BTreeMap<path::PathBuf, ObjectKey>;
-type PathMapIter<'a> = collections::btree_map::Iter<'a,
-                                                    path::PathBuf,
-                                                    ObjectKey>;
+type PathKeyMap = collections::BTreeMap<PathBuf, ObjectKey>;
+type PathKeyMapIter<'a> = collections::btree_map::Iter<'a, PathBuf, ObjectKey>;
 
-/// The state of a directory
+/// DAG Object representing a directory
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct Tree {
-    entries: PathMap,
+    entries: PathKeyMap,
 }
 
 impl Tree {
-    pub fn new() -> Self { Tree { entries: PathMap::new() } }
+    pub fn new() -> Self { Tree { entries: PathKeyMap::new() } }
 
-    pub fn insert(&mut self, name: path::PathBuf, hash: ObjectKey) {
+    pub fn insert(&mut self, name: PathBuf, hash: ObjectKey) {
         self.entries.insert(name, hash);
     }
 
-    pub fn iter(&self) -> PathMapIter { self.entries.iter() }
+    pub fn iter(&self) -> PathKeyMapIter { self.entries.iter() }
 
     pub fn len(&self) -> usize { self.entries.len() }
 
@@ -92,10 +89,71 @@ impl ReadObjectContent for Tree {
             try!(reader.read_until(TREE_ENTRY_SEPARATOR, &mut name_buf));
             name_buf.pop(); // Drop the string-ending separator
             let name = String::from_utf8(name_buf.clone()).unwrap();
-            let name = path::PathBuf::from(&name);
+            let name = PathBuf::from(&name);
             tree.insert(name, hash);
         }
         Ok(tree)
+    }
+}
+
+
+type UnhashedMap = collections::BTreeMap<PathBuf, UnhashedPath>;
+
+/// An incomplete Tree object that requires some files to be hashed
+pub struct PartialTree {
+    tree: Tree,
+    unhashed: UnhashedMap,
+    unhashed_size: ObjectSize,
+}
+
+pub enum UnhashedPath {
+    File(ObjectSize),
+    Dir(PartialTree),
+}
+
+impl PartialTree {
+    pub fn new() -> Self { PartialTree::from(Tree::new()) }
+    pub fn unhashed_size(&self) -> ObjectSize { self.unhashed_size }
+
+    pub fn insert_hash(&mut self, path: PathBuf, hash: ObjectKey) {
+        if let Some(u) = self.unhashed.remove(&path) {
+            self.unhashed_size -= u.unhashed_size();
+        }
+        self.tree.insert(path, hash);
+    }
+
+    pub fn insert_unhashed(&mut self, path: PathBuf, unknown: UnhashedPath) {
+        self.unhashed_size += unknown.unhashed_size();
+        self.unhashed.insert(path, unknown);
+    }
+
+    pub fn insert_unhashed_file(&mut self, path: PathBuf, s: ObjectSize) {
+        self.insert_unhashed(path, UnhashedPath::File(s))
+    }
+
+    pub fn insert_unhashed_dir(&mut self, path: PathBuf, p: PartialTree) {
+        self.insert_unhashed(path, UnhashedPath::Dir(p))
+    }
+
+    pub fn unhashed(&self) -> &UnhashedMap { &self.unhashed }
+}
+
+impl From<Tree> for PartialTree {
+    fn from(t: Tree) -> Self {
+        PartialTree {
+            tree: t,
+            unhashed: UnhashedMap::new(),
+            unhashed_size: 0,
+        }
+    }
+}
+
+impl UnhashedPath {
+    pub fn unhashed_size(&self) -> ObjectSize {
+        match *self {
+            UnhashedPath::File(size) => size,
+            UnhashedPath::Dir(ref partial_tree) => partial_tree.unhashed_size(),
+        }
     }
 }
 
@@ -103,7 +161,7 @@ impl ReadObjectContent for Tree {
 mod test {
 
     use std::io;
-    use std::path;
+    use std::path::PathBuf;
     use super::super::*;
     use testutil;
 
@@ -118,7 +176,7 @@ mod test {
         let mut rng = testutil::RandBytes::new();
 
         let mut object = Tree::new();
-        object.insert(path::PathBuf::from("foo"), random_hash(&mut rng));
+        object.insert(PathBuf::from("foo"), random_hash(&mut rng));
 
         // Write out
         let mut output: Vec<u8> = Vec::new();
@@ -147,9 +205,9 @@ mod test {
     #[test]
     fn test_tree_sort_by_name() {
         let mut tree = Tree::new();
-        tree.insert(path::PathBuf::from("foo"), shortkey(0));
-        tree.insert(path::PathBuf::from("bar"), shortkey(2));
-        tree.insert(path::PathBuf::from("baz"), shortkey(1));
+        tree.insert(PathBuf::from("foo"), shortkey(0));
+        tree.insert(PathBuf::from("bar"), shortkey(2));
+        tree.insert(PathBuf::from("baz"), shortkey(1));
 
         let names: Vec<String> = tree.iter()
             .map(|ent| ent.0.to_str().unwrap().to_string())

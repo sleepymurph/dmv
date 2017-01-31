@@ -1,29 +1,31 @@
-use dag;
-use std::collections;
-use std::path;
+use dag::ObjectKey;
+use dag::ObjectSize;
+use dag::Tree;
+use std::collections::BTreeMap;
+use std::path::PathBuf;
 
-type ModifiedMap = collections::BTreeMap<path::PathBuf, PathStatus>;
+type ModifiedMap = BTreeMap<PathBuf, PathStatus>;
 
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct DirStatus {
-    known: dag::Tree,
+    known: Tree,
     modified: ModifiedMap,
-    to_hash_total_size: dag::ObjectSize,
+    to_hash_total_size: ObjectSize,
 }
 
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub enum PathStatus {
     /// Path (file or directory) matches commit
-    Known { hash: dag::ObjectKey },
+    Known { hash: ObjectKey },
     /// Path (file or directory) is in commit but missing from file system
     Deleted,
 
     /// File does not exist in the previous commit
-    NewFile { size: dag::ObjectSize },
+    NewFile { size: ObjectSize },
     /// File exists in commit and is modified on disk
-    ModifiedFile { size: dag::ObjectSize },
+    ModifiedFile { size: ObjectSize },
     /// File exists in commit and may be modified on disk, but test is expensive
-    UncachedFile { size: dag::ObjectSize },
+    UncachedFile { size: ObjectSize },
 
     /// Path is a directory that is modified
     ModifiedDir { status: DirStatus },
@@ -32,13 +34,13 @@ pub enum PathStatus {
 impl DirStatus {
     pub fn new() -> Self {
         DirStatus {
-            known: dag::Tree::new(),
+            known: Tree::new(),
             modified: ModifiedMap::new(),
             to_hash_total_size: 0,
         }
     }
 
-    pub fn insert(&mut self, name: path::PathBuf, status: PathStatus) {
+    pub fn insert(&mut self, name: PathBuf, status: PathStatus) {
         match status {
             PathStatus::Known { hash } => {
                 self.known.insert(name, hash);
@@ -60,9 +62,7 @@ impl DirStatus {
         };
     }
 
-    pub fn to_hash_total_size(&self) -> dag::ObjectSize {
-        self.to_hash_total_size
-    }
+    pub fn to_hash_total_size(&self) -> ObjectSize { self.to_hash_total_size }
 
     pub fn is_modified(&self) -> bool { self.modified.len() != 0 }
 }

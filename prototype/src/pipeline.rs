@@ -1,18 +1,21 @@
 use cache::AllCaches;
 use cache::FileStats;
 use dag::ObjectKey;
+use dag::PartialTree;
 use error::*;
 use objectstore::ObjectStore;
 use rollinghash::read_file_objects;
 use std::fs::File;
+use std::fs::read_dir;
 use std::io::BufReader;
-use std::path;
+use std::path::Path;
+use std::path::PathBuf;
 use walkdir;
 use walkdir::DirEntry;
 use walkdir::WalkDir;
 use walkdir::WalkDirIterator;
 
-pub fn dirs_depth_first(path: &path::Path)
+pub fn dirs_depth_first(path: &Path)
                         -> Box<Iterator<Item = walkdir::Result<DirEntry>>> {
 
     Box::new(WalkDir::new(path)
@@ -21,7 +24,7 @@ pub fn dirs_depth_first(path: &path::Path)
         .filter_entry(|d| d.file_type().is_dir()))
 }
 
-pub fn hash_file(file_path: path::PathBuf,
+pub fn hash_file(file_path: PathBuf,
                  cache: &mut AllCaches,
                  object_store: &mut ObjectStore)
                  -> Result<ObjectKey> {
@@ -40,6 +43,46 @@ pub fn hash_file(file_path: path::PathBuf,
     try!(cache.insert(file_path, file_stats, last_hash.clone()));
 
     Ok(last_hash)
+}
+
+/// Read filesystem to construct a PartialTree
+pub fn dir_to_partial_tree(dir_path: &Path,
+                           cache: &mut AllCaches)
+                           -> Result<PartialTree> {
+
+    if dir_path.is_dir() {
+        let mut partial = PartialTree::new();
+
+        for entry in try!(read_dir(dir_path)) {
+            let entry = try!(entry);
+
+            let ch_path = entry.path();
+            let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
+            let ch_metadata = try!(entry.metadata());
+
+            if ch_metadata.is_file() {
+
+                let file_size = ch_metadata.len();
+                use cache::CacheStatus::*;
+                match try!(cache.check_with(&ch_path, &ch_metadata.into())) {
+                    Cached { hash } => partial.insert_hash(ch_name, hash),
+                    _ => partial.insert_unhashed_file(ch_name, file_size),
+                };
+
+            } else if ch_metadata.is_dir() {
+
+                let subpartial = try!(dir_to_partial_tree(&ch_path, cache));
+                partial.insert_unhashed_dir(ch_name, subpartial);
+
+            } else {
+                unimplemented!()
+            }
+        }
+
+        Ok(partial)
+    } else {
+        bail!(ErrorKind::NotADirectory(dir_path.to_owned()))
+    }
 }
 
 #[cfg(test)]

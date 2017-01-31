@@ -24,6 +24,7 @@ error_chain!{
             description("bad object header")
             display("could not object header: {}", msg)
         }
+
         PathWithNoParent(p: ::std::path::PathBuf) {
             description("path has no parent")
             display("path has no parent: '{}'", p.display())
@@ -32,6 +33,11 @@ error_chain!{
             description("path has no file name component")
             display("path has no file name component: '{}'", p.display())
         }
+        NotADirectory(p: ::std::path::PathBuf) {
+            description("path is not a directory")
+            display("path is not a directory: '{}'", p.display())
+        }
+
         CorruptCacheFile{
             cache_file: ::std::path::PathBuf,
             cause: ::rustc_serialize::json::DecoderError,
