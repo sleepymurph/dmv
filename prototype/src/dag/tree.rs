@@ -18,21 +18,15 @@ pub struct Tree {
 }
 
 impl Tree {
-    pub fn new() -> Self {
-        Tree { entries: PathMap::new() }
-    }
+    pub fn new() -> Self { Tree { entries: PathMap::new() } }
 
     pub fn insert(&mut self, name: path::PathBuf, hash: ObjectKey) {
         self.entries.insert(name, hash);
     }
 
-    pub fn iter(&self) -> PathMapIter {
-        self.entries.iter()
-    }
+    pub fn iter(&self) -> PathMapIter { self.entries.iter() }
 
-    pub fn len(&self) -> usize {
-        self.entries.len()
-    }
+    pub fn len(&self) -> usize { self.entries.len() }
 
     pub fn tree_size(&self) -> ObjectSize {
         self.entries.iter().fold(0, |acc, x| {
@@ -44,9 +38,7 @@ impl Tree {
 const TREE_ENTRY_SEPARATOR: u8 = b'\n';
 
 impl ObjectCommon for Tree {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::Tree
-    }
+    fn object_type(&self) -> ObjectType { ObjectType::Tree }
     fn content_size(&self) -> ObjectSize {
         self.entries.iter().fold(0, |acc, x| {
             acc + KEY_SIZE_BYTES + x.0.as_os_str().len() + 1

@@ -62,9 +62,7 @@ pub struct AllCaches {
 // HashCache
 
 impl HashCache {
-    pub fn new() -> Self {
-        HashCache(CacheMap::new())
-    }
+    pub fn new() -> Self { HashCache(CacheMap::new()) }
 
     pub fn insert_entry(&mut self,
                         file_path: path::PathBuf,
@@ -211,9 +209,7 @@ impl HashCacheFile {
 }
 
 impl ops::Drop for HashCacheFile {
-    fn drop(&mut self) {
-        self.flush().expect("Could not flush hash file")
-    }
+    fn drop(&mut self) { self.flush().expect("Could not flush hash file") }
 }
 
 // AllCaches

@@ -50,9 +50,7 @@ impl ChunkedBlob {
 const CHUNK_RECORD_SIZE: usize = OBJECT_SIZE_BYTES * 2 + KEY_SIZE_BYTES;
 
 impl ObjectCommon for ChunkedBlob {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::ChunkedBlob
-    }
+    fn object_type(&self) -> ObjectType { ObjectType::ChunkedBlob }
     fn content_size(&self) -> ObjectSize {
         (OBJECT_SIZE_BYTES +
          self.chunks.len() *

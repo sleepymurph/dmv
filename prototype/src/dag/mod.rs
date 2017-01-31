@@ -192,9 +192,7 @@ impl Object {
         header.read_content(reader)
     }
 
-    pub fn blob_from_vec(v: Vec<u8>) -> Self {
-        Object::Blob(Blob::from(v))
-    }
+    pub fn blob_from_vec(v: Vec<u8>) -> Self { Object::Blob(Blob::from(v)) }
 }
 
 impl ops::Deref for Object {
@@ -220,16 +218,10 @@ impl ops::DerefMut for Object {
 }
 
 impl ObjectCommon for Object {
-    fn object_type(&self) -> ObjectType {
-        self.deref().object_type()
-    }
-    fn content_size(&self) -> ObjectSize {
-        self.deref().content_size()
-    }
+    fn object_type(&self) -> ObjectType { self.deref().object_type() }
+    fn content_size(&self) -> ObjectSize { self.deref().content_size() }
     fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
         self.deref().write_content(writer)
     }
-    fn pretty_print(&self) -> String {
-        self.deref().pretty_print()
-    }
+    fn pretty_print(&self) -> String { self.deref().pretty_print() }
 }

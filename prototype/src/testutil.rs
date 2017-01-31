@@ -27,9 +27,7 @@ impl RandBytes {
         RandBytes { rng: XorShiftRng::from_seed([255, 20, 110, 0]) }
     }
 
-    pub fn next(&mut self) -> u8 {
-        self.rng.gen()
-    }
+    pub fn next(&mut self) -> u8 { self.rng.gen() }
 
     pub fn next_many(&mut self, size: usize) -> Vec<u8> {
         let mut vec = Vec::new();
@@ -59,9 +57,7 @@ impl<'a> IntoIterator for &'a mut RandBytes {
     type Item = u8;
     type IntoIter = Generator<'a, u8, XorShiftRng>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.rng.gen_iter::<u8>()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.rng.gen_iter::<u8>() }
 }
 
 impl<'a> Read for RandBytesRead<'a> {

@@ -31,9 +31,7 @@ pub struct ObjectKey {
 
 impl ObjectKey {
     /// Creates a new all-zero key
-    pub fn zero() -> Self {
-        ObjectKey { hash: [0; KEY_SIZE_BYTES] }
-    }
+    pub fn zero() -> Self { ObjectKey { hash: [0; KEY_SIZE_BYTES] } }
 
     pub fn from_hex(hexstr: &str) -> Result<Self> {
         if hexstr.len() != KEY_SIZE_BYTES * 2 {
@@ -106,15 +104,11 @@ impl fmt::Display for ObjectKey {
 }
 
 impl convert::From<ObjectKey> for String {
-    fn from(key: ObjectKey) -> String {
-        format!("{}", key)
-    }
+    fn from(key: ObjectKey) -> String { format!("{}", key) }
 }
 
 impl AsRef<[u8]> for ObjectKey {
-    fn as_ref(&self) -> &[u8] {
-        &self.hash
-    }
+    fn as_ref(&self) -> &[u8] { &self.hash }
 }
 
 impl Encodable for ObjectKey {
@@ -159,9 +153,7 @@ impl<W: io::Write> io::Write for HashWriter<W> {
         self.hasher.input(&buf[0..count]);
         Ok(count)
     }
-    fn flush(&mut self) -> io::Result<()> {
-        self.writer.flush()
-    }
+    fn flush(&mut self) -> io::Result<()> { self.writer.flush() }
 }
 
 #[cfg(test)]

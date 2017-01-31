@@ -44,15 +44,11 @@ pub struct PathBuf(path::PathBuf);
 }
 
 impl From<ffi::OsString> for PathBuf {
-    fn from(s: ffi::OsString) -> Self {
-        PathBuf(s.into())
-    }
+    fn from(s: ffi::OsString) -> Self { PathBuf(s.into()) }
 }
 
 impl<'a, P: ?Sized + AsRef<path::Path>> From<&'a P> for PathBuf {
-    fn from(p: &'a P) -> Self {
-        PathBuf(p.as_ref().to_path_buf())
-    }
+    fn from(p: &'a P) -> Self { PathBuf(p.as_ref().to_path_buf()) }
 }
 
 impl Encodable for PathBuf {

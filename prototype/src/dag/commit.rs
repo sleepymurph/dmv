@@ -21,9 +21,7 @@ impl Commit {
 }
 
 impl ObjectCommon for Commit {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::Commit
-    }
+    fn object_type(&self) -> ObjectType { ObjectType::Commit }
     fn content_size(&self) -> ObjectSize {
         let content_size = OBJECT_SIZE_BYTES + 1 +
                            OBJECT_SIZE_BYTES * self.parents.len() +
@@ -42,9 +40,7 @@ impl ObjectCommon for Commit {
         Ok(())
     }
 
-    fn pretty_print(&self) -> String {
-        unimplemented!()
-    }
+    fn pretty_print(&self) -> String { unimplemented!() }
 }
 
 impl ReadObjectContent for Commit {

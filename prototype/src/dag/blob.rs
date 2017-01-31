@@ -13,28 +13,18 @@ pub struct Blob {
 }
 
 impl From<Vec<u8>> for Blob {
-    fn from(v: Vec<u8>) -> Blob {
-        Blob::from_vec(v)
-    }
+    fn from(v: Vec<u8>) -> Blob { Blob::from_vec(v) }
 }
 
 impl Blob {
-    pub fn from_vec(v: Vec<u8>) -> Blob {
-        Blob { content: v }
-    }
+    pub fn from_vec(v: Vec<u8>) -> Blob { Blob { content: v } }
 
-    pub fn content(&self) -> &Vec<u8> {
-        &self.content
-    }
+    pub fn content(&self) -> &Vec<u8> { &self.content }
 }
 
 impl ObjectCommon for Blob {
-    fn object_type(&self) -> ObjectType {
-        ObjectType::Blob
-    }
-    fn content_size(&self) -> ObjectSize {
-        self.content.len() as ObjectSize
-    }
+    fn object_type(&self) -> ObjectType { ObjectType::Blob }
+    fn content_size(&self) -> ObjectSize { self.content.len() as ObjectSize }
 
     fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
         try!(writer.write(&self.content));

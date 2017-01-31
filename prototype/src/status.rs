@@ -64,7 +64,5 @@ impl DirStatus {
         self.to_hash_total_size
     }
 
-    pub fn is_modified(&self) -> bool {
-        self.modified.len() != 0
-    }
+    pub fn is_modified(&self) -> bool { self.modified.len() != 0 }
 }

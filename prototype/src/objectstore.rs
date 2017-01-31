@@ -22,9 +22,7 @@ impl ObjectStore {
         Ok(ObjectStore { path: path })
     }
 
-    pub fn path(&self) -> &path::Path {
-        &self.path
-    }
+    pub fn path(&self) -> &path::Path { &self.path }
 
     fn object_path(&self, key: &dag::ObjectKey) -> path::PathBuf {
         let key = key.to_hex();

@@ -51,9 +51,7 @@ pub trait ResultInto<T, E> {
 impl<T, E> ResultInto<T, E> for ::std::result::Result<T, E>
     where E: Into<Error>
 {
-    fn err_into(self) -> Result<T> {
-        self.map_err(|e| e.into())
-    }
+    fn err_into(self) -> Result<T> { self.map_err(|e| e.into()) }
 }
 
 /// Extensions for Paths that work with these custom errors

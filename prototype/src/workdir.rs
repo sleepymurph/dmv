@@ -67,9 +67,7 @@ impl WorkDir {
         Self::find(&env::current_dir()?)
     }
 
-    pub fn path(&self) -> &path::Path {
-        &self.path
-    }
+    pub fn path(&self) -> &path::Path { &self.path }
 
     pub fn check_status(&self) -> Result<status::DirStatus> {
         let meta = try!(self.path.metadata());

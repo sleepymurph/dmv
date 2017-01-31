@@ -47,13 +47,9 @@ impl RollingHasher {
         }
     }
 
-    pub fn full(&self) -> bool {
-        self.full
-    }
+    pub fn full(&self) -> bool { self.full }
 
-    pub fn value(&self) -> RollingHashValue {
-        self.value
-    }
+    pub fn value(&self) -> RollingHashValue { self.value }
 }
 
 /// Target size for each chunk
