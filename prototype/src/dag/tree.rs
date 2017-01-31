@@ -24,12 +24,6 @@ impl Tree {
     pub fn iter(&self) -> PathKeyMapIter { self.entries.iter() }
 
     pub fn len(&self) -> usize { self.entries.len() }
-
-    pub fn tree_size(&self) -> ObjectSize {
-        self.entries.iter().fold(0, |acc, x| {
-            acc + KEY_SIZE_BYTES + x.0.as_os_str().len() + 1
-        }) as ObjectSize
-    }
 }
 
 const TREE_ENTRY_SEPARATOR: u8 = b'\n';
@@ -60,7 +54,7 @@ impl ObjectCommon for Tree {
 Object content size:    {:>10}
 
 ",
-               humanreadable::human_bytes(self.tree_size()))
+               humanreadable::human_bytes(self.content_size()))
             .unwrap();
 
         for entry in &self.entries {
