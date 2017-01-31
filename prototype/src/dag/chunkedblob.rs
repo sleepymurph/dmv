@@ -44,7 +44,7 @@ impl ChunkedBlob {
     /// reused.
     pub fn add_blob(&mut self, blob: Blob) -> HashedObject {
         let size = blob.content_size();
-        let hashed = blob.as_hashed();
+        let hashed = blob.to_hashed();
         self.add_chunk(size, hashed.hash().to_owned());
         hashed
     }

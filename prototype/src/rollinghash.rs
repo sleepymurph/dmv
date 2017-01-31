@@ -1,7 +1,7 @@
 //! Rolling hash implementations, used to break files into chunks
 
 use dag;
-use dag::AsHashed;
+use dag::ToHashed;
 use std::io::{BufRead, Result};
 
 /// The integer/byte type used to store a rolling hash's value
@@ -246,13 +246,13 @@ impl<R: BufRead> Iterator for ObjectReader<R> {
                         // Chunks finished, but index pending
                         if index.chunks.len() == 0 {
                             // Zero chunks, file was empty: Emit one empty blob
-                            Some(Ok(dag::Blob::empty().as_hashed()))
+                            Some(Ok(dag::Blob::empty().to_hashed()))
                         } else if index.chunks.len() == 1 {
                             // Just one chunk: End without index
                             None
                         } else {
                             // Multiple chunks: Emit index object
-                            Some(Ok(index.as_hashed()))
+                            Some(Ok(index.to_hashed()))
                         }
                     }
                 }
@@ -266,7 +266,7 @@ impl<R: BufRead> Iterator for ObjectReader<R> {
 mod test {
 
     use dag;
-    use dag::AsHashed;
+    use dag::ToHashed;
     use std::collections;
     use std::io;
     use std::io::Write;
@@ -414,7 +414,7 @@ mod test {
 
         let obj = object_read.next().expect("Some").expect("Ok");
         assert_eq!(obj,
-                   dag::Blob::empty().as_hashed(),
+                   dag::Blob::empty().to_hashed(),
                    "first object should be an empty Blob");
 
         let obj = object_read.next();
@@ -429,7 +429,7 @@ mod test {
 
         let obj = object_read.next().expect("Some").expect("Ok");
         assert_eq!(obj,
-                   dag::Blob::from(input_bytes.clone()).as_hashed(),
+                   dag::Blob::from(input_bytes.clone()).to_hashed(),
                    "first object should be a blob containing the entire file");
 
         let obj = object_read.next();
@@ -478,7 +478,7 @@ mod test {
         let mut last_key = dag::ObjectKey::zero();
         for obj in object_read {
             let obj = obj.unwrap();
-            let (k, v) = obj.as_kv();
+            let (k, v) = obj.to_kv();
             object_store.insert(k, v);
             last_key = k;
         }

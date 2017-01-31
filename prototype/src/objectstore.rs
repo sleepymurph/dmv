@@ -77,7 +77,7 @@ impl ObjectStore {
 #[cfg(test)]
 pub mod test {
     use dag;
-    use dag::AsHashed;
+    use dag::ToHashed;
     use error::*;
     use std::fs;
     use std::io;
@@ -99,7 +99,7 @@ pub mod test {
 
     #[test]
     fn test_store_and_retrieve() {
-        let obj = dag::Blob::from("Hello!").as_hashed();
+        let obj = dag::Blob::from("Hello!").to_hashed();
 
         let (_tempdir, mut store) = create_temp_repository().unwrap();
 

@@ -211,28 +211,28 @@ impl From<Commit> for Object {
 /// An object that can be wrapped in an Object enum
 ///
 /// From is already implemented for the different object types, but this trait
-/// provides a convenient `as_object` chain method.
+/// provides a convenient `to_object` chain method.
 ///
 /// ```
 /// extern crate prototypelib;
 /// use prototypelib::dag;
-/// use prototypelib::dag::AsObject;
+/// use prototypelib::dag::ToObject;
 ///
 /// fn main() {
 ///     let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
 ///
 ///     let object_by_from = dag::Object::from(blob.clone());
-///     let object_by_chain = blob.clone().as_object();
+///     let object_by_chain = blob.clone().to_object();
 ///
 ///     assert_eq!(object_by_from, object_by_chain);
 /// }
 /// ```
-pub trait AsObject {
-    fn as_object(self) -> Object;
+pub trait ToObject {
+    fn to_object(self) -> Object;
 }
 
-impl<O: Into<Object>> AsObject for O {
-    fn as_object(self) -> Object { self.into() }
+impl<O: Into<Object>> ToObject for O {
+    fn to_object(self) -> Object { self.into() }
 }
 
 macro_rules! for_all_object_types {
@@ -284,28 +284,28 @@ impl<O: Into<Object>> From<O> for HashedObject {
 /// An object that can be hashed to yield a HashedObject
 ///
 /// From is already implemented for the different object types, but this trait
-/// provides a convenient `as_hashed` chain method.
+/// provides a convenient `to_hashed` chain method.
 ///
 /// ```
 /// extern crate prototypelib;
 /// use prototypelib::dag;
-/// use prototypelib::dag::AsHashed;
+/// use prototypelib::dag::ToHashed;
 ///
 /// fn main() {
 ///     let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
 ///
 ///     let hashed_by_from = dag::HashedObject::from(blob.clone());
-///     let hashed_by_chain = blob.clone().as_hashed();
+///     let hashed_by_chain = blob.clone().to_hashed();
 ///
 ///     assert_eq!(hashed_by_from, hashed_by_chain);
 /// }
 /// ```
-pub trait AsHashed {
-    fn as_hashed(self) -> HashedObject;
+pub trait ToHashed {
+    fn to_hashed(self) -> HashedObject;
 }
 
-impl<O: Into<Object>> AsHashed for O {
-    fn as_hashed(self) -> HashedObject { HashedObject::from(self.into()) }
+impl<O: Into<Object>> ToHashed for O {
+    fn to_hashed(self) -> HashedObject { HashedObject::from(self.into()) }
 }
 
 impl HashedObject {
@@ -314,7 +314,7 @@ impl HashedObject {
     /// Get the object itself. Also available via Deref
     pub fn object(&self) -> &Object { &self.object }
     /// Unwrap and return as (key,object) tuple
-    pub fn as_kv(self) -> (ObjectKey, Object) { (self.hash, self.object) }
+    pub fn to_kv(self) -> (ObjectKey, Object) { (self.hash, self.object) }
 }
 
 impl ObjectCommon for HashedObject {
