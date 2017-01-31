@@ -149,6 +149,7 @@ impl ObjectStore {
 #[cfg(test)]
 pub mod test {
     use dag;
+    use dag::AsHashed;
     use dag::ObjectCommon;
     use dag::ReadObjectContent;
     use error::*;
@@ -170,31 +171,27 @@ pub mod test {
 
     #[test]
     fn test_store_and_retrieve() {
-        let obj = dag::Object::blob_from_vec("Hello!".as_bytes().to_owned());
-        let key = obj.calculate_hash();
+        let obj = dag::Blob::from("Hello!").as_hashed();
 
         let (_tempdir, mut store) = create_temp_repository().unwrap();
 
-        assert!(!store.has_object(&key),
+        assert!(!store.has_object(obj.hash()),
                 "Store should not have key at first");
 
         let stored_key = store.store_object(&obj).unwrap();
         assert_eq!(stored_key,
-                   key,
+                   *obj.hash(),
                    "Key when stored should be the same as given by \
                     calculate_hash");
         assert!(store.has_object(&stored_key),
-                "Store should report that key is
-        present");
+                "Store should report that key is present");
 
         let reader = store.open_object_file(&stored_key).unwrap();
         let retrieved = dag::Object::read_from(&mut io::BufReader::new(reader))
             .unwrap();
         assert_eq!(retrieved,
-                   obj,
-                   "Retrieved object should be the same as
-        stored \
-                    object");
+                   *obj,
+                   "Retrieved object should be the same as stored object");
     }
 
     #[test]

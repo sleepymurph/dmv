@@ -36,17 +36,16 @@ impl ChunkedBlob {
         self.total_size += size;
     }
 
-    pub fn add_blob(&mut self, blob: &super::HashedObject) {
-        assert_eq!(blob.object_type(),
-                   super::ObjectType::Blob,
-                   "only blobs may be added to chunked blobs");
-        self.add_chunk(blob.content_size(), blob.hash().clone())
-    }
-
-    fn content_size(&self) -> ObjectSize {
-        (OBJECT_SIZE_BYTES +
-         self.chunks.len() *
-         CHUNK_RECORD_SIZE) as ObjectSize
+    /// Add a blob to the chunk index
+    ///
+    /// Because adding the blob requires calculating the hash, we give the blob
+    /// back along with the hash, as a HashedObject. This way the hash can be
+    /// reused.
+    pub fn add_blob(&mut self, blob: Blob) -> HashedObject {
+        let size = blob.content_size();
+        let hashed = blob.as_hashed();
+        self.add_chunk(size, hashed.hash().to_owned());
+        hashed
     }
 }
 
@@ -54,6 +53,7 @@ const CHUNK_RECORD_SIZE: usize = OBJECT_SIZE_BYTES * 2 + KEY_SIZE_BYTES;
 
 impl ObjectCommon for ChunkedBlob {
     fn object_type(&self) -> ObjectType { ObjectType::ChunkedBlob }
+
     fn content_size(&self) -> ObjectSize {
         (OBJECT_SIZE_BYTES +
          self.chunks.len() *

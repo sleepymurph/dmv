@@ -1,6 +1,7 @@
 //! Rolling hash implementations, used to break files into chunks
 
 use dag;
+use dag::AsHashed;
 use std::io::{BufRead, Result};
 
 /// The integer/byte type used to store a rolling hash's value
@@ -223,19 +224,19 @@ impl<R: BufRead> Iterator for ObjectReader<R> {
     type Item = Result<dag::HashedObject>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use dag::HashedObject;
-
         let next_chunk = self.chunker.next();
         match next_chunk {
             Some(Err(e)) => Some(Err(e)), // Error: Just pass it on
             Some(Ok(chunk)) => {
                 // Valid chunk: Wrap as a blob, add to index, and pass on
-                let hashed = HashedObject::blob_from_vec(chunk);
                 match self.chunk_index {
-                    Some(ref mut index) => index.add_blob(&hashed),
-                    None => unreachable!(),
+                    Some(ref mut index) => {
+                        let blob = dag::Blob::from(chunk);
+                        let hashed = index.add_blob(blob);
+                        Some(Ok(hashed))
+                    }
+                    None => unreachable!(), // Index is not consumed until end
                 }
-                Some(Ok(hashed))
             }
             None => {
                 // End of chunks
@@ -245,13 +246,13 @@ impl<R: BufRead> Iterator for ObjectReader<R> {
                         // Chunks finished, but index pending
                         if index.chunks.len() == 0 {
                             // Zero chunks, file was empty: Emit one empty blob
-                            Some(Ok(HashedObject::blob_from_vec(Vec::new())))
+                            Some(Ok(dag::Blob::empty().as_hashed()))
                         } else if index.chunks.len() == 1 {
                             // Just one chunk: End without index
                             None
                         } else {
                             // Multiple chunks: Emit index object
-                            Some(Ok(HashedObject::from(index)))
+                            Some(Ok(index.as_hashed()))
                         }
                     }
                 }
@@ -265,6 +266,7 @@ impl<R: BufRead> Iterator for ObjectReader<R> {
 mod test {
 
     use dag;
+    use dag::AsHashed;
     use std::collections;
     use std::io;
     use std::io::Write;
@@ -412,7 +414,7 @@ mod test {
 
         let obj = object_read.next().expect("Some").expect("Ok");
         assert_eq!(obj,
-                   dag::HashedObject::blob_from_vec(Vec::new()),
+                   dag::Blob::empty().as_hashed(),
                    "first object should be an empty Blob");
 
         let obj = object_read.next();
@@ -427,7 +429,7 @@ mod test {
 
         let obj = object_read.next().expect("Some").expect("Ok");
         assert_eq!(obj,
-                   dag::HashedObject::blob_from_vec(input_bytes.clone()),
+                   dag::Blob::from(input_bytes.clone()).as_hashed(),
                    "first object should be a blob containing the entire file");
 
         let obj = object_read.next();

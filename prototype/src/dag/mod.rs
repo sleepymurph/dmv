@@ -8,7 +8,6 @@ use error::*;
 use humanreadable;
 use std::fmt;
 use std::io;
-use std::ops;
 use std::ops::Deref;
 
 mod hash;
@@ -191,8 +190,6 @@ impl Object {
         let header = try!(ObjectHeader::read_from(reader));
         header.read_content(reader)
     }
-
-    pub fn blob_from_vec(v: Vec<u8>) -> Self { Object::Blob(Blob::from(v)) }
 }
 
 impl From<Blob> for Object {
@@ -208,36 +205,38 @@ impl From<Commit> for Object {
     fn from(o: Commit) -> Self { Object::Commit(o) }
 }
 
-
-impl ops::Deref for Object {
-    type Target = ObjectCommon;
-    fn deref(&self) -> &Self::Target {
-        match *self {
-            Object::Blob(ref o) => o,
-            Object::ChunkedBlob(ref o) => o,
-            Object::Tree(ref o) => o,
-            Object::Commit(ref o) => o,
-        }
-    }
+pub trait AsObject {
+    fn as_object(self) -> Object;
 }
-impl ops::DerefMut for Object {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        match *self {
-            Object::Blob(ref mut o) => o,
-            Object::ChunkedBlob(ref mut o) => o,
-            Object::Tree(ref mut o) => o,
-            Object::Commit(ref mut o) => o,
+
+impl<O: Into<Object>> AsObject for O {
+    fn as_object(self) -> Object { self.into() }
+}
+
+macro_rules! for_all_object_types {
+    ($match_expr:expr, $inner_pat:pat, $return_expr:expr) => {
+        match $match_expr {
+            Object::Blob($inner_pat) => $return_expr,
+            Object::ChunkedBlob($inner_pat) => $return_expr,
+            Object::Tree($inner_pat) => $return_expr,
+            Object::Commit($inner_pat) => $return_expr,
         }
     }
 }
 
 impl ObjectCommon for Object {
-    fn object_type(&self) -> ObjectType { self.deref().object_type() }
-    fn content_size(&self) -> ObjectSize { self.deref().content_size() }
-    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
-        self.deref().write_content(writer)
+    fn object_type(&self) -> ObjectType {
+        for_all_object_types!(*self, ref o, o.object_type())
     }
-    fn pretty_print(&self) -> String { self.deref().pretty_print() }
+    fn content_size(&self) -> ObjectSize {
+        for_all_object_types!(*self, ref o, o.content_size())
+    }
+    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
+        for_all_object_types!(*self, ref o, o.write_content(writer))
+    }
+    fn pretty_print(&self) -> String {
+        for_all_object_types!(*self, ref o, o.pretty_print())
+    }
 }
 
 
@@ -250,29 +249,25 @@ pub struct HashedObject {
 
 impl_deref!(HashedObject => Object, object);
 
-impl From<Object> for HashedObject {
-    fn from(obj: Object) -> Self {
+impl<O: Into<Object>> From<O> for HashedObject {
+    fn from(obj: O) -> Self {
+        let obj = obj.into();
         HashedObject {
             hash: obj.calculate_hash(),
             object: obj,
         }
     }
 }
-impl From<Blob> for HashedObject {
-    fn from(o: Blob) -> Self { Object::Blob(o).into() }
+
+pub trait AsHashed {
+    fn as_hashed(self) -> HashedObject;
 }
-impl From<ChunkedBlob> for HashedObject {
-    fn from(o: ChunkedBlob) -> Self { Object::ChunkedBlob(o).into() }
-}
-impl From<Tree> for HashedObject {
-    fn from(o: Tree) -> Self { Object::Tree(o).into() }
-}
-impl From<Commit> for HashedObject {
-    fn from(o: Commit) -> Self { Object::Commit(o).into() }
+
+impl<O: Into<Object>> AsHashed for O {
+    fn as_hashed(self) -> HashedObject { HashedObject::from(self.into()) }
 }
 
 impl HashedObject {
-    pub fn blob_from_vec(v: Vec<u8>) -> Self { Blob::from(v).into() }
     /// Get the object's hash
     pub fn hash(&self) -> &ObjectKey { &self.hash }
     /// Get the object itself. Also available via Deref

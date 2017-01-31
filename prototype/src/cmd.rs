@@ -2,6 +2,7 @@
 
 use cache;
 use dag;
+use dag::ObjectCommon;
 use error::*;
 use objectstore;
 use std::io;

@@ -16,7 +16,13 @@ impl From<Vec<u8>> for Blob {
     fn from(v: Vec<u8>) -> Blob { Blob { content: v } }
 }
 
+#[cfg(test)]
+impl<'a> From<&'a str> for Blob {
+    fn from(s: &'a str) -> Blob { Blob { content: s.as_bytes().to_owned() } }
+}
+
 impl Blob {
+    pub fn empty() -> Self { Self::from(Vec::new()) }
     pub fn content(&self) -> &Vec<u8> { &self.content }
 }
 
