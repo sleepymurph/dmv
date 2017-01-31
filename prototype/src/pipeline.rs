@@ -22,7 +22,7 @@ pub fn dirs_depth_first(path: &path::Path)
 
 pub fn hash_file(file_path: path::PathBuf,
                  cache: &mut AllCaches,
-                 objectstore: &mut ObjectStore)
+                 object_store: &mut ObjectStore)
                  -> Result<ObjectKey> {
 
     let file = try!(File::open(&file_path));
@@ -38,7 +38,7 @@ pub fn hash_file(file_path: path::PathBuf,
     let mut last_hash = ObjectKey::zero();
 
     for object in read_file_objects(file) {
-        last_hash = try!(objectstore.store_object(&object?));
+        last_hash = try!(object_store.store_object(&object?));
     }
 
     try!(cache.insert(file_path, metadata.into(), last_hash.clone()));
@@ -63,14 +63,14 @@ mod test {
 
     #[test]
     fn test_hash_file_empty() {
-        let (temp, mut objectstore) = create_temp_repository().unwrap();
+        let (temp, mut object_store) = create_temp_repository().unwrap();
         let mut cache = AllCaches::new();
         let filepath = temp.path().join("foo");
         testutil::write_str_file(&filepath, "").unwrap();
 
-        let hash = hash_file(filepath, &mut cache, &mut objectstore).unwrap();
+        let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
-        let obj = objectstore.open_object_file(&hash).unwrap();
+        let obj = object_store.open_object_file(&hash).unwrap();
         let mut obj = BufReader::new(obj);
 
         let header = ObjectHeader::read_from(&mut obj).unwrap();
@@ -83,15 +83,15 @@ mod test {
 
     #[test]
     fn test_hash_file_small() {
-        let (temp, mut objectstore) = create_temp_repository().unwrap();
+        let (temp, mut object_store) = create_temp_repository().unwrap();
         let mut cache = AllCaches::new();
         let filepath = temp.path().join("foo");
 
         testutil::write_str_file(&filepath, "foo").unwrap();
 
-        let hash = hash_file(filepath, &mut cache, &mut objectstore).unwrap();
+        let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
-        let obj = objectstore.open_object_file(&hash).unwrap();
+        let obj = object_store.open_object_file(&hash).unwrap();
         let mut obj = BufReader::new(obj);
 
         let header = ObjectHeader::read_from(&mut obj).unwrap();
@@ -103,7 +103,7 @@ mod test {
 
     #[test]
     fn test_hash_file_chunked() {
-        let (temp, mut objectstore) = create_temp_repository().unwrap();
+        let (temp, mut object_store) = create_temp_repository().unwrap();
         let mut cache = AllCaches::new();
         let filepath = temp.path().join("foo");
         let filesize = 3 * CHUNK_TARGET_SIZE as u64;
@@ -111,9 +111,9 @@ mod test {
         let mut rng = testutil::RandBytes::new();
         rng.write_file(&filepath, filesize).unwrap();
 
-        let hash = hash_file(filepath, &mut cache, &mut objectstore).unwrap();
+        let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
-        let obj = objectstore.open_object_file(&hash).unwrap();
+        let obj = object_store.open_object_file(&hash).unwrap();
         let mut obj = BufReader::new(obj);
         let header = ObjectHeader::read_from(&mut obj).unwrap();
 
@@ -124,7 +124,7 @@ mod test {
         assert_eq!(chunked.chunks.len(), 5);
 
         for chunkrecord in chunked.chunks {
-            let obj = objectstore.open_object_file(&chunkrecord.hash).unwrap();
+            let obj = object_store.open_object_file(&chunkrecord.hash).unwrap();
             let mut obj = BufReader::new(obj);
             let header = ObjectHeader::read_from(&mut obj).unwrap();
             assert_eq!(header.object_type, ObjectType::Blob);
@@ -136,7 +136,7 @@ mod test {
 
     // #[test]
     // fn test_store_directory() {
-    // let (temp, mut objectstore) = create_temp_repository().unwrap();
+    // let (temp, mut object_store) = create_temp_repository().unwrap();
     // let mut rng = testutil::RandBytes::new();
     //
     // let wd_path = temp.path().join("dir_to_store");
@@ -147,9 +147,9 @@ mod test {
     // let filesize = 3 * CHUNK_TARGET_SIZE as u64;
     // rng.write_file(&wd_path.join("baz"), filesize).unwrap();
     //
-    // let hash = objectstore.store_directory(&wd_path).unwrap();
+    // let hash = object_store.store_directory(&wd_path).unwrap();
     //
-    // let obj = objectstore.open_object_file(&hash).unwrap();
+    // let obj = object_store.open_object_file(&hash).unwrap();
     // let mut obj = BufReader::new(obj);
     // let header = ObjectHeader::read_from(&mut obj).unwrap();
     //

@@ -11,7 +11,7 @@ use std::path;
 pub struct WorkDir {
     path: path::PathBuf,
     current_branch: Option<dag::ObjectKey>,
-    pub objectstore: objectstore::ObjectStore,
+    pub object_store: objectstore::ObjectStore,
 }
 
 impl WorkDir {
@@ -24,7 +24,7 @@ impl WorkDir {
         let wd = WorkDir {
             path: wd_path,
             current_branch: None,
-            objectstore: os,
+            object_store: os,
         };
 
         Ok(wd)
@@ -38,7 +38,7 @@ impl WorkDir {
         let wd = WorkDir {
             path: wd_path,
             current_branch: None,
-            objectstore: os,
+            object_store: os,
         };
 
         Ok(wd)
@@ -96,7 +96,7 @@ impl WorkDir {
                 let child = child?;
                 let subpath = child.path();
 
-                if subpath == self.objectstore.path() {
+                if subpath == self.object_store.path() {
                     continue;
                 }
 

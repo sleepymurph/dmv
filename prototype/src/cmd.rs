@@ -18,14 +18,14 @@ pub fn init(repo_path: PathBuf) -> Result<()> {
 
 pub fn hash_object(repo_path: PathBuf, file_path: PathBuf) -> Result<()> {
 
-    let mut objectstore = try!(ObjectStore::open(repo_path));
+    let mut object_store = try!(ObjectStore::open(repo_path));
     let mut cache = AllCaches::new();
 
     let hash;
     if file_path.is_file() {
         hash = try!(pipeline::hash_file(file_path.clone(),
                                         &mut cache,
-                                        &mut objectstore));
+                                        &mut object_store));
     } else if file_path.is_dir() {
         unimplemented!()
     } else {
@@ -39,12 +39,12 @@ pub fn hash_object(repo_path: PathBuf, file_path: PathBuf) -> Result<()> {
 pub fn show_object(repo_path: PathBuf, hash: &str) -> Result<()> {
 
     let hash = try!(ObjectKey::from_hex(hash));
-    let objectstore = try!(ObjectStore::open(repo_path));
+    let object_store = try!(ObjectStore::open(repo_path));
 
-    if !objectstore.has_object(&hash) {
+    if !object_store.has_object(&hash) {
         println!("No such object");
     } else {
-        let reader = try!(objectstore.open_object_file(&hash));
+        let reader = try!(object_store.open_object_file(&hash));
         let mut reader = BufReader::new(reader);
 
         let header = try!(ObjectHeader::read_from(&mut reader));
