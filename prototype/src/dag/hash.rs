@@ -24,7 +24,7 @@ pub const KEY_SIZE_BYTES: usize = KEY_SIZE_BITS / 8;
 type ObjectKeyByteArray = [u8; KEY_SIZE_BYTES];
 
 /// Hash key for an object
-#[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
+#[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash)]
 pub struct ObjectKey {
     hash: ObjectKeyByteArray,
 }
@@ -100,6 +100,14 @@ impl fmt::Display for ObjectKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Delegate to LowerHex
         <Self as fmt::LowerHex>::fmt(self, f)
+    }
+}
+
+impl fmt::Debug for ObjectKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ObjectKey")
+            .field("hash", &self.to_hex())
+            .finish()
     }
 }
 
