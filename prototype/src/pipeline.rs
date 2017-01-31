@@ -21,17 +21,22 @@ pub fn dirs_depth_first
 }
 
 pub struct HashSetup {
-    pub objectstore: ObjectStore,
+    pub objectstore: Option<ObjectStore>,
     pub cache: AllCaches,
 }
 
 impl HashSetup {
+    pub fn no_repo() -> Self {
+        HashSetup {
+            objectstore: None,
+            cache: AllCaches::new(),
+        }
+    }
     pub fn with_repo_path(repo_path: PathBuf) -> Result<Self> {
         let objectstore = try!(ObjectStore::open(repo_path));
-        let cache = AllCaches::new();
         Ok(HashSetup {
-            objectstore: objectstore,
-            cache: cache,
+            objectstore: Some(objectstore),
+            cache: AllCaches::new(),
         })
     }
 
@@ -40,16 +45,22 @@ impl HashSetup {
                               -> Result<(ObjectKey, fs::Metadata)> {
         let file = try!(fs::File::open(path));
         let metadata = try!(file.metadata());
-
         let file = io::BufReader::new(file);
 
-        let mut last_key = Err("No objects produced by file".into());
+        let mut last_obj = Err("No objects produced by file".into());
 
         for object in rollinghash::read_file_objects(file) {
-            last_key = self.objectstore.store_object(&object?);
+            let object = try!(object);
+            if let Some(ref mut os) = self.objectstore {
+                try!(os.store_object(&object));
+            }
+            last_obj = Ok(object)
         }
 
-        last_key.map(|k| (k, metadata))
+        last_obj.map(|o| {
+            let (k, _) = o.as_kv();
+            (k, metadata)
+        })
     }
 
     /// Breaks a file into chunks and stores it
@@ -65,8 +76,8 @@ impl HashSetup {
         }
 
         let (hash, metadata) = try!(self.hash_file_no_cache(&file_path));
-        try!(self.cache.insert(
-                file_path.to_owned(), metadata.into(), hash.clone()));
+        try!(self.cache
+            .insert(file_path.to_owned(), metadata.into(), hash.clone()));
 
         Ok(hash)
     }
@@ -102,7 +113,8 @@ mod test {
 
         let hash = hash_setup.hash_file_no_cache(&filepath).unwrap().0;
 
-        let obj = hash_setup.objectstore.open_object_file(&hash).unwrap();
+        let obj =
+            hash_setup.objectstore.unwrap().open_object_file(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);
 
         let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
@@ -122,7 +134,8 @@ mod test {
 
         let hash = hash_setup.hash_file_no_cache(&filepath).unwrap().0;
 
-        let obj = hash_setup.objectstore.open_object_file(&hash).unwrap();
+        let obj =
+            hash_setup.objectstore.unwrap().open_object_file(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);
 
         let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
@@ -143,7 +156,9 @@ mod test {
 
         let hash = hash_setup.hash_file_no_cache(&filepath).unwrap().0;
 
-        let obj = hash_setup.objectstore.open_object_file(&hash).unwrap();
+        let objectstore = hash_setup.objectstore.unwrap();
+
+        let obj = objectstore.open_object_file(&hash).unwrap();
         let mut obj = io::BufReader::new(obj);
         let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
 
@@ -154,9 +169,7 @@ mod test {
         assert_eq!(chunked.chunks.len(), 5);
 
         for chunkrecord in chunked.chunks {
-            let obj = hash_setup.objectstore
-                .open_object_file(&chunkrecord.hash)
-                .unwrap();
+            let obj = objectstore.open_object_file(&chunkrecord.hash).unwrap();
             let mut obj = io::BufReader::new(obj);
             let header = dag::ObjectHeader::read_from(&mut obj).unwrap();
             assert_eq!(header.object_type, dag::ObjectType::Blob);
