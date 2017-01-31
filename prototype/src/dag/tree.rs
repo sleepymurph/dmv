@@ -1,3 +1,4 @@
+use cache::CacheStatus;
 use error::*;
 use humanreadable;
 use std::collections;
@@ -17,8 +18,10 @@ pub struct Tree {
 impl Tree {
     pub fn new() -> Self { Tree { entries: PathKeyMap::new() } }
 
-    pub fn insert(&mut self, name: PathBuf, hash: ObjectKey) {
-        self.entries.insert(name, hash);
+    pub fn insert<P>(&mut self, name: P, hash: ObjectKey)
+        where P: Into<PathBuf>
+    {
+        self.entries.insert(name.into(), hash);
     }
 
     pub fn iter(&self) -> PathKeyMapIter { self.entries.iter() }
@@ -28,13 +31,10 @@ impl Tree {
 
 #[macro_export]
 macro_rules! tree_object {
-    ( $( $path:expr => $hash:expr, )* ) => {
+    ( $( $path:expr => $hash:expr , )* ) => {
         {
             let mut tree = $crate::dag::Tree::new();
-            $(
-                tree.insert(::std::path::PathBuf::from($path),
-                            $crate::dag::ObjectKey::from($hash));
-            )*
+            $( tree.insert($path, $hash); )*
             tree
         }
     }
@@ -108,42 +108,83 @@ impl ReadObjectContent for Tree {
 type UnhashedMap = collections::BTreeMap<PathBuf, UnhashedPath>;
 
 /// An incomplete Tree object that requires some files to be hashed
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct PartialTree {
     tree: Tree,
     unhashed: UnhashedMap,
-    unhashed_size: ObjectSize,
 }
 
+/// For PartialTree: A child path that needs hashing
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub enum UnhashedPath {
+    /// The child path is a file, carry its size
     File(ObjectSize),
+    /// The child path is a directory, carry its PartialTree
+    Dir(PartialTree),
+}
+
+/// For PartialTree: A child path that may or may not need hashing
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+pub enum HashedOrNot {
+    /// The child path is a file with a known hash, carry the hash
+    Hashed(ObjectKey),
+    /// The child path is a file with unknown hash, carry the size
+    UnhashedFile(ObjectSize),
+    /// The child path is a directory
     Dir(PartialTree),
 }
 
 impl PartialTree {
     pub fn new() -> Self { PartialTree::from(Tree::new()) }
-    pub fn unhashed_size(&self) -> ObjectSize { self.unhashed_size }
 
-    pub fn insert_hash(&mut self, path: PathBuf, hash: ObjectKey) {
-        if let Some(u) = self.unhashed.remove(&path) {
-            self.unhashed_size -= u.unhashed_size();
+    /// Calculate the total size of all unhashed children
+    ///
+    /// How many bytes must be hashed to complete this Tree?
+    pub fn unhashed_size(&self) -> ObjectSize {
+        self.unhashed.values().map(|unhashed| unhashed.unhashed_size()).sum()
+    }
+
+    /// Insert a new child path
+    ///
+    /// Accepts any type that can be converted into a HashedOrNot.
+    pub fn insert<P, T>(&mut self, path: P, st: T)
+        where P: Into<PathBuf>,
+              T: Into<HashedOrNot>
+    {
+
+        let path = path.into();
+        let st = st.into();
+        match st {
+            HashedOrNot::Hashed(hash) => self.insert_hash(path, hash),
+            HashedOrNot::UnhashedFile(size) => {
+                self.insert_unhashed(path, UnhashedPath::File(size))
+            }
+            HashedOrNot::Dir(partial) => {
+                self.insert_unhashed(path, UnhashedPath::Dir(partial))
+            }
         }
+    }
+
+    fn insert_hash(&mut self, path: PathBuf, hash: ObjectKey) {
+        self.unhashed.remove(&path);
         self.tree.insert(path, hash);
     }
 
-    pub fn insert_unhashed(&mut self, path: PathBuf, unknown: UnhashedPath) {
-        self.unhashed_size += unknown.unhashed_size();
+    fn insert_unhashed<T>(&mut self, path: PathBuf, unknown: T)
+        where UnhashedPath: From<T>
+    {
+        let unknown = UnhashedPath::from(unknown);
         self.unhashed.insert(path, unknown);
     }
 
-    pub fn insert_unhashed_file(&mut self, path: PathBuf, s: ObjectSize) {
-        self.insert_unhashed(path, UnhashedPath::File(s))
-    }
-
-    pub fn insert_unhashed_dir(&mut self, path: PathBuf, p: PartialTree) {
-        self.insert_unhashed(path, UnhashedPath::Dir(p))
-    }
-
+    /// Get a map of unhashed children: path => UnhashedPath
     pub fn unhashed(&self) -> &UnhashedMap { &self.unhashed }
+
+    /// Get a Tree from the known hashed children
+    pub fn tree(&self) -> &Tree { &self.tree }
+
+    /// Do all children have known hashes?
+    pub fn is_complete(&self) -> bool { self.unhashed.len() == 0 }
 }
 
 impl From<Tree> for PartialTree {
@@ -151,9 +192,61 @@ impl From<Tree> for PartialTree {
         PartialTree {
             tree: t,
             unhashed: UnhashedMap::new(),
-            unhashed_size: 0,
         }
     }
+}
+
+#[macro_export]
+macro_rules! partial_tree {
+    (
+        $( $name:expr => $hashed_or_not:expr , )*
+    ) => {
+        {
+            let mut partial = $crate::dag::PartialTree::new();
+            $( partial.insert($name, $hashed_or_not); )*
+            partial
+        }
+    }
+}
+
+// Conversions for HashedOrNot
+
+impl From<CacheStatus> for HashedOrNot {
+    fn from(s: CacheStatus) -> Self {
+        use cache::CacheStatus::*;
+        match s {
+            Cached { hash } => HashedOrNot::Hashed(hash),
+            Modified { size } |
+            NotCached { size } => HashedOrNot::UnhashedFile(size),
+        }
+    }
+}
+
+impl From<PartialTree> for HashedOrNot {
+    fn from(pt: PartialTree) -> Self { HashedOrNot::Dir(pt) }
+}
+
+impl From<UnhashedPath> for HashedOrNot {
+    fn from(unhashed: UnhashedPath) -> Self {
+        match unhashed {
+            UnhashedPath::File(size) => HashedOrNot::UnhashedFile(size),
+            UnhashedPath::Dir(partial) => HashedOrNot::Dir(partial),
+        }
+    }
+}
+
+impl From<ObjectKey> for HashedOrNot {
+    fn from(hash: ObjectKey) -> Self { HashedOrNot::Hashed(hash) }
+}
+
+// Conversions for UnhashedPath
+
+impl From<ObjectSize> for UnhashedPath {
+    fn from(s: ObjectSize) -> Self { UnhashedPath::File(s) }
+}
+
+impl From<PartialTree> for UnhashedPath {
+    fn from(pt: PartialTree) -> Self { UnhashedPath::Dir(pt) }
 }
 
 impl UnhashedPath {
@@ -222,5 +315,52 @@ mod test {
             .map(|ent| ent.0.to_str().unwrap().to_string())
             .collect();
         assert_eq!(names, vec!["bar", "baz", "foo"]);
+    }
+
+    use std::path::PathBuf;
+    #[test]
+    fn test_partial_tree() {
+        let mut partial = partial_tree!{
+                "foo" => shortkey(0),
+                "bar" => shortkey(2),
+                "baz" => shortkey(1),
+                "fizz" => UnhashedPath::File(1024),
+                "buzz" => partial_tree!{
+                    "strange" => UnhashedPath::File(2048),
+                },
+        };
+
+        assert_eq!(partial.unhashed().get(&PathBuf::from("fizz")),
+                   Some(&UnhashedPath::File(1024)));
+
+        assert_eq!(partial.unhashed_size(), 3072);
+
+        assert_eq!(partial.tree(),
+                   &tree_object!{
+                        "foo" => shortkey(0),
+                        "bar" => shortkey(2),
+                        "baz" => shortkey(1),
+        });
+
+        assert!(!partial.is_complete());
+
+        partial.insert("buzz", shortkey(3));
+        assert_eq!(partial.unhashed().get(&PathBuf::from("buzz")),
+                   None,
+                   "After setting hash, path should be removed from unhashed");
+        assert_eq!(partial.unhashed_size(), 1024);
+
+        partial.insert("fizz", shortkey(4));
+        assert!(partial.unhashed().is_empty());
+        assert!(partial.is_complete());
+
+        assert_eq!(partial.tree(),
+                   &tree_object!{
+                        "foo" => shortkey(0),
+                        "bar" => shortkey(2),
+                        "baz" => shortkey(1),
+                        "fizz" => shortkey(4),
+                        "buzz" => shortkey(3),
+        });
     }
 }

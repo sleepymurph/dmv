@@ -62,17 +62,14 @@ pub fn dir_to_partial_tree(dir_path: &Path,
 
             if ch_metadata.is_file() {
 
-                let file_size = ch_metadata.len();
-                use cache::CacheStatus::*;
-                match try!(cache.check_with(&ch_path, &ch_metadata.into())) {
-                    Cached { hash } => partial.insert_hash(ch_name, hash),
-                    _ => partial.insert_unhashed_file(ch_name, file_size),
-                };
+                let cache_status =
+                    try!(cache.check_with(&ch_path, &ch_metadata.into()));
+                partial.insert(ch_name, cache_status);
 
             } else if ch_metadata.is_dir() {
 
                 let subpartial = try!(dir_to_partial_tree(&ch_path, cache));
-                partial.insert_unhashed_dir(ch_name, subpartial);
+                partial.insert(ch_name, subpartial);
 
             } else {
                 unimplemented!()
