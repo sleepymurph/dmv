@@ -5,6 +5,7 @@ use dag;
 use dag::ObjectCommon;
 use error::*;
 use objectstore;
+use pipeline;
 use std::io;
 use std::path;
 
@@ -22,9 +23,11 @@ pub fn hash_object(repo_path: path::PathBuf,
 
     let hash;
     if file_path.is_file() {
-        hash = try!(objectstore.store_file_with_cache(&mut cache, &file_path));
+        hash = try!(pipeline::hash_file_with_cache(&mut objectstore,
+                                                   &mut cache,
+                                                   &file_path));
     } else if file_path.is_dir() {
-        hash = try!(objectstore.store_directory(&file_path))
+        unimplemented!()
     } else {
         unimplemented!()
     };
