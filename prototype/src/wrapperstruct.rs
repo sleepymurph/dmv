@@ -46,9 +46,11 @@ macro_rules! impl_from {
     };
 }
 
-/// Quickly implement Deref and DerefMut by referring to a single field
+/// Quickly implement Deref by referring to a single field
 ///
 /// Works with structs, or tuple structs.
+///
+/// To also implement DerefMut, see the `impl_deref_mut!` macro.
 ///
 /// ```
 /// #[macro_use]
@@ -59,6 +61,51 @@ macro_rules! impl_from {
 ///
 /// struct StringWrapStruct{inner: String}
 /// impl_deref!(StringWrapStruct => String, inner);
+///
+/// fn main() {
+///     let s = "Hello".to_owned();
+///
+///     let wt = StringWrapTuple(s.clone());
+///     assert_eq!(*wt, s);
+///
+///     let ws = StringWrapStruct{inner: s.clone()};
+///     assert_eq!(*ws, s);
+/// }
+/// ```
+///
+/// Macro hygiene note: Ideally, $field would be an identifier (ident), but as
+/// of Rust 1.14.0, the compiler does not accept integers as identifiers, so so
+/// we would not be able to use this macro with tuple structs (like
+/// `impl_deref!(TwoFieldTupleStruct => String, 1);`).
+///
+#[macro_export]
+macro_rules! impl_deref {
+    // For tuple structs
+    ($ptr:ty => $deref:ty) => { impl_deref_mut!($ptr => $deref, 0); };
+    // For structs with a named field
+    ($ptr:ty => $deref:ty, $field:tt) => {
+        impl ::std::ops::Deref for $ptr {
+            type Target = $deref;
+            fn deref(&self) -> &Self::Target {
+                &self.$field
+            }
+        }
+    };
+}
+
+/// Quickly implement Deref and DerefMut by referring to a single field
+///
+/// Works with structs, or tuple structs.
+///
+/// ```
+/// #[macro_use]
+/// extern crate prototypelib;
+///
+/// struct StringWrapTuple(String);
+/// impl_deref_mut!(StringWrapTuple => String);
+///
+/// struct StringWrapStruct{inner: String}
+/// impl_deref_mut!(StringWrapStruct => String, inner);
 ///
 /// fn main() {
 ///     let s = "Hello".to_owned();
@@ -76,20 +123,15 @@ macro_rules! impl_from {
 /// Macro hygiene note: Ideally, $field would be an identifier (ident), but as
 /// of Rust 1.14.0, the compiler does not accept integers as identifiers, so so
 /// we would not be able to use this macro with tuple structs (like
-/// `impl_deref!(TwoFieldTupleStruct => String, 1);`).
+/// `impl_deref_mut!(TwoFieldTupleStruct => String, 1);`).
 ///
 #[macro_export]
-macro_rules! impl_deref {
+macro_rules! impl_deref_mut {
     // For tuple structs
-    ($ptr:ty => $deref:ty) => { impl_deref!($ptr => $deref, 0); };
+    ($ptr:ty => $deref:ty) => { impl_deref_mut!($ptr => $deref, 0); };
     // For structs with a named field
     ($ptr:ty => $deref:ty, $field:tt) => {
-        impl ::std::ops::Deref for $ptr {
-            type Target = $deref;
-            fn deref(&self) -> &Self::Target {
-                &self.$field
-            }
-        }
+        impl_deref!($ptr => $deref, $field);
 
         impl ::std::ops::DerefMut for $ptr {
             fn deref_mut(&mut self) -> &mut Self::Target {
@@ -137,26 +179,26 @@ macro_rules! wrapper_struct {
         $(#[$attr])*
         pub struct $wrapper($inner);
         impl_from!($inner => $wrapper);
-        impl_deref!($wrapper => $inner);
+        impl_deref_mut!($wrapper => $inner);
     };
     ($(#[$attr:meta])* struct $wrapper:ident($inner:ty);) => {
         $(#[$attr])*
         struct $wrapper($inner);
         impl_from!($inner => $wrapper);
-        impl_deref!($wrapper => $inner);
+        impl_deref_mut!($wrapper => $inner);
     };
 
     ($(#[$attr:meta])* pub struct $wrapper:ident{$field:ident: $inner:ty}) => {
         $(#[$attr])*
         pub struct $wrapper{ $field: $inner }
         impl_from!($inner => $wrapper, $field);
-        impl_deref!($wrapper => $inner, $field);
+        impl_deref_mut!($wrapper => $inner, $field);
     };
     ($(#[$attr:meta])* struct $wrapper:ident{$field:ident: $inner:ty};) => {
         $(#[$attr])*
         struct $wrapper{ $field: $inner }
         impl_from!($inner => $wrapper, $field);
-        impl_deref!($wrapper => $inner, $field);
+        impl_deref_mut!($wrapper => $inner, $field);
     };
 }
 
@@ -168,7 +210,7 @@ mod test {
 
     struct MapWrapTupleStruct(StringMap);
     impl_from!(StringMap => MapWrapTupleStruct);
-    impl_deref!(MapWrapTupleStruct => StringMap);
+    impl_deref_mut!(MapWrapTupleStruct => StringMap);
 
     #[test]
     fn test_impl_from_tuple() {
@@ -183,7 +225,7 @@ mod test {
         inner: StringMap,
     }
     impl_from!(StringMap => MapWrapStruct, inner);
-    impl_deref!(MapWrapStruct => StringMap, inner);
+    impl_deref_mut!(MapWrapStruct => StringMap, inner);
 
     #[test]
     fn test_impl_from_field() {

@@ -140,7 +140,7 @@ impl From<fs::Metadata> for FileStats {
 
 // HashCacheFile
 
-impl_deref!(HashCacheFile => HashCache, cache);
+impl_deref_mut!(HashCacheFile => HashCache, cache);
 
 impl HashCacheFile {
     /// Create/open a cache file at a specific location
