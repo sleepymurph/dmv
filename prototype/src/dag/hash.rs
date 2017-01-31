@@ -25,13 +25,11 @@ type ObjectKeyByteArray = [u8; KEY_SIZE_BYTES];
 
 /// Hash key for an object
 #[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash)]
-pub struct ObjectKey {
-    hash: ObjectKeyByteArray,
-}
+pub struct ObjectKey(ObjectKeyByteArray);
 
 impl ObjectKey {
     /// Creates a new all-zero key
-    pub fn zero() -> Self { ObjectKey { hash: [0; KEY_SIZE_BYTES] } }
+    pub fn zero() -> Self { ObjectKey([0; KEY_SIZE_BYTES]) }
 
     pub fn from_hex(hexstr: &str) -> Result<Self> {
         if hexstr.len() != KEY_SIZE_BYTES * 2 {
@@ -57,12 +55,12 @@ impl ObjectKey {
                 i += 1;
             }
         }
-        Ok(ObjectKey { hash: buf })
+        Ok(ObjectKey(buf))
     }
 
     pub fn to_hex(&self) -> String {
         let mut hex = String::with_capacity(2 * KEY_SIZE_BYTES);
-        for byte in &self.hash {
+        for byte in &self.0 {
             hex.push_str(&format!("{:02x}", byte));
         }
         hex
@@ -73,14 +71,14 @@ impl ObjectKey {
             bail!(ErrorKind::BadKeyLength(bytes.to_vec()));
         }
         let mut key = Self::zero();
-        key.hash.clone_from_slice(bytes);
+        key.0.clone_from_slice(bytes);
         Ok(key)
     }
 }
 
 impl fmt::LowerHex for ObjectKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for byte in &self.hash {
+        for byte in &self.0 {
             try!(write!(f, "{:02x}", byte))
         }
         Ok(())
@@ -89,7 +87,7 @@ impl fmt::LowerHex for ObjectKey {
 
 impl fmt::UpperHex for ObjectKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for byte in &self.hash {
+        for byte in &self.0 {
             try!(write!(f, "{:02X}", byte))
         }
         Ok(())
@@ -105,8 +103,8 @@ impl fmt::Display for ObjectKey {
 
 impl fmt::Debug for ObjectKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ObjectKey")
-            .field("hash", &self.to_hex())
+        f.debug_tuple("ObjectKey")
+            .field(&self.to_hex())
             .finish()
     }
 }
@@ -116,7 +114,7 @@ impl convert::From<ObjectKey> for String {
 }
 
 impl AsRef<[u8]> for ObjectKey {
-    fn as_ref(&self) -> &[u8] { &self.hash }
+    fn as_ref(&self) -> &[u8] { &self.0 }
 }
 
 impl Encodable for ObjectKey {
@@ -150,7 +148,7 @@ impl<W: io::Write> HashWriter<W> {
 
     pub fn hash(&mut self) -> ObjectKey {
         let mut key = ObjectKey::zero();
-        self.hasher.result(&mut key.hash);
+        self.hasher.result(&mut key.0);
         key
     }
 }
