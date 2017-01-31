@@ -27,16 +27,11 @@ pub fn hash_file(file_path: path::PathBuf,
 
     let file = try!(File::open(&file_path));
     let metadata = try!(file.metadata());
-
-    use cache::CacheStatus::*;
-    if let Ok(Cached { hash }) = cache.check(&file_path) {
-        return Ok(hash);
-    }
-
     let file = BufReader::new(file);
 
-    let mut last_hash = ObjectKey::zero();
+    return_if_cached!(cache.check(&file_path));
 
+    let mut last_hash = ObjectKey::zero();
     for object in read_file_objects(file) {
         last_hash = try!(object_store.store_object(&object?));
     }

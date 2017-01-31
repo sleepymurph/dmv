@@ -17,6 +17,7 @@ pub mod testutil;
 pub mod dag;
 pub mod objectstore;
 pub mod fsutil;
+#[macro_use]
 pub mod cache;
 pub mod status;
 pub mod workdir;

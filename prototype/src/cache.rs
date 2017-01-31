@@ -23,6 +23,21 @@ pub enum CacheStatus {
     Cached { hash: dag::ObjectKey },
 }
 
+/// Does an early return with the cached hash value if it is present
+///
+/// Like a `try!` for caching.
+///
+/// The `$check_expr` expression should evaluate to a `Result<CacheStatus>`.
+#[macro_export]
+macro_rules! return_if_cached {
+    ($check_expr:expr) => {
+        if let Ok($crate::cache::CacheStatus::Cached{ hash })
+            = $check_expr {
+            return Ok(hash);
+        }
+    }
+}
+
 type CacheMap = collections::HashMap<encodable::PathBuf, CacheEntry>;
 
 wrapper_struct!{
