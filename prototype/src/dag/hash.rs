@@ -76,6 +76,11 @@ impl ObjectKey {
     }
 }
 
+#[macro_export]
+macro_rules! objectkey_hex {
+    ($hex:expr) => { $crate::dag::ObjectKey::from_hex($hex).unwrap() }
+}
+
 impl fmt::LowerHex for ObjectKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for byte in &self.0 {
@@ -174,8 +179,8 @@ mod test {
     fn test_key_hex_conversions() {
         let hex = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
         let upperhex = hex.to_uppercase();
-        let key = ObjectKey::from_hex(hex).expect("parse lower key");
-        let upperkey = ObjectKey::from_hex(&upperhex).expect("parse upper key");
+        let key = objectkey_hex!(hex);
+        let upperkey = objectkey_hex!(&upperhex);
 
         assert_eq!(upperkey, key, "Parse upper hex vs lower hex");
         assert_eq!(format!("{}", key), hex, "Display mismatch");
@@ -213,15 +218,13 @@ mod test {
     #[test]
     fn test_hash_write() {
         let input = b"Hello world!";
-        let expected_hash =
-            ObjectKey::from_hex("d3486ae9136e7856bc42212385ea797094475802")
-                .unwrap();
+        let expected_hash = "d3486ae9136e7856bc42212385ea797094475802";
 
         let mut output: Vec<u8> = Vec::new();
         {
             let mut hasher = HashWriter::wrap(&mut output);
             hasher.write(input).expect("write input");
-            assert_eq!(hasher.hash(), expected_hash);
+            assert_eq!(hasher.hash().to_hex(), expected_hash);
             hasher.flush().expect("flush hash writer");
         }
 
@@ -231,9 +234,7 @@ mod test {
 
     #[test]
     fn test_serialize_objectkey() {
-        let obj =
-            ObjectKey::from_hex("d3486ae9136e7856bc42212385ea797094475802")
-                .unwrap();
+        let obj = objectkey_hex!("d3486ae9136e7856bc42212385ea797094475802");
         let encoded = json::encode(&obj).unwrap();
         assert_eq!(encoded, "\"d3486ae9136e7856bc42212385ea797094475802\"");
         let decoded: ObjectKey = json::decode(&encoded).unwrap();

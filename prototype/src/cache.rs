@@ -277,7 +277,6 @@ impl AllCaches {
 
 #[cfg(test)]
 mod test {
-    use dag;
     use encodable;
     use rustc_serialize::json;
     use std::path;
@@ -302,8 +301,7 @@ mod test {
                 mtime: encodable::SystemTime::unix_epoch_plus(120, 55),
                 size: 12345,
             },
-            hash: dag::ObjectKey
-                ::from_hex("d3486ae9136e7856bc42212385ea797094475802").unwrap(),
+            hash: objectkey_hex!("d3486ae9136e7856bc42212385ea797094475802"),
         });
         let encoded = json::encode(&obj).unwrap();
         let decoded: HashCache = json::decode(&encoded).unwrap();
@@ -318,18 +316,14 @@ mod test {
             mtime: encodable::SystemTime::unix_epoch_plus(120, 55),
             size: 12345,
         };
-        let hash0 =
-            dag::ObjectKey::from_hex("d3486ae9136e7856bc42212385ea797094475802")
-                .unwrap();
+        let hash0 = objectkey_hex!("d3486ae9136e7856bc42212385ea797094475802");
 
         let path1 = path::PathBuf::from("pathb/y");
         let stats1 = FileStats {
             mtime: encodable::SystemTime::unix_epoch_plus(60, 22),
             size: 54321,
         };
-        let hash1 =
-            dag::ObjectKey::from_hex("e030a4b3fdc15cdcbf9026d83b84c2b4b93309af")
-                .unwrap();
+        let hash1 = objectkey_hex!("e030a4b3fdc15cdcbf9026d83b84c2b4b93309af");
 
         // Create temporary directory
 
