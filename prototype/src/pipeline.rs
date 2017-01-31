@@ -57,7 +57,7 @@ impl HashSetup {
     /// Returns a tuple containing the hash of the file object (single blob or
     /// chunk index) and the metadata of the file. The metadata is returned so
     /// that it can be used for caching.
-    pub fn hash_file(&mut self, file_path: &path::Path) -> Result<ObjectKey> {
+    pub fn hash_file(&mut self, file_path: path::PathBuf) -> Result<ObjectKey> {
 
         use cache::CacheStatus::*;
         if let Ok(Cached { hash }) = self.cache.check(&file_path) {
@@ -65,8 +65,7 @@ impl HashSetup {
         }
 
         let (hash, metadata) = try!(self.hash_file_no_cache(&file_path));
-        try!(self.cache.insert(
-                file_path.to_owned(), metadata.into(), hash.clone()));
+        try!(self.cache.insert(file_path, metadata.into(), hash.to_owned()));
 
         Ok(hash)
     }
