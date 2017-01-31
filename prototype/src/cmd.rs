@@ -23,9 +23,9 @@ pub fn hash_object(repo_path: path::PathBuf,
 
     let hash;
     if file_path.is_file() {
-        hash = try!(pipeline::hash_file_with_cache(&mut objectstore,
-                                                   &mut cache,
-                                                   &file_path));
+        hash = try!(pipeline::hash_file(file_path.clone(),
+                                        &mut cache,
+                                        &mut objectstore));
     } else if file_path.is_dir() {
         unimplemented!()
     } else {
