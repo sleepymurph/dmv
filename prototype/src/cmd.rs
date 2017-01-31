@@ -18,14 +18,11 @@ pub fn hash_object(repo_path: path::PathBuf,
                    file_path: path::PathBuf)
                    -> Result<()> {
 
-    let mut objectstore = try!(objectstore::ObjectStore::open(repo_path));
-    let mut cache = cache::AllCaches::new();
+    let mut hash_setup = try!(pipeline::HashSetup::with_repo_path(repo_path));
 
     let hash;
     if file_path.is_file() {
-        hash = try!(pipeline::hash_file_with_cache(&mut objectstore,
-                                                   &mut cache,
-                                                   &file_path));
+        hash = try!(hash_setup.hash_file(&file_path));
     } else if file_path.is_dir() {
         unimplemented!()
     } else {
