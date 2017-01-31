@@ -22,7 +22,7 @@ pub fn dirs_depth_first(path: &path::Path)
 
 pub fn hash_file(file_path: path::PathBuf,
                  cache: &mut AllCaches,
-                 object_store: &mut ObjectStore)
+                 objectstore: &mut ObjectStore)
                  -> Result<ObjectKey> {
 
     let file = try!(File::open(&file_path));
@@ -38,7 +38,7 @@ pub fn hash_file(file_path: path::PathBuf,
     let mut last_hash = ObjectKey::zero();
 
     for object in read_file_objects(file) {
-        last_hash = try!(object_store.store_object(&object?));
+        last_hash = try!(objectstore.store_object(&object?));
     }
 
     try!(cache.insert(file_path, metadata.into(), last_hash.clone()));

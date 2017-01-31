@@ -473,29 +473,29 @@ mod test {
 
     /// Dump all read objects into an object store, return hash of last object
     fn dump_into_store<R: io::BufRead>(object_read: &mut ObjectReader<R>,
-                                       object_store: &mut ObjectStore)
+                                       objectstore: &mut ObjectStore)
                                        -> dag::ObjectKey {
         let mut last_key = dag::ObjectKey::zero();
         for obj in object_read {
             let obj = obj.unwrap();
             let (k, v) = obj.as_kv();
-            object_store.insert(k, v);
+            objectstore.insert(k, v);
             last_key = k;
         }
         last_key
     }
 
     /// Reconstruct file from ChunkedBlob object key
-    fn reconstruct_file(object_store: &ObjectStore,
+    fn reconstruct_file(objectstore: &ObjectStore,
                         index_key: &dag::ObjectKey)
                         -> Vec<u8> {
         let mut reconstructed = Vec::<u8>::new();
 
-        let index_obj = object_store.get(index_key);
+        let index_obj = objectstore.get(index_key);
         if let Some(&dag::Object::ChunkedBlob(ref index)) = index_obj {
 
             for chunk_offset in &index.chunks {
-                let chunk = object_store.get(&chunk_offset.hash);
+                let chunk = objectstore.get(&chunk_offset.hash);
                 if let Some(&dag::Object::Blob(ref blob)) = chunk {
                     reconstructed.write(&blob.content).unwrap();
                 } else {

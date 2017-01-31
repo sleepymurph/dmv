@@ -91,7 +91,7 @@ pub mod test {
         let wd_temp = try!(testutil::in_mem_tempdir("test_directory"));
         let wd_path = wd_temp.path().to_path_buf();
         try!(fs::create_dir_all(&wd_path));
-        let os_path = wd_path.join("object_store");
+        let os_path = wd_path.join("objectstore");
         let os = try!(ObjectStore::init(os_path));
 
         Ok((wd_temp, os))
