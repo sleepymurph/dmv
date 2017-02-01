@@ -1,7 +1,9 @@
 use cache::AllCaches;
 use cache::FileStats;
+use constants;
 use dag::ObjectKey;
 use dag::PartialTree;
+use dag::UnhashedPath;
 use error::*;
 use objectstore::ObjectStore;
 use rollinghash::read_file_objects;
@@ -49,6 +51,11 @@ pub fn hash_file(file_path: PathBuf,
 pub fn dir_to_partial_tree(dir_path: &Path,
                            cache: &mut AllCaches)
                            -> Result<PartialTree> {
+    let ignored: Vec<PathBuf> = vec![constants::HIDDEN_DIR_NAME,
+                                     constants::CACHE_FILE_NAME]
+        .iter()
+        .map(|x| PathBuf::from(x))
+        .collect();
 
     if dir_path.is_dir() {
         let mut partial = PartialTree::new();
@@ -59,6 +66,10 @@ pub fn dir_to_partial_tree(dir_path: &Path,
             let ch_path = entry.path();
             let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
             let ch_metadata = try!(entry.metadata());
+
+            if ignored.contains(&ch_name) {
+                continue;
+            }
 
             if ch_metadata.is_file() {
 
@@ -80,6 +91,31 @@ pub fn dir_to_partial_tree(dir_path: &Path,
     } else {
         bail!(ErrorKind::NotADirectory(dir_path.to_owned()))
     }
+}
+
+pub fn hash_partial_tree<P>(dir_path: &P,
+                            mut partial: PartialTree,
+                            cache: &mut AllCaches,
+                            object_store: &mut ObjectStore)
+                            -> Result<ObjectKey>
+    where P: AsRef<Path>
+{
+    let dir_path = dir_path.as_ref();
+
+    for (ch_name, unknown) in partial.unhashed().clone() {
+        let ch_path = dir_path.join(&ch_name);
+
+        let hash = match unknown {
+            UnhashedPath::File(_) => hash_file(ch_path, cache, object_store),
+            UnhashedPath::Dir(partial) => {
+                hash_partial_tree(&ch_path, partial, cache, object_store)
+            }
+        };
+        partial.insert(ch_name, hash?);
+    }
+
+    assert!(partial.is_complete());
+    object_store.store_object(partial.tree())
 }
 
 #[cfg(test)]

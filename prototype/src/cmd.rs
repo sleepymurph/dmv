@@ -6,6 +6,7 @@ use dag::ObjectHeader;
 use dag::ObjectKey;
 use dag::ObjectType;
 use error::*;
+use humanreadable::human_bytes;
 use objectstore::ObjectStore;
 use pipeline;
 use std::io::BufReader;
@@ -27,7 +28,14 @@ pub fn hash_object(repo_path: PathBuf, file_path: PathBuf) -> Result<()> {
                                         &mut cache,
                                         &mut object_store));
     } else if file_path.is_dir() {
-        unimplemented!()
+        let partial = try!(pipeline::dir_to_partial_tree(&file_path,
+                                                         &mut cache));
+        println!("{} to hash. Hashing...",
+                 human_bytes(partial.unhashed_size()));
+        hash = try!(pipeline::hash_partial_tree(&file_path,
+                                                partial,
+                                                &mut cache,
+                                                &mut object_store));
     } else {
         unimplemented!()
     };
