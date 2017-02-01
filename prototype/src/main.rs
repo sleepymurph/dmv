@@ -5,9 +5,10 @@ extern crate prototypelib;
 extern crate error_chain;
 
 use prototypelib::cmd;
+use prototypelib::constants;
 use prototypelib::error::*;
 use std::env;
-use std::path;
+use std::path::PathBuf;
 
 // Have error_chain create a main() function that handles Results
 quick_main!(run);
@@ -38,7 +39,7 @@ fn run() -> Result<()> {
 fn cmd_init(_argmatch: &clap::ArgMatches,
             _submatch: &clap::ArgMatches)
             -> Result<()> {
-    let repo_path = env::current_dir().expect("current dir");
+    let repo_path = repo_path();
 
     cmd::init(repo_path)
 }
@@ -46,10 +47,10 @@ fn cmd_init(_argmatch: &clap::ArgMatches,
 fn cmd_hash_object(_argmatch: &clap::ArgMatches,
                    submatch: &clap::ArgMatches)
                    -> Result<()> {
-    let repo_path = env::current_dir().expect("current dir");
+    let repo_path = repo_path();
 
     let file_path = submatch.value_of("filepath").expect("required");
-    let file_path = path::PathBuf::from(file_path);
+    let file_path = PathBuf::from(file_path);
 
     cmd::hash_object(repo_path, file_path)
 }
@@ -57,7 +58,7 @@ fn cmd_hash_object(_argmatch: &clap::ArgMatches,
 fn cmd_show_object(_argmatch: &clap::ArgMatches,
                    submatch: &clap::ArgMatches)
                    -> Result<()> {
-    let repo_path = env::current_dir().expect("current dir");
+    let repo_path = repo_path();
     let hash = submatch.value_of("hash").expect("required");
 
     cmd::show_object(repo_path, hash)
@@ -67,7 +68,11 @@ fn cmd_cache_status(_argmatch: &clap::ArgMatches,
                     submatch: &clap::ArgMatches)
                     -> Result<()> {
     let file_path = submatch.value_of("filepath").expect("required");
-    let file_path = path::PathBuf::from(file_path);
+    let file_path = PathBuf::from(file_path);
 
     cmd::cache_status(file_path)
+}
+
+fn repo_path() -> PathBuf {
+    env::current_dir().expect("current dir").join(constants::HIDDEN_DIR_NAME)
 }
