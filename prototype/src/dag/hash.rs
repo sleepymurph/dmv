@@ -66,14 +66,27 @@ impl ObjectKey {
         hex
     }
 
+    /// Creates an array from a byte slice (copy)
+    ///
+    /// Can fail if the byte slice is the wrong length.
+    ///
+    /// If the input is a byte array of the correct length (`[u8;
+    /// KEY_SIZE_BYTES]`), you can use From<[u8; KEY_SIZE_BYTES]> instead. That
+    /// conversion is guaranteed to succeed, and it consumes and uses the array,
+    /// rather than performing another allocation.
+    ///
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.len() != KEY_SIZE_BYTES {
             bail!(ErrorKind::BadKeyLength(bytes.to_vec()));
         }
-        let mut key = Self::zero();
-        key.0.clone_from_slice(bytes);
-        Ok(key)
+        let mut key = [0; KEY_SIZE_BYTES];
+        key.copy_from_slice(bytes);
+        Ok(ObjectKey(key))
     }
+}
+
+impl From<ObjectKeyByteArray> for ObjectKey {
+    fn from(arr: ObjectKeyByteArray) -> Self { ObjectKey(arr) }
 }
 
 /// Convenience function to parse and unwrap a hex hash

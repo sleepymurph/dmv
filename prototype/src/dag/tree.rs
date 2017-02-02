@@ -81,23 +81,23 @@ Object content size:    {:>10}
 
 impl ReadObjectContent for Tree {
     fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self> {
-        let mut name_buf: Vec<u8> = Vec::new();
-        let mut hash_buf = [0u8; KEY_SIZE_BYTES];
 
         let mut tree = Tree::new();
 
         loop {
+            // Read hash
+            let mut hash_buf = [0u8; KEY_SIZE_BYTES];
             let bytes_read = try!(reader.read(&mut hash_buf));
             if bytes_read == 0 {
                 break;
             }
+            let hash = ObjectKey::from(hash_buf);
 
-            let hash = try!(ObjectKey::from_bytes(&hash_buf));
-
+            // Read name
+            let mut name_buf: Vec<u8> = Vec::new();
             try!(reader.read_until(TREE_ENTRY_SEPARATOR, &mut name_buf));
             name_buf.pop(); // Drop the string-ending separator
-            let name = String::from_utf8(name_buf.clone()).unwrap();
-            let name = PathBuf::from(&name);
+            let name = try!(String::from_utf8(name_buf));
             tree.insert(name, hash);
         }
         Ok(tree)
@@ -262,6 +262,7 @@ impl UnhashedPath {
 mod test {
 
     use std::io;
+    use std::path::PathBuf;
     use super::super::*;
     use testutil;
 
@@ -277,6 +278,8 @@ mod test {
 
         let object = tree_object!{
             "foo" => random_hash(&mut rng),
+            "bar" => random_hash(&mut rng),
+            "baz" => random_hash(&mut rng),
         };
 
         // Write out
@@ -317,7 +320,6 @@ mod test {
         assert_eq!(names, vec!["bar", "baz", "foo"]);
     }
 
-    use std::path::PathBuf;
     #[test]
     fn test_partial_tree() {
         let mut partial = partial_tree!{

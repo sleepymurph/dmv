@@ -9,6 +9,8 @@ error_chain!{
             #[doc = "Error caused by an underlying IO error"];
         StripPrefixError(::std::path::StripPrefixError)
             #[doc = "An error during path manipulation"];
+        FromUtf8Error(::std::string::FromUtf8Error)
+            #[doc = "Error converting bytes to a String"];
     }
     errors {
         ParseKey(bad_key: String) {
