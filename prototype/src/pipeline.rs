@@ -205,9 +205,9 @@ mod test {
         };
 
         let expected_partial = partial_tree!{
-                "foo" => HashedOrNot::UnhashedFile(3),
-                "bar" => HashedOrNot::UnhashedFile(4),
-                "baz" => HashedOrNot::UnhashedFile(5),
+            "foo" => HashedOrNot::UnhashedFile(3),
+            "bar" => HashedOrNot::UnhashedFile(4),
+            "baz" => HashedOrNot::UnhashedFile(5),
         };
 
         let expected_tree = tree_object!{
@@ -220,6 +220,7 @@ mod test {
 
         let partial = dir_to_partial_tree(&wd_path, &mut cache).unwrap();
         assert_eq!(partial, expected_partial);
+        assert_eq!(partial.unhashed_size(), 12);
 
         // Hash and store files
 
@@ -232,7 +233,7 @@ mod test {
 
         assert_eq!(tree, Object::Tree(expected_tree.clone()));
 
-        // Check that files are stored as blobs
+        // Check that children are stored
 
         for (name, hash) in expected_tree.iter() {
             assert!(object_store.has_object(&hash),
@@ -245,6 +246,81 @@ mod test {
         let partial = dir_to_partial_tree(&wd_path, &mut cache).unwrap();
         assert!(partial.is_complete());
         assert_eq!(partial.tree(), &expected_tree);
+    }
+
+    #[test]
+    fn test_store_directory_recursive() {
+        let (temp, mut object_store) = create_temp_repository().unwrap();
+        let mut cache = AllCaches::new();
+        let wd_path = temp.path().join("work_dir");
+
+        write_str_files!{
+            wd_path;
+            "foo" => "123",
+            "level1/bar" => "1234",
+            "level1/level2/baz" => "12345",
+        };
+
+        let expected_partial = partial_tree!{
+            "foo" => HashedOrNot::UnhashedFile(3),
+            "level1" => partial_tree!{
+                "bar" => HashedOrNot::UnhashedFile(4),
+                "level2" => partial_tree!{
+                    "baz" => HashedOrNot::UnhashedFile(5),
+                },
+            },
+        };
+
+        let expected_tree = tree_object!{
+            "foo" => Blob::from("123").calculate_hash(),
+            "level1" => tree_object!{
+                "bar" => Blob::from("1234").calculate_hash(),
+                "level2" => tree_object!{
+                    "baz" => Blob::from("12345").calculate_hash(),
+                }.calculate_hash(),
+            }.calculate_hash(),
+        };
+
+        let expected_cached_partial = partial_tree!{
+            "foo" => Blob::from("123").calculate_hash(),
+            "level1" => partial_tree!{
+                "bar" => Blob::from("1234").calculate_hash(),
+                "level2" => partial_tree!{
+                    "baz" => Blob::from("12345").calculate_hash(),
+                },
+            },
+        };
+
+        let deepest_child_hash = Blob::from("12345").calculate_hash();
+
+        // Build partial tree
+
+        let partial = dir_to_partial_tree(&wd_path, &mut cache).unwrap();
+        assert_eq!(partial, expected_partial);
+        assert_eq!(partial.unhashed_size(), 12);
+
+        // Hash and store files
+
+        let hash =
+            hash_partial_tree(&wd_path, partial, &mut cache, &mut object_store)
+                .unwrap();
+
+        let mut file = object_store.open_object_file(&hash).unwrap();
+        let tree = Object::read_from(&mut file).unwrap();
+
+        assert_eq!(tree, Object::Tree(expected_tree.clone()));
+
+        // Check that deepest child is stored
+
+        assert!(object_store.has_object(&deepest_child_hash),
+                "Object for deepest child was not stored");
+
+        // Check again that files are cached now
+
+        let partial = dir_to_partial_tree(&wd_path, &mut cache).unwrap();
+        assert_eq!(partial.unhashed_size(), 0);
+        assert!(!partial.is_complete());
+        assert_eq!(partial, expected_cached_partial);
     }
 
 }

@@ -184,6 +184,13 @@ impl PartialTree {
     pub fn tree(&self) -> &Tree { &self.tree }
 
     /// Do all children have known hashes?
+    ///
+    /// Note that a PartialTree can be "incomplete," even if it has no files
+    /// that need to be hashed. This can happen if one of the children is a
+    /// PartialTree that is "complete." We may be able to calculate the hash of
+    /// that subtree, but storing it as just a hash would loose the information
+    /// we have about its children. So we should not do that until we can be
+    /// sure that the tree has been stored in an object store.
     pub fn is_complete(&self) -> bool { self.unhashed.len() == 0 }
 }
 
@@ -322,6 +329,9 @@ mod test {
 
     #[test]
     fn test_partial_tree() {
+
+        // Create partial tree
+
         let mut partial = partial_tree!{
                 "foo" => shortkey(0),
                 "bar" => shortkey(2),
@@ -346,6 +356,8 @@ mod test {
 
         assert!(!partial.is_complete());
 
+        // Begin adding hashes for incomplete objects
+
         partial.insert("buzz", shortkey(3));
         assert_eq!(partial.unhashed().get(&PathBuf::from("buzz")),
                    None,
@@ -353,8 +365,12 @@ mod test {
         assert_eq!(partial.unhashed_size(), 1024);
 
         partial.insert("fizz", shortkey(4));
+
+        // Should be complete now
+
         assert!(partial.unhashed().is_empty());
         assert!(partial.is_complete());
+        assert_eq!(partial.unhashed_size(), 0);
 
         assert_eq!(partial.tree(),
                    &tree_object!{
@@ -364,5 +380,32 @@ mod test {
                         "fizz" => shortkey(4),
                         "buzz" => shortkey(3),
         });
+    }
+
+    #[test]
+    fn test_partial_tree_with_zero_unhashed() {
+        let partial = partial_tree!{
+                "foo" => shortkey(0),
+                "bar" => partial_tree!{
+                    "baz" => shortkey(1),
+                },
+        };
+
+        assert_eq!(partial.unhashed_size(), 0, "no files need to be hashed");
+        assert_eq!(partial.is_complete(), false, "still incomplete");
+
+        assert_eq!(partial.tree(),
+                   &tree_object!{
+                        "foo" => shortkey(0),
+                   },
+                   "not safe to take the tree value: it is missing the \
+                    subtree");
+
+        assert_eq!(partial.unhashed().get(&PathBuf::from("bar")),
+                   Some(&UnhashedPath::Dir(partial_tree!{
+                        "baz" => shortkey(1),
+                   })),
+                   "the nested PartialTree still holds information that \
+                    would be lost if we replaced it with just a hash");
     }
 }
