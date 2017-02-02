@@ -89,7 +89,7 @@ pub mod test {
 
     pub fn create_temp_repository() -> Result<(TempDir, ObjectStore)> {
         let wd_temp = try!(testutil::in_mem_tempdir("test_directory"));
-        let wd_path = wd_temp.path().to_path_buf();
+        let wd_path = wd_temp.path().to_owned();
         try!(fs::create_dir_all(&wd_path));
         let os_path = wd_path.join("object_store");
         let os = try!(ObjectStore::init(os_path));

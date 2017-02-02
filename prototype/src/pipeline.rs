@@ -1,10 +1,10 @@
 use cache::AllCaches;
 use cache::FileStats;
-use constants;
 use dag::ObjectKey;
 use dag::PartialTree;
 use dag::UnhashedPath;
 use error::*;
+use ignore::IgnoreList;
 use objectstore::ObjectStore;
 use rollinghash::read_file_objects;
 use std::fs::File;
@@ -49,14 +49,9 @@ pub fn hash_file(file_path: PathBuf,
 
 /// Read filesystem to construct a PartialTree
 pub fn dir_to_partial_tree(dir_path: &Path,
+                           ignored: &IgnoreList,
                            cache: &mut AllCaches)
                            -> Result<PartialTree> {
-    let ignored: Vec<PathBuf> = vec![constants::HIDDEN_DIR_NAME,
-                                     constants::CACHE_FILE_NAME]
-        .iter()
-        .map(|x| PathBuf::from(x))
-        .collect();
-
     if dir_path.is_dir() {
         let mut partial = PartialTree::new();
 
@@ -67,7 +62,7 @@ pub fn dir_to_partial_tree(dir_path: &Path,
             let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
             let ch_metadata = try!(entry.metadata());
 
-            if ignored.contains(&ch_name) {
+            if ignored.ignores(&ch_path) {
                 continue;
             }
 
@@ -79,7 +74,8 @@ pub fn dir_to_partial_tree(dir_path: &Path,
 
             } else if ch_metadata.is_dir() {
 
-                let subpartial = try!(dir_to_partial_tree(&ch_path, cache));
+                let subpartial =
+                    try!(dir_to_partial_tree(&ch_path, &ignored, cache));
                 partial.insert(ch_name, subpartial);
 
             } else {
@@ -122,6 +118,7 @@ mod test {
     use dag::Object;
     use dag::ObjectCommon;
     use dag::ObjectType;
+    use ignore::IgnoreList;
     use objectstore::test::create_temp_repository;
     use rollinghash::CHUNK_TARGET_SIZE;
     use super::*;
@@ -194,6 +191,7 @@ mod test {
     #[test]
     fn test_store_directory_shallow() {
         let (temp, mut object_store) = create_temp_repository().unwrap();
+        let ignored = IgnoreList::default();
         let mut cache = AllCaches::new();
         let wd_path = temp.path().join("work_dir");
 
@@ -218,7 +216,8 @@ mod test {
 
         // Build partial tree
 
-        let partial = dir_to_partial_tree(&wd_path, &mut cache).unwrap();
+        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
+            .unwrap();
         assert_eq!(partial, expected_partial);
         assert_eq!(partial.unhashed_size(), 12);
 
@@ -243,7 +242,8 @@ mod test {
 
         // Check again that files are cached now
 
-        let partial = dir_to_partial_tree(&wd_path, &mut cache).unwrap();
+        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
+            .unwrap();
         assert!(partial.is_complete());
         assert_eq!(partial.tree(), &expected_tree);
     }
@@ -251,6 +251,7 @@ mod test {
     #[test]
     fn test_store_directory_recursive() {
         let (temp, mut object_store) = create_temp_repository().unwrap();
+        let ignored = IgnoreList::default();
         let mut cache = AllCaches::new();
         let wd_path = temp.path().join("work_dir");
 
@@ -295,7 +296,8 @@ mod test {
 
         // Build partial tree
 
-        let partial = dir_to_partial_tree(&wd_path, &mut cache).unwrap();
+        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
+            .unwrap();
         assert_eq!(partial, expected_partial);
         assert_eq!(partial.unhashed_size(), 12);
 
@@ -317,9 +319,82 @@ mod test {
 
         // Check again that files are cached now
 
-        let partial = dir_to_partial_tree(&wd_path, &mut cache).unwrap();
+        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
+            .unwrap();
         assert_eq!(partial.unhashed_size(), 0);
         assert!(!partial.is_complete());
+        assert_eq!(partial, expected_cached_partial);
+    }
+
+    #[test]
+    fn test_ignore_objectstore_dir() {
+        let (temp, mut object_store) = create_temp_repository().unwrap();
+        let mut ignored = IgnoreList::default();
+        ignored.insert(object_store.path());
+        let mut cache = AllCaches::new();
+        let wd_path = temp.path();
+
+        write_str_files!{
+            wd_path;
+            "foo" => "123",
+            "level1/bar" => "1234",
+            "level1/level2/baz" => "12345",
+        };
+
+        let expected_partial = partial_tree!{
+            "foo" => HashedOrNot::UnhashedFile(3),
+            "level1" => partial_tree!{
+                "bar" => HashedOrNot::UnhashedFile(4),
+                "level2" => partial_tree!{
+                    "baz" => HashedOrNot::UnhashedFile(5),
+                },
+            },
+        };
+
+        let expected_tree = tree_object!{
+            "foo" => Blob::from("123").calculate_hash(),
+            "level1" => tree_object!{
+                "bar" => Blob::from("1234").calculate_hash(),
+                "level2" => tree_object!{
+                    "baz" => Blob::from("12345").calculate_hash(),
+                }.calculate_hash(),
+            }.calculate_hash(),
+        };
+
+        let expected_cached_partial = partial_tree!{
+            "foo" => Blob::from("123").calculate_hash(),
+            "level1" => partial_tree!{
+                "bar" => Blob::from("1234").calculate_hash(),
+                "level2" => partial_tree!{
+                    "baz" => Blob::from("12345").calculate_hash(),
+                },
+            },
+        };
+
+        // Build partial tree
+
+        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
+            .unwrap();
+        assert_eq!(partial, expected_partial);
+
+        // Hash and store files
+
+        let hash =
+            hash_partial_tree(&wd_path, partial, &mut cache, &mut object_store)
+                .unwrap();
+
+        let mut file = object_store.open_object_file(&hash).unwrap();
+        let tree = Object::read_from(&mut file).unwrap();
+
+        assert_eq!(tree, Object::Tree(expected_tree.clone()));
+
+        // Flush cache files
+        cache.flush();
+
+        // Build partial tree again -- make sure it doesn't pick up cache files
+
+        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
+            .unwrap();
         assert_eq!(partial, expected_cached_partial);
     }
 

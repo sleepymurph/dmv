@@ -33,6 +33,7 @@ pub mod fsutil;
 #[macro_use]
 pub mod cache;
 
+pub mod ignore;
 pub mod status;
 pub mod workdir;
 pub mod pipeline;

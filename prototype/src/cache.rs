@@ -273,6 +273,8 @@ impl AllCaches {
         let file_name = try!(file_path.file_name_or_err());
         Ok(dir_cache.insert_entry(file_name.into(), stats, hash))
     }
+
+    pub fn flush(&mut self) { self.directory_caches.clear() }
 }
 
 #[cfg(test)]
