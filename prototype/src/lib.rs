@@ -7,19 +7,27 @@ extern crate rustc_serialize;
 extern crate walkdir;
 
 pub mod error;
+
 #[macro_use]
 pub mod wrapperstruct;
+
 pub mod humanreadable;
 pub mod encodable;
 pub mod constants;
 pub mod rollinghash;
+
+#[macro_use]
 pub mod testutil;
+
 #[macro_use]
 pub mod dag;
+
 pub mod objectstore;
 pub mod fsutil;
+
 #[macro_use]
 pub mod cache;
+
 pub mod status;
 pub mod workdir;
 pub mod pipeline;

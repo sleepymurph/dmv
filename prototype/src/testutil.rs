@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 extern crate rand;
 extern crate tempdir;
 
@@ -88,6 +86,41 @@ pub fn write_file<R: Read>(path: &path::Path,
 
 pub fn write_str_file(path: &path::Path, contents: &str) -> io::Result<u64> {
     write_file(path, contents.as_bytes())
+}
+
+/// Easily create a directory full of files for testing
+///
+/// ```
+/// extern crate tempdir;
+/// #[macro_use]
+/// extern crate prototypelib;
+///
+/// fn main() {
+///     let temp = tempdir::TempDir::new("write_str_files macro test").unwrap();
+///     write_str_files!{
+///         temp.path();
+///         "foo.txt" => "Hello world!",
+///         "bar.txt" => "Pass the bar.",
+///         "baz.txt" => "Baz out!",
+///         "subdir/subfile.txt" => "Will create subdirectories!",
+///     };
+///     assert!(temp.path().join("foo.txt").is_file());
+///     assert!(temp.path().join("subdir").is_dir());
+/// }
+/// ```
+///
+/// # Panics
+///
+/// Panics if there is any error.
+#[macro_export]
+macro_rules! write_str_files {
+    ($base_path:expr; $( $fname:expr => $contents:expr, )* ) => {
+        $(
+            $crate::testutil::write_str_file(
+                &$base_path.join($fname), $contents
+            ).expect("Could not write test file");
+        )*
+    }
 }
 
 /// Bring TempDir into namespace so users don't need `extern crate tempdir;`
