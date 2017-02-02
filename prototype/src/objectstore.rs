@@ -34,8 +34,11 @@ impl ObjectStore {
         self.object_path(key).is_file()
     }
 
-    pub fn open_object_file(&self, key: &dag::ObjectKey) -> Result<fs::File> {
-        fs::File::open(self.object_path(key)).err_into()
+    pub fn open_object_file(&self,
+                            key: &dag::ObjectKey)
+                            -> Result<io::BufReader<fs::File>> {
+        let file = try!(fs::File::open(self.object_path(key)).err_into());
+        Ok(io::BufReader::new(file))
     }
 
     /// Writes a single object into the object store
@@ -80,7 +83,6 @@ pub mod test {
     use dag::ToHashed;
     use error::*;
     use std::fs;
-    use std::io;
     use super::*;
     use testutil;
 
@@ -114,9 +116,8 @@ pub mod test {
         assert!(store.has_object(&stored_key),
                 "Store should report that key is present");
 
-        let reader = store.open_object_file(&stored_key).unwrap();
-        let retrieved = dag::Object::read_from(&mut io::BufReader::new(reader))
-            .unwrap();
+        let mut reader = store.open_object_file(&stored_key).unwrap();
+        let retrieved = dag::Object::read_from(&mut reader).unwrap();
         assert_eq!(retrieved,
                    *obj,
                    "Retrieved object should be the same as stored object");

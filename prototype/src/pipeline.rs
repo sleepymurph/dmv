@@ -129,7 +129,6 @@ mod test {
     use dag::ReadObjectContent;
     use objectstore::test::create_temp_repository;
     use rollinghash::CHUNK_TARGET_SIZE;
-    use std::io::BufReader;
     use super::*;
     use testutil;
 
@@ -142,8 +141,7 @@ mod test {
 
         let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
-        let obj = object_store.open_object_file(&hash).unwrap();
-        let mut obj = BufReader::new(obj);
+        let mut obj = object_store.open_object_file(&hash).unwrap();
 
         let header = ObjectHeader::read_from(&mut obj).unwrap();
         assert_eq!(header.object_type, ObjectType::Blob);
@@ -163,8 +161,7 @@ mod test {
 
         let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
-        let obj = object_store.open_object_file(&hash).unwrap();
-        let mut obj = BufReader::new(obj);
+        let mut obj = object_store.open_object_file(&hash).unwrap();
 
         let header = ObjectHeader::read_from(&mut obj).unwrap();
         assert_eq!(header.object_type, ObjectType::Blob);
@@ -185,8 +182,7 @@ mod test {
 
         let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
-        let obj = object_store.open_object_file(&hash).unwrap();
-        let mut obj = BufReader::new(obj);
+        let mut obj = object_store.open_object_file(&hash).unwrap();
         let header = ObjectHeader::read_from(&mut obj).unwrap();
 
         assert_eq!(header.object_type, ObjectType::ChunkedBlob);
@@ -196,8 +192,8 @@ mod test {
         assert_eq!(chunked.chunks.len(), 5);
 
         for chunkrecord in chunked.chunks {
-            let obj = object_store.open_object_file(&chunkrecord.hash).unwrap();
-            let mut obj = BufReader::new(obj);
+            let mut obj = object_store.open_object_file(&chunkrecord.hash)
+                .unwrap();
             let header = ObjectHeader::read_from(&mut obj).unwrap();
             assert_eq!(header.object_type, ObjectType::Blob);
 
@@ -221,8 +217,7 @@ mod test {
     //
     // let hash = object_store.store_directory(&wd_path).unwrap();
     //
-    // let obj = object_store.open_object_file(&hash).unwrap();
-    // let mut obj = BufReader::new(obj);
+    // let mut obj = object_store.open_object_file(&hash).unwrap();
     // let header = ObjectHeader::read_from(&mut obj).unwrap();
     //
     // assert_eq!(header.object_type, ObjectType::Tree);

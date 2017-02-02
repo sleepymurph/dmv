@@ -9,7 +9,6 @@ use error::*;
 use humanreadable::human_bytes;
 use objectstore::ObjectStore;
 use pipeline;
-use std::io::BufReader;
 use std::path::PathBuf;
 
 pub fn init(repo_path: PathBuf) -> Result<()> {
@@ -52,9 +51,7 @@ pub fn show_object(repo_path: PathBuf, hash: &str) -> Result<()> {
     if !object_store.has_object(&hash) {
         println!("No such object");
     } else {
-        let reader = try!(object_store.open_object_file(&hash));
-        let mut reader = BufReader::new(reader);
-
+        let mut reader = try!(object_store.open_object_file(&hash));
         let header = try!(ObjectHeader::read_from(&mut reader));
         match header.object_type {
             ObjectType::Blob => {
