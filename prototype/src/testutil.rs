@@ -1,14 +1,11 @@
-extern crate rand;
-extern crate tempdir;
-
 use fsutil;
-use self::rand::{Rng, SeedableRng, Generator, XorShiftRng};
+use rand::{Rng, SeedableRng, Generator, XorShiftRng};
 use std::fs;
 use std::io;
 use std::io::Read;
-
 use std::iter::IntoIterator;
 use std::path;
+use tempdir::TempDir;
 
 pub struct RandBytes {
     rng: XorShiftRng,
@@ -122,9 +119,6 @@ macro_rules! write_str_files {
         )*
     }
 }
-
-/// Bring TempDir into namespace so users don't need `extern crate tempdir;`
-pub type TempDir = tempdir::TempDir;
 
 /// Create a temporary directory in an in-memory filesystem
 pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {

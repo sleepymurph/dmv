@@ -128,9 +128,10 @@ mod test {
     use rollinghash;
     use std::fs;
     use super::*;
+    use tempdir::TempDir;
     use testutil;
 
-    fn create_temp_repository() -> Result<(testutil::TempDir, WorkDir)> {
+    fn create_temp_repository() -> Result<(TempDir, WorkDir)> {
         let wd_temp = try!(testutil::in_mem_tempdir("test_repository"));
         let wd_path = wd_temp.path().to_path_buf();
         try!(fs::create_dir_all(&wd_path));

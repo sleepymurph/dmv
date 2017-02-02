@@ -6,6 +6,11 @@ extern crate error_chain;
 extern crate rustc_serialize;
 extern crate walkdir;
 
+// Used only for testutil
+extern crate rand;
+extern crate tempdir;
+
+
 pub mod error;
 
 #[macro_use]
