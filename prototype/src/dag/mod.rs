@@ -215,18 +215,15 @@ impl From<Commit> for Object {
 /// provides a convenient `to_object` chain method.
 ///
 /// ```
-/// extern crate prototypelib;
 /// use prototypelib::dag;
 /// use prototypelib::dag::ToObject;
 ///
-/// fn main() {
-///     let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
+/// let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
 ///
-///     let object_by_from = dag::Object::from(blob.clone());
-///     let object_by_chain = blob.clone().to_object();
+/// let object_by_from = dag::Object::from(blob.clone());
+/// let object_by_chain = blob.clone().to_object();
 ///
-///     assert_eq!(object_by_from, object_by_chain);
-/// }
+/// assert_eq!(object_by_from, object_by_chain);
 /// ```
 pub trait ToObject {
     fn to_object(self) -> Object;
@@ -288,18 +285,15 @@ impl<O: Into<Object>> From<O> for HashedObject {
 /// provides a convenient `to_hashed` chain method.
 ///
 /// ```
-/// extern crate prototypelib;
 /// use prototypelib::dag;
 /// use prototypelib::dag::ToHashed;
 ///
-/// fn main() {
-///     let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
+/// let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
 ///
-///     let hashed_by_from = dag::HashedObject::from(blob.clone());
-///     let hashed_by_chain = blob.clone().to_hashed();
+/// let hashed_by_from = dag::HashedObject::from(blob.clone());
+/// let hashed_by_chain = blob.clone().to_hashed();
 ///
-///     assert_eq!(hashed_by_from, hashed_by_chain);
-/// }
+/// assert_eq!(hashed_by_from, hashed_by_chain);
 /// ```
 pub trait ToHashed {
     fn to_hashed(self) -> HashedObject;

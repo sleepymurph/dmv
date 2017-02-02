@@ -186,17 +186,14 @@ impl<R: BufRead> Iterator for ChunkReader<R> {
 /// final ChunkedBlob.
 ///
 /// ```
-/// extern crate prototypelib;
 /// use prototypelib::rollinghash::read_file_objects;
 /// use prototypelib::dag::HashedObject;
 /// use std::io::BufReader;
 ///
-/// fn main() {
-///     let file = b"Hello world!".as_ref();
-///     let mut objects = Vec::<HashedObject>::new();
-///     for object in read_file_objects(BufReader::new(file)) {
-///         objects.push(object.unwrap());
-///     }
+/// let file = b"Hello world!".as_ref();
+/// let mut objects = Vec::<HashedObject>::new();
+/// for object in read_file_objects(BufReader::new(file)) {
+///     objects.push(object.unwrap());
 /// }
 /// ```
 pub fn read_file_objects<R: BufRead>(reader: R) -> ObjectReader<R> {
