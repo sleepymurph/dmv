@@ -35,7 +35,7 @@ pub fn hash_file(file_path: PathBuf,
     let file_stats = FileStats::from(file.metadata()?);
     let file = BufReader::new(file);
 
-    return_if_cached!(cache.check_with(&file_path, &file_stats));
+    return_if_cached!(cache, &file_path, &file_stats);
 
     let mut last_hash = ObjectKey::zero();
     for object in read_file_objects(file) {

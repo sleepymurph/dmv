@@ -26,16 +26,20 @@ pub enum CacheStatus {
 /// Does an early return with the cached hash value if it is present
 ///
 /// Like a `try!` for caching.
-///
-/// The `$check_expr` expression should evaluate to a `Result<CacheStatus>`.
 #[macro_export]
 macro_rules! return_if_cached {
-    ($check_expr:expr) => {
-        if let Ok($crate::cache::CacheStatus::Cached{ hash })
-            = $check_expr {
-            return Ok(hash);
+    (do_check; $path:expr, $cache_check:expr) => {
+        if let Ok($crate::cache::CacheStatus::Cached{ hash }) = $cache_check {
+                debug!("Already cached: {} {}", hash, $path.display());
+                return Ok(hash);
         }
-    }
+    };
+    ($cache:expr, $path:expr) => {
+        return_if_cached!{do_check; $path, $cache.check($path)};
+    };
+    ($cache:expr, $path:expr, $metadata:expr) => {
+        return_if_cached!{do_check; $path, $cache.check_with($path, $metadata)};
+    };
 }
 
 type CacheMap = collections::HashMap<encodable::PathBuf, CacheEntry>;
