@@ -8,6 +8,8 @@ use std::collections;
 use std::fs;
 use std::io;
 use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
 use std::io::Write;
 use std::ops;
 use std::path;
@@ -208,24 +210,15 @@ impl HashCacheFile {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        use std::io::Seek;
-
-        let encoded = try!(json::encode(&self.cache.0).map_err(|e| {
-            ErrorKind::CacheSerializeError {
-                cause: e,
-                bad_cache: self.cache.clone(),
-            }
-        }));
-
+        debug!("Writing cache: {}", self.cache_file_path.display());
         let mut cache_file = try!(fs::OpenOptions::new()
             .write(true)
             .create(true)
             .open(&self.cache_file_path));
 
-        debug!("Writing cache: {}", self.cache_file_path.display());
-        try!(cache_file.seek(io::SeekFrom::Start(0)));
+        try!(cache_file.seek(SeekFrom::Start(0)));
         try!(cache_file.set_len(0));
-        try!(cache_file.write_all(encoded.as_bytes()));
+        try!(write!(cache_file, "{}", json::as_pretty_json(&self.cache.0)));
         Ok(())
     }
 }

@@ -45,10 +45,6 @@ error_chain!{
             cause: ::rustc_serialize::json::DecoderError,
             bad_json: String,
         }
-        CacheSerializeError{
-            cause: ::rustc_serialize::json::EncoderError,
-            bad_cache: ::cache::HashCache,
-        }
     }
 }
 
