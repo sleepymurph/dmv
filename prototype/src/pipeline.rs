@@ -122,11 +122,9 @@ pub fn hash_partial_tree<P>(dir_path: &P,
 mod test {
     use cache::AllCaches;
     use dag::Blob;
-    use dag::ChunkedBlob;
+    use dag::Object;
     use dag::ObjectCommon;
-    use dag::ObjectHeader;
     use dag::ObjectType;
-    use dag::ReadObjectContent;
     use objectstore::test::create_temp_repository;
     use rollinghash::CHUNK_TARGET_SIZE;
     use super::*;
@@ -141,14 +139,10 @@ mod test {
 
         let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
-        let mut obj = object_store.open_object_file(&hash).unwrap();
+        let mut objfile = object_store.open_object_file(&hash).unwrap();
+        let obj = Object::read_from(&mut objfile).unwrap();
 
-        let header = ObjectHeader::read_from(&mut obj).unwrap();
-        assert_eq!(header.object_type, ObjectType::Blob);
-        assert_eq!(header.content_size, 0);
-
-        let blob = Blob::read_content(&mut obj).unwrap();
-        assert_eq!(String::from_utf8(blob.content).unwrap(), "");
+        assert_eq!(Object::Blob(Blob::empty()), obj);
     }
 
     #[test]
@@ -161,13 +155,10 @@ mod test {
 
         let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
-        let mut obj = object_store.open_object_file(&hash).unwrap();
+        let mut objfile = object_store.open_object_file(&hash).unwrap();
+        let obj = Object::read_from(&mut objfile).unwrap();
 
-        let header = ObjectHeader::read_from(&mut obj).unwrap();
-        assert_eq!(header.object_type, ObjectType::Blob);
-
-        let blob = Blob::read_content(&mut obj).unwrap();
-        assert_eq!(String::from_utf8(blob.content).unwrap(), "foo");
+        assert_eq!(Object::Blob(Blob::from("foo")), obj);
     }
 
     #[test]
@@ -183,23 +174,24 @@ mod test {
         let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
         let mut obj = object_store.open_object_file(&hash).unwrap();
-        let header = ObjectHeader::read_from(&mut obj).unwrap();
+        let obj = Object::read_from(&mut obj).unwrap();
 
-        assert_eq!(header.object_type, ObjectType::ChunkedBlob);
+        if let Object::ChunkedBlob(chunked) = obj {
+            assert_eq!(chunked.total_size, filesize);
+            assert_eq!(chunked.chunks.len(), 5);
 
-        let chunked = ChunkedBlob::read_content(&mut obj).unwrap();
-        assert_eq!(chunked.total_size, filesize);
-        assert_eq!(chunked.chunks.len(), 5);
+            for chunkrecord in chunked.chunks {
+                let mut obj = object_store.open_object_file(&chunkrecord.hash)
+                    .unwrap();
+                let obj = Object::read_from(&mut obj).unwrap();
+                assert_eq!(obj.object_type(), ObjectType::Blob);
+                assert_eq!(obj.content_size(), chunkrecord.size);
+            }
 
-        for chunkrecord in chunked.chunks {
-            let mut obj = object_store.open_object_file(&chunkrecord.hash)
-                .unwrap();
-            let header = ObjectHeader::read_from(&mut obj).unwrap();
-            assert_eq!(header.object_type, ObjectType::Blob);
-
-            let blob = Blob::read_content(&mut obj).unwrap();
-            assert_eq!(blob.content_size(), chunkrecord.size);
+        } else {
+            panic!("Not a ChunkedBlob: {:?}", obj);
         }
+
     }
 
     // #[test]
