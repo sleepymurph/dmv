@@ -15,6 +15,8 @@ path = "src/main.rs"
 byteorder = "0.5"
 clap = {version = "2", features = ["yaml"]}
 error-chain = "0.7.2"
+log = "0.3"
+env_logger = "0.3"
 rand = "0.3"
 rustc-serialize = "0.3"
 rust-crypto = "0.2"

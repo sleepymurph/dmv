@@ -1,8 +1,11 @@
 #[macro_use]
 extern crate clap;
-extern crate prototypelib;
 #[macro_use]
 extern crate error_chain;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+extern crate prototypelib;
 
 use prototypelib::cmd;
 use prototypelib::constants;
@@ -14,6 +17,7 @@ use std::path::PathBuf;
 quick_main!(run);
 
 fn run() -> Result<()> {
+    env_logger::init().unwrap();
 
     let arg_yaml = load_yaml!("cli.yaml");
     let argmatch = clap::App::from_yaml(arg_yaml).get_matches();

@@ -16,11 +16,15 @@ impl IgnoreList {
         for pattern in &self.0 {
             // Match full paths
             if pattern == path {
+                debug!("Ignoring '{}' (full match)", path.display());
                 return true;
             }
             // Match single component names
             for component in path.iter() {
                 if component == pattern {
+                    debug!("Ignoring '{}' (component match: {:?})",
+                           path.display(),
+                           Path::new(component).display());
                     return true;
                 }
             }

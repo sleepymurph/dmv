@@ -4,6 +4,8 @@ extern crate byteorder;
 #[macro_use]
 extern crate error_chain;
 extern crate rustc_serialize;
+#[macro_use]
+extern crate log;
 extern crate walkdir;
 
 // Used only for testutil
