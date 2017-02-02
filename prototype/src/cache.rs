@@ -165,6 +165,7 @@ impl HashCacheFile {
         let cache_file_exists = cache_file_path.exists();
 
         let cache_map = if cache_file_exists {
+            debug!("Opening cache: {} (existing)", cache_file_path.display());
             let mut cache_file = try!(fs::OpenOptions::new()
                 .read(true)
                 .open(&cache_file_path));
@@ -179,6 +180,7 @@ impl HashCacheFile {
                 }
             }))
         } else {
+            debug!("Opening cache: {} (new)", cache_file_path.display());
             CacheMap::new()
         };
 
@@ -220,6 +222,7 @@ impl HashCacheFile {
             .create(true)
             .open(&self.cache_file_path));
 
+        debug!("Writing cache: {}", self.cache_file_path.display());
         try!(cache_file.seek(io::SeekFrom::Start(0)));
         try!(cache_file.set_len(0));
         try!(cache_file.write_all(encoded.as_bytes()));

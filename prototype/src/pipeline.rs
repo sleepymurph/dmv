@@ -36,6 +36,7 @@ pub fn hash_file(file_path: PathBuf,
     let file = BufReader::new(file);
 
     return_if_cached!(cache, &file_path, &file_stats);
+    info!("Hashing {}", file_path.display());
 
     let mut last_hash = ObjectKey::zero();
     for object in read_file_objects(file) {
