@@ -93,15 +93,11 @@ pub fn dir_to_partial_tree(dir_path: &Path,
     }
 }
 
-pub fn hash_partial_tree<P>(dir_path: &P,
-                            mut partial: PartialTree,
-                            cache: &mut AllCaches,
-                            object_store: &mut ObjectStore)
-                            -> Result<ObjectKey>
-    where P: AsRef<Path>
-{
-    let dir_path = dir_path.as_ref();
-
+pub fn hash_partial_tree(dir_path: &Path,
+                         mut partial: PartialTree,
+                         cache: &mut AllCaches,
+                         object_store: &mut ObjectStore)
+                         -> Result<ObjectKey> {
     for (ch_name, unknown) in partial.unhashed().clone() {
         let ch_path = dir_path.join(&ch_name);
 
@@ -122,6 +118,7 @@ pub fn hash_partial_tree<P>(dir_path: &P,
 mod test {
     use cache::AllCaches;
     use dag::Blob;
+    use dag::HashedOrNot;
     use dag::Object;
     use dag::ObjectCommon;
     use dag::ObjectType;
@@ -194,33 +191,60 @@ mod test {
 
     }
 
-    // #[test]
-    // fn test_store_directory() {
-    // let (temp, mut object_store) = create_temp_repository().unwrap();
-    // let mut rng = testutil::RandBytes::new();
-    //
-    // let wd_path = temp.path().join("dir_to_store");
-    //
-    // testutil::write_str_file(&wd_path.join("foo"), "foo").unwrap();
-    // testutil::write_str_file(&wd_path.join("bar"), "bar").unwrap();
-    //
-    // let filesize = 3 * CHUNK_TARGET_SIZE as u64;
-    // rng.write_file(&wd_path.join("baz"), filesize).unwrap();
-    //
-    // let hash = object_store.store_directory(&wd_path).unwrap();
-    //
-    // let mut obj = object_store.open_object_file(&hash).unwrap();
-    // let header = ObjectHeader::read_from(&mut obj).unwrap();
-    //
-    // assert_eq!(header.object_type, ObjectType::Tree);
-    //
-    // let tree = Tree::read_content(&mut obj).unwrap();
-    // assert_eq!(tree, Tree::new());
-    // assert_eq!(tree.len(), 3);
-    //
-    // TODO: nested directories
-    // TODO: consistent sort order
-    // }
-    //
+    #[test]
+    fn test_store_directory_shallow() {
+        let (temp, mut object_store) = create_temp_repository().unwrap();
+        let mut cache = AllCaches::new();
+        let wd_path = temp.path().join("work_dir");
+
+        write_str_files!{
+            wd_path;
+            "foo" => "123",
+            "bar" => "1234",
+            "baz" => "12345",
+        };
+
+        let expected_partial = partial_tree!{
+                "foo" => HashedOrNot::UnhashedFile(3),
+                "bar" => HashedOrNot::UnhashedFile(4),
+                "baz" => HashedOrNot::UnhashedFile(5),
+        };
+
+        let expected_tree = tree_object!{
+            "foo" => Blob::from("123").calculate_hash(),
+            "bar" => Blob::from("1234").calculate_hash(),
+            "baz" => Blob::from("12345").calculate_hash(),
+        };
+
+        // Build partial tree
+
+        let partial = dir_to_partial_tree(&wd_path, &mut cache).unwrap();
+        assert_eq!(partial, expected_partial);
+
+        // Hash and store files
+
+        let hash =
+            hash_partial_tree(&wd_path, partial, &mut cache, &mut object_store)
+                .unwrap();
+
+        let mut file = object_store.open_object_file(&hash).unwrap();
+        let tree = Object::read_from(&mut file).unwrap();
+
+        assert_eq!(tree, Object::Tree(expected_tree.clone()));
+
+        // Check that files are stored as blobs
+
+        for (name, hash) in expected_tree.iter() {
+            assert!(object_store.has_object(&hash),
+                    "Object for '{}' was not stored",
+                    name.display());
+        }
+
+        // Check again that files are cached now
+
+        let partial = dir_to_partial_tree(&wd_path, &mut cache).unwrap();
+        assert!(partial.is_complete());
+        assert_eq!(partial.tree(), &expected_tree);
+    }
 
 }
