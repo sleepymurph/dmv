@@ -278,7 +278,7 @@ mod test {
     fn test_rolling_hash_values() {
         let mut hasher = RollingHasher::new(256);
         let mut hashvals: Vec<RollingHashValue> = Vec::new();
-        for byte in RandBytes::new().into_iter().take(10) {
+        for byte in RandBytes::default().into_iter().take(10) {
             hasher.slide(byte);
             hashvals.push(hasher.value());
         }
@@ -323,7 +323,7 @@ mod test {
 
         let mut flagger = ChunkFlagger::new();
         let mut chunk_offsets: Vec<usize> = Vec::new();
-        for (count, byte) in RandBytes::new()
+        for (count, byte) in RandBytes::default()
             .into_iter()
             .take(CHUNK_TARGET_SIZE * CHUNK_REPEAT)
             .enumerate() {
@@ -364,7 +364,7 @@ mod test {
     #[test]
     fn test_chunk_slide_over() {
         let mut data: Vec<u8> = Vec::new();
-        data.extend(RandBytes::new()
+        data.extend(RandBytes::default()
             .into_iter()
             .take(10 * CHUNK_TARGET_SIZE));
 
@@ -382,7 +382,7 @@ mod test {
 
     #[test]
     fn test_chunk_reader() {
-        let mut rng = RandBytes::new();
+        let mut rng = RandBytes::default();
         let rand_bytes = rng.next_many(10 * CHUNK_TARGET_SIZE);
         let mut chunk_read = ChunkReader::wrap(rand_bytes.as_slice());
 
@@ -420,7 +420,7 @@ mod test {
 
     #[test]
     fn test_object_iterator_one_chunk() {
-        let mut rng = RandBytes::new();
+        let mut rng = RandBytes::default();
         let input_bytes = rng.next_many(10);
         let mut object_read = read_file_objects(input_bytes.as_slice());
 
@@ -448,7 +448,7 @@ mod test {
 
     fn do_object_reconstruction_test(input_size: usize,
                                      expected_chunks: usize) {
-        let mut rng = RandBytes::new();
+        let mut rng = RandBytes::default();
         let input_bytes = rng.next_many(input_size);
         let mut object_read = read_file_objects(input_bytes.as_slice());
 

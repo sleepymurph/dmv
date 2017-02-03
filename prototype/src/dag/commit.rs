@@ -88,7 +88,7 @@ mod test {
     #[test]
     fn test_write_tree() {
         // Construct object
-        let mut rng = testutil::RandBytes::new();
+        let mut rng = testutil::RandBytes::default();
 
         let mut object = Commit::new();
         object.tree = random_hash(&mut rng);

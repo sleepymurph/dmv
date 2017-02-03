@@ -8,44 +8,65 @@ use std::path;
 use tempdir::TempDir;
 
 /// Generates deterministic psuedorandom bytes
+///
+/// ```
+/// use prototypelib::testutil::RandBytes;
+///
+/// # fn main() {
+/// let mut rng0 = RandBytes::default();
+/// let mut rng1 = RandBytes::default();
+///
+/// let vec_from_rng0: Vec<u8> = rng0.next_many(10);
+///
+/// assert_eq!(vec_from_rng0, rng1.next_many(10),
+///             "Same seed should produce same sequence every time");
+/// # }
 pub struct RandBytes {
     rng: XorShiftRng,
 }
 
-pub struct RandBytesRead<'a> {
-    rng: &'a mut RandBytes,
-    count: usize,
-    limit: usize,
+type Seed = [u32; 4];
+const DEFAULT_SEED: Seed = [255, 20, 110, 0];
+
+impl Default for RandBytes {
+    fn default() -> Self { RandBytes::with_seed(DEFAULT_SEED) }
 }
 
 impl RandBytes {
-    pub fn new() -> Self {
-        RandBytes { rng: XorShiftRng::from_seed([255, 20, 110, 0]) }
+    /// Create an instance using the given seed
+    ///
+    /// Default can also be used to create an instance with a default seed.
+    ///
+    /// ```
+    /// use prototypelib::testutil::RandBytes;
+    ///
+    /// # fn main() {
+    /// let mut rng0 = RandBytes::default();
+    /// let mut rng1 = RandBytes::with_seed([0,1,2,3]);
+    /// # }
+    pub fn with_seed(seed: Seed) -> Self {
+        RandBytes { rng: XorShiftRng::from_seed(seed) }
     }
 
+    /// Get one random byte
     pub fn next(&mut self) -> u8 { self.rng.gen() }
 
+    /// Get a random vector of the given size
     pub fn next_many(&mut self, size: usize) -> Vec<u8> {
-        let mut vec = Vec::new();
-        self.as_read(size).read_to_end(&mut vec).expect("read random bytes");
+        let mut vec = Vec::with_capacity(size);
+        self.as_read(size as u64)
+            .read_to_end(&mut vec)
+            .expect("read random bytes");
         vec
     }
 
-    pub fn as_read(&mut self, limit: usize) -> RandBytesRead {
+    /// Create a reader (std::io::Read) that draws random bytes
+    pub fn as_read(&mut self, limit: u64) -> RandBytesRead {
         RandBytesRead {
             rng: self,
             count: 0,
             limit: limit,
         }
-    }
-
-    pub fn write_file(&mut self,
-                      path: &path::Path,
-                      size: u64)
-                      -> io::Result<u64> {
-
-        let mut rand_bytes = self.as_read(size as usize);
-        write_file(path, &mut rand_bytes)
     }
 }
 
@@ -54,6 +75,16 @@ impl<'a> IntoIterator for &'a mut RandBytes {
     type IntoIter = Generator<'a, u8, XorShiftRng>;
 
     fn into_iter(self) -> Self::IntoIter { self.rng.gen_iter::<u8>() }
+}
+
+
+/// A reader (std::io::Read) that gives a set number of random bytes
+///
+/// Spawned by the `read` method on RandBytes.
+pub struct RandBytesRead<'a> {
+    rng: &'a mut RandBytes,
+    count: u64,
+    limit: u64,
 }
 
 impl<'a> Read for RandBytesRead<'a> {
@@ -106,7 +137,7 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
 /// write_file(temp.path().join("bytes.bin"), &vec![0u8,1,2,3]).unwrap();
 ///
 /// // Combine with RandomBytes to generate deterministic psuedo-random files
-/// let mut rng = RandBytes::new();
+/// let mut rng = RandBytes::default();
 /// write_file(temp.path().join("random0.bin"), rng.as_read(10)).unwrap();
 /// write_file(temp.path().join("random1.bin"), rng.as_read(10)).unwrap();
 ///
@@ -146,7 +177,7 @@ pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
 /// ByteSource::from(BufReader::new("hello!".as_bytes()));  // other readers
 ///
 /// // Combine with RandomBytes
-/// let mut rng = RandBytes::new();
+/// let mut rng = RandBytes::default();
 /// ByteSource::from(rng.as_read(10));
 /// # }
 /// ```
@@ -204,7 +235,7 @@ macro_rules! write_files {
 
 #[test]
 fn test_rand_bytes_same_every_time() {
-    let mut rng = RandBytes::new();
+    let mut rng = RandBytes::default();
     let mut rand_bytes: Vec<u8> = Vec::new();
     rand_bytes.extend(rng.into_iter().take(10));
     assert_eq!(rand_bytes, [7, 179, 173, 173, 109, 225, 168, 201, 120, 240]);
@@ -212,7 +243,7 @@ fn test_rand_bytes_same_every_time() {
 
 #[test]
 fn test_rand_bytes_read() {
-    let mut rng = RandBytes::new();
+    let mut rng = RandBytes::default();
     let mut rand_bytes: Vec<u8> = Vec::new();
     rand_bytes.resize(16, 0);
     let count = rng.as_read(10)
@@ -223,7 +254,7 @@ fn test_rand_bytes_read() {
                [7, 179, 173, 173, 109, 225, 168, 201, 120, 240, 0, 0, 0, 0,
                 0, 0]);
 
-    let mut rng = RandBytes::new();
+    let mut rng = RandBytes::default();
     rand_bytes.clear();
     rand_bytes.resize(10, 0);
     let count = rng.as_read(20)

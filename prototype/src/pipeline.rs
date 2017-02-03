@@ -163,8 +163,8 @@ mod test {
         let filepath = temp.path().join("foo");
         let filesize = 3 * CHUNK_TARGET_SIZE as u64;
 
-        let mut rng = testutil::RandBytes::new();
-        rng.write_file(&filepath, filesize).unwrap();
+        let mut rng = testutil::RandBytes::default();
+        testutil::write_file(&filepath, rng.as_read(filesize)).unwrap();
 
         let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
