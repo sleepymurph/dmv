@@ -130,7 +130,7 @@ mod test {
         let (temp, mut object_store) = create_temp_repository().unwrap();
         let mut cache = AllCaches::new();
         let filepath = temp.path().join("foo");
-        testutil::write_str_file(&filepath, "").unwrap();
+        testutil::write_file(&filepath, "").unwrap();
 
         let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
@@ -146,7 +146,7 @@ mod test {
         let mut cache = AllCaches::new();
         let filepath = temp.path().join("foo");
 
-        testutil::write_str_file(&filepath, "foo").unwrap();
+        testutil::write_file(&filepath, "foo").unwrap();
 
         let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
@@ -196,7 +196,7 @@ mod test {
         let mut cache = AllCaches::new();
         let wd_path = temp.path().join("work_dir");
 
-        write_str_files!{
+        write_files!{
             wd_path;
             "foo" => "123",
             "bar" => "1234",
@@ -256,7 +256,7 @@ mod test {
         let mut cache = AllCaches::new();
         let wd_path = temp.path().join("work_dir");
 
-        write_str_files!{
+        write_files!{
             wd_path;
             "foo" => "123",
             "level1/bar" => "1234",
@@ -335,7 +335,7 @@ mod test {
         let mut cache = AllCaches::new();
         let wd_path = temp.path();
 
-        write_str_files!{
+        write_files!{
             wd_path;
             "foo" => "123",
             "level1/bar" => "1234",
