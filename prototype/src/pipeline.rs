@@ -1,15 +1,22 @@
 use cache::AllCaches;
 use cache::FileStats;
+use dag::ChunkedBlob;
+use dag::ObjectHeader;
 use dag::ObjectKey;
+use dag::ObjectType;
 use dag::PartialTree;
+use dag::ReadObjectContent;
 use dag::UnhashedPath;
 use error::*;
 use ignore::IgnoreList;
 use objectstore::ObjectStore;
 use rollinghash::read_file_objects;
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::fs::read_dir;
 use std::io::BufReader;
+use std::io::Write;
+use std::io::copy;
 use std::path::Path;
 use std::path::PathBuf;
 use walkdir;
@@ -47,6 +54,70 @@ pub fn hash_file(file_path: PathBuf,
 
     Ok(last_hash)
 }
+
+pub fn extract_file(object_store: &ObjectStore,
+                    hash: &ObjectKey,
+                    file_path: &Path,
+                    cache: &mut AllCaches)
+                    -> Result<()> {
+
+    if !object_store.has_object(&hash) {
+        bail!(ErrorKind::ObjectNotFound(hash.to_owned()))
+    }
+
+    let mut object_file = try!(object_store.open_object_file(&hash));
+    let header = try!(ObjectHeader::read_from(&mut object_file));
+
+    let mut out_file = OpenOptions::new().write(true)
+        .create(true)
+        .truncate(true)
+        .open(file_path)?;
+
+    match header.object_type {
+        ObjectType::Blob => {
+            debug!("Extracting single blob {}", hash);
+            copy(&mut object_file, &mut out_file)?;
+        }
+        ObjectType::ChunkedBlob => {
+            debug!("Reading ChunkedBlob {}", hash);
+            let index = ChunkedBlob::read_content(&mut object_file)?;
+            for offset in index.chunks {
+                debug!("Extracting chunk blob {}", hash);
+                copy_blob_content(object_store, &offset.hash, &mut out_file)?;
+            }
+        }
+        other => bail!("Expected a Blob or ChunkedBlob, got a {:?}", other),
+    };
+
+    try!(out_file.flush());
+    let file_stats = FileStats::from(out_file.metadata()?);
+    try!(cache.insert(file_path.to_owned(), file_stats, hash.to_owned()));
+
+    Ok(())
+}
+
+fn copy_blob_content<W>(object_store: &ObjectStore,
+                        hash: &ObjectKey,
+                        mut writer: W)
+                        -> Result<()>
+    where W: Write
+{
+
+    if !object_store.has_object(&hash) {
+        bail!(ErrorKind::ObjectNotFound(hash.to_owned()))
+    }
+
+    let mut object_file = try!(object_store.open_object_file(&hash));
+    let header = try!(ObjectHeader::read_from(&mut object_file));
+    match header.object_type {
+        ObjectType::Blob => {
+            copy(&mut object_file, &mut writer)?;
+        }
+        other => bail!("Expected a Blob or ChunkedBlob, got a {:?}", other),
+    };
+    Ok(())
+}
+
 
 /// Read filesystem to construct a PartialTree
 pub fn dir_to_partial_tree(dir_path: &Path,
@@ -114,14 +185,20 @@ pub fn hash_partial_tree(dir_path: &Path,
 #[cfg(test)]
 mod test {
     use cache::AllCaches;
+    use cache::CacheStatus;
     use dag::Blob;
     use dag::HashedOrNot;
     use dag::Object;
     use dag::ObjectCommon;
+    use dag::ObjectKey;
     use dag::ObjectType;
+    use error::*;
     use ignore::IgnoreList;
     use objectstore::test::create_temp_repository;
     use rollinghash::CHUNK_TARGET_SIZE;
+    use rollinghash::read_file_objects;
+    use std::io::Cursor;
+    use std::io::Read;
     use super::*;
     use testutil;
 
@@ -187,6 +264,70 @@ mod test {
             panic!("Not a ChunkedBlob: {:?}", obj);
         }
 
+    }
+
+    #[test]
+    fn test_extract_file_object_not_found() {
+        let (temp, object_store) = create_temp_repository().unwrap();
+        let mut cache = AllCaches::new();
+        let out_file = temp.path().join("foo");
+        let hash = Blob::from("12345").calculate_hash();
+
+        let result = extract_file(&object_store, &hash, &out_file, &mut cache);
+
+        match result {
+            Err(Error(ErrorKind::ObjectNotFound(err_hash), _)) => {
+                assert_eq!(err_hash, hash)
+            }
+            _ => panic!("Unexpected result {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_extract_file_single_blob() {
+        let (temp, mut object_store) = create_temp_repository().unwrap();
+        let mut cache = AllCaches::new();
+
+        let blob = Blob::from("12345");
+        let hash = object_store.store_object(&blob).unwrap();
+
+        let out_file = temp.path().join("foo");
+        extract_file(&object_store, &hash, &out_file, &mut cache).unwrap();
+
+        let out_content = testutil::read_file_to_string(&out_file).unwrap();
+        assert_eq!(out_content, "12345");
+
+        assert_eq!(cache.check(&out_file).unwrap(),
+                   CacheStatus::Cached { hash: hash },
+                   "Cache should be primed with extracted file's hash");
+    }
+
+    #[test]
+    fn test_extract_file_multi_chunks() {
+        let (temp, mut object_store) = create_temp_repository().unwrap();
+        let mut cache = AllCaches::new();
+
+        let mut rng = testutil::RandBytes::default();
+        let filesize = 3 * CHUNK_TARGET_SIZE as u64;
+        let mut in_file = Vec::new();
+        rng.as_read(filesize).read_to_end(&mut in_file).unwrap();
+
+        let mut hash = ObjectKey::zero();
+        for object in read_file_objects(Cursor::new(&in_file)) {
+            hash = object_store.store_object(&object.unwrap()).unwrap();
+        }
+
+        let out_file = temp.path().join("foo");
+        extract_file(&object_store, &hash, &out_file, &mut cache).unwrap();
+
+        assert_eq!(out_file.metadata().unwrap().len(), filesize);
+
+        let out_content = testutil::read_file_to_end(&out_file).unwrap();
+        assert!(out_content == in_file);
+
+        assert_eq!(cache.check(&out_file).unwrap(),
+                   CacheStatus::Cached { hash: hash },
+                   "Cache should be primed with extracted file's hash");
     }
 
     #[test]

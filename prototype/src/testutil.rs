@@ -1,10 +1,11 @@
 use fsutil;
 use rand::{Rng, SeedableRng, Generator, XorShiftRng};
-use std::fs;
+use std::fs::File;
+use std::fs::OpenOptions;
 use std::io;
 use std::io::Read;
 use std::iter::IntoIterator;
-use std::path;
+use std::path::Path;
 use tempdir::TempDir;
 
 /// Generates deterministic psuedorandom bytes
@@ -146,14 +147,14 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
 /// # }
 /// ```
 pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
-    where P: AsRef<path::Path>,
+    where P: AsRef<Path>,
           R: io::Read,
           S: Into<ByteSource<R>>
 {
     let path = path.as_ref();
 
     try!(fsutil::create_parents(&path));
-    let mut file = try!(fs::OpenOptions::new()
+    let mut file = try!(OpenOptions::new()
         .write(true)
         .create(true)
         .open(&path)
@@ -192,7 +193,26 @@ impl<'a> From<&'a str> for ByteSource<&'a [u8]> {
 }
 
 impl<'a> From<&'a Vec<u8>> for ByteSource<&'a [u8]> {
-    fn from(s: &'a Vec<u8>) -> Self { ByteSource(s) }
+    fn from(v: &'a Vec<u8>) -> Self { ByteSource(v) }
+}
+
+
+/// Read a file as a String
+///
+/// Shorter version of `std::io::Read::read_to_string`.
+pub fn read_file_to_string(path: &Path) -> io::Result<String> {
+    let mut s = String::new();
+    File::open(path)?.read_to_string(&mut s)?;
+    Ok(s)
+}
+
+/// Read a file as a byte vector (Vec<u8>)
+///
+/// Shorter version of `std::io::Read::read_to_end`.
+pub fn read_file_to_end(path: &Path) -> io::Result<Vec<u8>> {
+    let mut v = Vec::new();
+    File::open(path)?.read_to_end(&mut v)?;
+    Ok(v)
 }
 
 

@@ -45,6 +45,11 @@ error_chain!{
             cause: ::rustc_serialize::json::DecoderError,
             bad_json: String,
         }
+
+        ObjectNotFound(h: $crate::dag::ObjectKey) {
+            description("object not found in object store")
+            display("object not found in object store: {}", h)
+        }
     }
 }
 
