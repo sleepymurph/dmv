@@ -6,8 +6,8 @@ use super::*;
 
 /// A handle to an open Object file, with the header parsed but not the content
 ///
-/// After destructuring, each inner handle will have a parse() method that will
-/// read the content as the appropriate object.
+/// After destructuring, each inner handle will have a `read_content` method
+/// that will read the content as the appropriate object.
 ///
 /// Specific object types may have other options. For instance, a BlobHandle can
 /// copy its data in a streaming fashion without loading it all into memory.
@@ -33,15 +33,15 @@ use super::*;
 ///         bh.copy_content(&mut copy).unwrap();
 ///     }
 ///     ObjectHandle::Tree(th) => {
-///         // Others can be parsed in a type-safe manner
-///         let tree = th.parse().unwrap();
+///         // Others can be read in a type-safe manner
+///         let tree = th.read_content().unwrap();
 ///         for (k, v) in tree.iter() {
 ///             // ...
 ///         }
 ///     }
 ///     other => {
-///         // Can be parsed to an Object enum as well
-///         let object = other.parse().unwrap();
+///         // Can be read to an Object enum as well
+///         let object = other.read_content().unwrap();
 ///         object.pretty_print();
 ///     }
 /// }
@@ -56,8 +56,8 @@ pub enum ObjectHandle {
 
 /// Type-differentiated object handle, inner type of each ObjectHandle variant
 ///
-/// All have a `parse` method which reads the rest of the file to give the
-/// appropriate DAG object.
+/// All have a `read_content` method which reads the rest of the file to give
+/// the appropriate DAG object.
 ///
 /// Specific types may have additional methods, such as the `copy_content`
 /// method when working with a Blob.
@@ -69,6 +69,7 @@ pub struct RawHandle<O: ReadObjectContent> {
 }
 
 impl ObjectHandle {
+    /// Create an ObjectHandle by reading the header of the given file
     pub fn read_header(mut file: Box<BufRead>) -> Result<Self> {
         let header = ObjectHeader::read_from(&mut file)?;
         let handle = match header.object_type {
@@ -88,6 +89,7 @@ impl ObjectHandle {
         Ok(handle)
     }
 
+    /// Get the header
     pub fn header(&self) -> &ObjectHeader {
         match *self {
             ObjectHandle::Blob(ref raw) => &raw.header,
@@ -97,12 +99,15 @@ impl ObjectHandle {
         }
     }
 
-    pub fn parse(self) -> Result<Object> {
+    /// Read and parse the rest of the file, returning an Object enum
+    pub fn read_content(self) -> Result<Object> {
         let obj = match self {
-            ObjectHandle::Blob(raw) => Object::Blob(raw.parse()?),
-            ObjectHandle::ChunkedBlob(raw) => Object::ChunkedBlob(raw.parse()?),
-            ObjectHandle::Tree(raw) => Object::Tree(raw.parse()?),
-            ObjectHandle::Commit(raw) => Object::Commit(raw.parse()?),
+            ObjectHandle::Blob(raw) => Object::Blob(raw.read_content()?),
+            ObjectHandle::ChunkedBlob(raw) => {
+                Object::ChunkedBlob(raw.read_content()?)
+            }
+            ObjectHandle::Tree(raw) => Object::Tree(raw.read_content()?),
+            ObjectHandle::Commit(raw) => Object::Commit(raw.read_content()?),
         };
         Ok(obj)
     }
@@ -116,10 +121,15 @@ impl<O: ReadObjectContent> RawHandle<O> {
             phantom: PhantomData,
         }
     }
-    pub fn parse(mut self) -> Result<O> { O::read_content(&mut self.file) }
+
+    /// Read and parse the rest of the file, returning the appropriate object
+    pub fn read_content(mut self) -> Result<O> {
+        O::read_content(&mut self.file)
+    }
 }
 
 impl RawHandle<Blob> {
+    /// Stream-copy the contents of the blob to the given writer
     pub fn copy_content<W: ?Sized + Write>(mut self,
                                            writer: &mut W)
                                            -> Result<()> {
