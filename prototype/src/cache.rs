@@ -8,8 +8,6 @@ use std::collections;
 use std::fs;
 use std::io;
 use std::io::Read;
-use std::io::Seek;
-use std::io::SeekFrom;
 use std::io::Write;
 use std::ops;
 use std::path;
@@ -214,10 +212,8 @@ impl HashCacheFile {
         let mut cache_file = try!(fs::OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(&self.cache_file_path));
-
-        try!(cache_file.seek(SeekFrom::Start(0)));
-        try!(cache_file.set_len(0));
         try!(write!(cache_file, "{}", json::as_pretty_json(&self.cache.0)));
         Ok(())
     }
