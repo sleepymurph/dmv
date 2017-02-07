@@ -5,6 +5,7 @@ use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
 use std::ffi;
+use std::hash::{Hash, Hasher};
 use std::path;
 use std::time;
 
@@ -104,14 +105,17 @@ impl SystemTime {
     pub fn unix_epoch_plus(secs: u64, nanos: u32) -> Self {
         SystemTime(time::UNIX_EPOCH + time::Duration::new(secs, nanos))
     }
+
+    fn secs_nanos_since_epoch(&self) -> (u64, u32) {
+        let since_epoch = self.duration_since(time::UNIX_EPOCH)
+            .expect("mod time was before the Unix Epoch");
+        (since_epoch.as_secs(), since_epoch.subsec_nanos())
+    }
 }
 
 impl Encodable for SystemTime {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
-        let since_epoch = self.duration_since(time::UNIX_EPOCH)
-            .expect("mod time was before the Unix Epoch");
-        let secs_nanos = (since_epoch.as_secs(), since_epoch.subsec_nanos());
-        secs_nanos.encode(s)
+        self.secs_nanos_since_epoch().encode(s)
     }
 }
 
@@ -119,6 +123,12 @@ impl Decodable for SystemTime {
     fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
         let (secs, nanos) = try!(<(u64, u32)>::decode(d));
         Ok(SystemTime(time::UNIX_EPOCH + time::Duration::new(secs, nanos)))
+    }
+}
+
+impl Hash for SystemTime {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.secs_nanos_since_epoch().hash(state)
     }
 }
 

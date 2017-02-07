@@ -5,12 +5,16 @@ use error::*;
 use rustc_serialize;
 use rustc_serialize::json;
 use std::collections;
+use std::collections::hash_map::DefaultHasher;
 use std::fs;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::io;
 use std::io::Read;
 use std::io::Write;
 use std::ops;
 use std::path;
+
 
 /// Status of a file's cached hash
 #[derive(Clone,Eq,PartialEq,Debug)]
@@ -79,14 +83,14 @@ pub struct HashCache(CacheMap);
 }
 
 /// Data stored in the cache for each file
-#[derive(Clone,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
+#[derive(Clone,Hash,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
 pub struct CacheEntry {
     pub filestats: FileStats,
     pub hash: dag::ObjectKey,
 }
 
 /// Subset of file metadata used to determine if file has been modified
-#[derive(Clone,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
+#[derive(Clone,Hash,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
 pub struct FileStats {
     size: dag::ObjectSize,
     mtime: encodable::SystemTime,
@@ -98,6 +102,8 @@ pub struct HashCacheFile {
     cache_file_path: path::PathBuf,
     /// The cache map itself
     cache: HashCache,
+    /// A hash of the cache's state on disk, to prevent unnecessary writes
+    on_disk_state: u64,
 }
 
 /// Cache of caches
@@ -145,6 +151,12 @@ impl HashCache {
             None => CacheStatus::NotCached { size: file_stats.size },
         }
     }
+
+    fn calculate_hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
 }
 
 impl rustc_serialize::Encodable for HashCache {
@@ -163,6 +175,14 @@ impl rustc_serialize::Decodable for HashCache {
         let cache_map =
             try!(<CacheMap as rustc_serialize::Decodable>::decode(d));
         Ok(HashCache(cache_map))
+    }
+}
+
+impl Hash for HashCache {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for entry in &self.0 {
+            entry.hash(state);
+        }
     }
 }
 
@@ -213,10 +233,12 @@ impl HashCacheFile {
             debug!("Opening cache: {} (new)", cache_file_path.display());
             CacheMap::new()
         };
+        let cache_map = HashCache(cache_map);
 
         Ok(HashCacheFile {
             cache_file_path: cache_file_path,
-            cache: HashCache(cache_map),
+            on_disk_state: cache_map.calculate_hash(),
+            cache: cache_map,
         })
     }
 
@@ -238,6 +260,11 @@ impl HashCacheFile {
     }
 
     pub fn flush(&mut self) -> Result<()> {
+        let cur_state = self.cache.calculate_hash();
+        if cur_state == self.on_disk_state {
+            debug!("Cache unchanged: {}", self.cache_file_path.display());
+            return Ok(());
+        }
         debug!("Writing cache: {}", self.cache_file_path.display());
         let mut cache_file = try!(fs::OpenOptions::new()
             .write(true)
@@ -245,6 +272,7 @@ impl HashCacheFile {
             .truncate(true)
             .open(&self.cache_file_path));
         try!(write!(cache_file, "{}", json::as_pretty_json(&self.cache.0)));
+        self.on_disk_state = cur_state;
         Ok(())
     }
 }
