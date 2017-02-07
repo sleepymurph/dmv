@@ -1,6 +1,7 @@
 use error::*;
 use std::io::BufRead;
 use std::io::Write;
+use std::marker::PhantomData;
 use super::*;
 
 /// A handle to an open Object file, with the header parsed but not the content
@@ -15,7 +16,7 @@ use super::*;
 /// type.
 ///
 /// ```
-/// use prototypelib::dag::{ObjectHandle, ObjectCommon, Blob};
+/// use prototypelib::dag::{ObjectHandle, Object, ObjectCommon, Blob};
 /// use std::io::Cursor;
 ///
 /// let blob = Blob::from(Vec::from("12345"));
@@ -25,119 +26,101 @@ use super::*;
 /// let handle = ObjectHandle::read(Box::new(Cursor::new(file))).unwrap();
 /// match handle {
 ///     ObjectHandle::Blob(bh) => {
+///         // Blob can copy content as a stream
 ///         let mut copy = Vec::<u8>::new();
 ///         bh.copy_content(&mut copy).unwrap();
 ///     }
 ///     ObjectHandle::Tree(th) => {
+///         // Others can be parsed in a type-safe manner
 ///         let tree = th.parse().unwrap();
-///         // Do something with tree...
 ///     }
-///     _ => unimplemented!(),
+///     other => {
+///         // Can be parsed to an Object enum as well
+///         let object = other.parse().unwrap();
+///         object.pretty_print();
+///     }
 /// }
 /// ```
 ///
 pub enum ObjectHandle {
-    Blob(BlobHandle),
-    ChunkedBlob(ChunkedBlobHandle),
-    Tree(TreeHandle),
-    Commit(CommitHandle),
+    Blob(RawHandle<Blob>),
+    ChunkedBlob(RawHandle<ChunkedBlob>),
+    Tree(RawHandle<Tree>),
+    Commit(RawHandle<Commit>),
 }
 
-struct RawObjectHandle {
+/// Type-differentiated object handle, inner type of each ObjectHandle variant
+///
+/// All have a `parse` method which reads the rest of the file to give the
+/// appropriate DAG object.
+///
+/// Specific types may have additional methods, such as the `copy_content`
+/// method when working with a Blob.
+///
+pub struct RawHandle<O: ReadObjectContent> {
     header: ObjectHeader,
     file: Box<BufRead>,
+    phantom: PhantomData<O>,
 }
 
-pub struct BlobHandle(RawObjectHandle);
-pub struct ChunkedBlobHandle(RawObjectHandle);
-pub struct TreeHandle(RawObjectHandle);
-pub struct CommitHandle(RawObjectHandle);
-
 impl ObjectHandle {
-    /// Parse the header of the given file to give an ObjectHandle
     pub fn read(mut file: Box<BufRead>) -> Result<Self> {
         let header = ObjectHeader::read_from(&mut file)?;
-        let raw = RawObjectHandle {
-            header: header,
-            file: file,
-        };
-        let wrapped = match raw.header.object_type {
-            ObjectType::Blob => ObjectHandle::Blob(BlobHandle(raw)),
-            ObjectType::ChunkedBlob => {
-                ObjectHandle::ChunkedBlob(ChunkedBlobHandle(raw))
+        let handle = match header.object_type {
+            ObjectType::Blob => {
+                ObjectHandle::Blob(RawHandle::new(header, file))
             }
-            ObjectType::Tree => ObjectHandle::Tree(TreeHandle(raw)),
-            ObjectType::Commit => ObjectHandle::Commit(CommitHandle(raw)),
+            ObjectType::ChunkedBlob => {
+                ObjectHandle::ChunkedBlob(RawHandle::new(header, file))
+            }
+            ObjectType::Tree => {
+                ObjectHandle::Tree(RawHandle::new(header, file))
+            }
+            ObjectType::Commit => {
+                ObjectHandle::Commit(RawHandle::new(header, file))
+            }
         };
-        Ok(wrapped)
+        Ok(handle)
     }
 
-    fn raw(&self) -> &RawObjectHandle {
+    pub fn header(&self) -> &ObjectHeader {
         match *self {
-            ObjectHandle::Blob(BlobHandle(ref raw)) |
-            ObjectHandle::ChunkedBlob(ChunkedBlobHandle(ref raw)) |
-            ObjectHandle::Tree(TreeHandle(ref raw)) |
-            ObjectHandle::Commit(CommitHandle(ref raw)) => raw,
+            ObjectHandle::Blob(ref raw) => &raw.header,
+            ObjectHandle::ChunkedBlob(ref raw) => &raw.header,
+            ObjectHandle::Tree(ref raw) => &raw.header,
+            ObjectHandle::Commit(ref raw) => &raw.header,
         }
     }
 
-    /// Get a reference to the header data
-    pub fn header(&self) -> &ObjectHeader { &self.raw().header }
-
-    /// Load and parse the rest of the file to get a complete Object
     pub fn parse(self) -> Result<Object> {
         let obj = match self {
-            ObjectHandle::Blob(handle) => Object::Blob(handle.parse()?),
-            ObjectHandle::ChunkedBlob(handle) => {
-                Object::ChunkedBlob(handle.parse()?)
-            }
-            ObjectHandle::Tree(handle) => Object::Tree(handle.parse()?),
-            ObjectHandle::Commit(handle) => Object::Commit(handle.parse()?),
+            ObjectHandle::Blob(raw) => Object::Blob(raw.parse()?),
+            ObjectHandle::ChunkedBlob(raw) => Object::ChunkedBlob(raw.parse()?),
+            ObjectHandle::Tree(raw) => Object::Tree(raw.parse()?),
+            ObjectHandle::Commit(raw) => Object::Commit(raw.parse()?),
         };
         Ok(obj)
     }
 }
 
-pub trait ReadObjectHandle: Sized {
-    type Parsed: ReadObjectContent;
-    fn parse(self) -> Result<Self::Parsed>;
+impl<O: ReadObjectContent> RawHandle<O> {
+    fn new(header: ObjectHeader, file: Box<BufRead>) -> Self {
+        RawHandle {
+            header: header,
+            file: file,
+            phantom: PhantomData,
+        }
+    }
+    pub fn parse(mut self) -> Result<O> { O::read_content(&mut self.file) }
 }
 
-impl BlobHandle {
+impl RawHandle<Blob> {
     pub fn copy_content<W: ?Sized + Write>(mut self,
                                            writer: &mut W)
                                            -> Result<()> {
         use std::io::copy;
-        let copied = copy(&mut self.0.file, writer)?;
-        assert_eq!(copied, self.0.header.content_size);
+        let copied = copy(&mut self.file, writer)?;
+        assert_eq!(copied, self.header.content_size);
         Ok(())
-    }
-}
-
-impl ReadObjectHandle for BlobHandle {
-    type Parsed = Blob;
-    fn parse(mut self) -> Result<Blob> {
-        Blob::read_content(&mut self.0.file)
-    }
-}
-
-impl ReadObjectHandle for ChunkedBlobHandle {
-    type Parsed = ChunkedBlob;
-    fn parse(mut self) -> Result<Self::Parsed> {
-        ChunkedBlob::read_content(&mut self.0.file)
-    }
-}
-
-impl ReadObjectHandle for TreeHandle {
-    type Parsed = Tree;
-    fn parse(mut self) -> Result<Self::Parsed> {
-        Tree::read_content(&mut self.0.file)
-    }
-}
-
-impl ReadObjectHandle for CommitHandle {
-    type Parsed = Commit;
-    fn parse(mut self) -> Result<Self::Parsed> {
-        Commit::read_content(&mut self.0.file)
     }
 }
