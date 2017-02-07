@@ -51,11 +51,20 @@ pub fn hash_file(file_path: PathBuf,
     Ok(last_hash)
 }
 
+use cache::CacheStatus::Cached;
+
 pub fn extract_file(object_store: &ObjectStore,
                     hash: &ObjectKey,
                     file_path: &Path,
                     cache: &mut AllCaches)
                     -> Result<()> {
+
+    if file_path.exists() {
+        if let Ok(Cached { hash }) = cache.check(file_path) {
+            debug!("{} is already {} (cached)", file_path.display(), hash);
+            return Ok(());
+        }
+    }
 
     let mut out_file = OpenOptions::new().write(true)
         .create(true)
