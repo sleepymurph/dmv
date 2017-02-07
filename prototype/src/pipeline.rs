@@ -51,20 +51,13 @@ pub fn hash_file(file_path: PathBuf,
     Ok(last_hash)
 }
 
-use cache::CacheStatus::Cached;
-
 pub fn extract_file(object_store: &ObjectStore,
                     hash: &ObjectKey,
                     file_path: &Path,
                     cache: &mut AllCaches)
                     -> Result<()> {
 
-    if file_path.exists() {
-        if let Ok(Cached { hash }) = cache.check(file_path) {
-            debug!("{} is already {} (cached)", file_path.display(), hash);
-            return Ok(());
-        }
-    }
+    return_if_cache_matches!(cache, file_path, hash);
 
     let mut out_file = OpenOptions::new().write(true)
         .create(true)
@@ -84,18 +77,19 @@ fn copy_blob_content(object_store: &ObjectStore,
                      hash: &ObjectKey,
                      writer: &mut Write)
                      -> Result<()> {
+
     let handle = try!(object_store.open_object(&hash));
 
     match handle {
         ObjectHandle::Blob(blob) => {
-            trace!("Extracting single blob {}", hash);
+            debug!("Extracting blob {}", hash);
             blob.copy_content(writer)?;
         }
         ObjectHandle::ChunkedBlob(index) => {
             debug!("Reading ChunkedBlob {}", hash);
             let index = index.read_content()?;
             for offset in index.chunks {
-                debug!("Extracting: {}", offset);
+                debug!("{}", offset);
                 copy_blob_content(object_store, &offset.hash, writer)?;
             }
         }

@@ -30,7 +30,7 @@ pub enum CacheStatus {
 macro_rules! return_if_cached {
     (do_check; $path:expr, $cache_check:expr) => {
         if let Ok($crate::cache::CacheStatus::Cached{ hash }) = $cache_check {
-                debug!("Already cached: {} {}", hash, $path.display());
+                debug!("Already hashed: {} {}", hash, $path.display());
                 return Ok(hash);
         }
     };
@@ -39,6 +39,34 @@ macro_rules! return_if_cached {
     };
     ($cache:expr, $path:expr, $metadata:expr) => {
         return_if_cached!{do_check; $path, $cache.check_with($path, $metadata)};
+    };
+}
+
+/// Does an early return if the cached value matches
+///
+/// Like a `try!` for caching.
+#[macro_export]
+macro_rules! return_if_cache_matches {
+    (do_check; $path:expr, $hash:expr, $cache_check:expr) => {
+        if $path.exists() {
+            match $cache_check {
+                Ok($crate::cache::CacheStatus::Cached { hash: ref cache_hash })
+                    if cache_hash == $hash => {
+                        debug!("Already at state: {} {}",
+                                cache_hash, $path.display());
+                        return Ok(());
+                }
+                _ => {}
+            }
+        }
+    };
+    ($cache:expr, $path:expr, $hash:expr) => {
+        return_if_cache_matches!{do_check; $path, $hash,
+                                    $cache.check($path)};
+    };
+    ($cache:expr, $path:expr, $metadata:expr, $hash:expr) => {
+        return_if_cache_matches!{do_check; $path, $hash,
+                                    $cache.check_with($path, $metadata)};
     };
 }
 
