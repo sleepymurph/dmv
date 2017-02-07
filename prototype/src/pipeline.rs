@@ -57,28 +57,12 @@ pub fn extract_file(object_store: &ObjectStore,
                     cache: &mut AllCaches)
                     -> Result<()> {
 
-    let handle = try!(object_store.open_object(&hash));
-
     let mut out_file = OpenOptions::new().write(true)
         .create(true)
         .truncate(true)
         .open(file_path)?;
 
-    match handle {
-        ObjectHandle::Blob(blob) => {
-            debug!("Extracting single blob {}", hash);
-            blob.copy_content(&mut out_file)?;
-        }
-        ObjectHandle::ChunkedBlob(index) => {
-            debug!("Reading ChunkedBlob {}", hash);
-            let index = index.read_content()?;
-            for offset in index.chunks {
-                debug!("Extracting chunk blob {}", hash);
-                copy_blob_content(object_store, &offset.hash, &mut out_file)?;
-            }
-        }
-        other => bail!("Expected a Blob or ChunkedBlob, got a {:?}", other),
-    };
+    try!(copy_blob_content(object_store, hash, &mut out_file));
 
     try!(out_file.flush());
     let file_stats = FileStats::from(out_file.metadata()?);
@@ -87,19 +71,25 @@ pub fn extract_file(object_store: &ObjectStore,
     Ok(())
 }
 
-fn copy_blob_content<W>(object_store: &ObjectStore,
-                        hash: &ObjectKey,
-                        mut writer: W)
-                        -> Result<()>
-    where W: Write
-{
+fn copy_blob_content(object_store: &ObjectStore,
+                     hash: &ObjectKey,
+                     writer: &mut Write)
+                     -> Result<()> {
     let handle = try!(object_store.open_object(&hash));
 
     match handle {
         ObjectHandle::Blob(blob) => {
-            blob.copy_content(&mut writer)?;
+            debug!("Extracting single blob {}", hash);
+            blob.copy_content(writer)?;
         }
-        other => bail!("Expected a Blob, got a {:?}", other),
+        ObjectHandle::ChunkedBlob(index) => {
+            debug!("Reading ChunkedBlob {}", hash);
+            let index = index.read_content()?;
+            for offset in index.chunks {
+                copy_blob_content(object_store, &offset.hash, writer)?;
+            }
+        }
+        other => bail!("Expected a Blob or ChunkedBlob, got a {:?}", other),
     };
     Ok(())
 }
