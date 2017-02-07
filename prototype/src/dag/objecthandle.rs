@@ -19,11 +19,13 @@ use super::*;
 /// use prototypelib::dag::{ObjectHandle, Object, ObjectCommon, Blob};
 /// use std::io::Cursor;
 ///
-/// let blob = Blob::from(Vec::from("12345"));
-/// let mut file = Vec::<u8>::new();
-/// blob.write_to(&mut file).unwrap();
+/// // Create a test blob "file"
+/// let mut file = Vec::new();
+/// Blob::empty().write_to(&mut file);
+/// let file = Box::new(Cursor::new(file));
 ///
-/// let handle = ObjectHandle::read(Box::new(Cursor::new(file))).unwrap();
+/// // Read file
+/// let handle = ObjectHandle::read_header(file).unwrap();
 /// match handle {
 ///     ObjectHandle::Blob(bh) => {
 ///         // Blob can copy content as a stream
@@ -33,6 +35,9 @@ use super::*;
 ///     ObjectHandle::Tree(th) => {
 ///         // Others can be parsed in a type-safe manner
 ///         let tree = th.parse().unwrap();
+///         for (k, v) in tree.iter() {
+///             // ...
+///         }
 ///     }
 ///     other => {
 ///         // Can be parsed to an Object enum as well
@@ -64,7 +69,7 @@ pub struct RawHandle<O: ReadObjectContent> {
 }
 
 impl ObjectHandle {
-    pub fn read(mut file: Box<BufRead>) -> Result<Self> {
+    pub fn read_header(mut file: Box<BufRead>) -> Result<Self> {
         let header = ObjectHeader::read_from(&mut file)?;
         let handle = match header.object_type {
             ObjectType::Blob => {
