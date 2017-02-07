@@ -1,4 +1,5 @@
 use error::*;
+use std::fmt;
 use std::io::BufRead;
 use std::io::Write;
 use std::marker::PhantomData;
@@ -47,6 +48,7 @@ use super::*;
 /// }
 /// ```
 ///
+#[derive(Debug)]
 pub enum ObjectHandle {
     Blob(RawHandle<Blob>),
     ChunkedBlob(RawHandle<ChunkedBlob>),
@@ -137,5 +139,13 @@ impl RawHandle<Blob> {
         let copied = copy(&mut self.file, writer)?;
         assert_eq!(copied, self.header.content_size);
         Ok(())
+    }
+}
+
+impl<O: ReadObjectContent> fmt::Debug for RawHandle<O> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("RawHandle")
+            .field("header", &self.header)
+            .finish()
     }
 }
