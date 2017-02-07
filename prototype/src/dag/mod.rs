@@ -26,6 +26,9 @@ pub use self::tree::*;
 mod commit;
 pub use self::commit::*;
 
+mod objecthandle;
+pub use self::objecthandle::*;
+
 
 /// Type used for sizing and seeking in objects
 pub type ObjectSize = u64;
