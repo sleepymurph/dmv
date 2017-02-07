@@ -9,6 +9,7 @@ extern crate prototypelib;
 
 use prototypelib::cmd;
 use prototypelib::constants;
+use prototypelib::dag::ObjectKey;
 use prototypelib::error::*;
 use std::env;
 use std::path::PathBuf;
@@ -29,8 +30,8 @@ fn run() -> Result<()> {
                 "init" => cmd_init,
                 "hash-object" => cmd_hash_object,
                 "show-object" => cmd_show_object,
-                "cache-status" => cmd_cache_status,
                 "extract-file" => cmd_extract_file,
+                "cache-status" => cmd_cache_status,
                 _ => unimplemented!(),
             };
             let submatch = argmatch.subcommand_matches(name)
@@ -64,21 +65,25 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches,
                    submatch: &clap::ArgMatches)
                    -> Result<()> {
     let repo_path = repo_path();
-    let hash = submatch.value_of("hash").expect("required");
 
-    cmd::show_object(repo_path, hash)
+    let hash = submatch.value_of("hash").expect("required");
+    let hash = try!(ObjectKey::from_hex(hash));
+
+    cmd::show_object(repo_path, &hash)
 }
 
 fn cmd_extract_file(_argmatch: &clap::ArgMatches,
                     submatch: &clap::ArgMatches)
                     -> Result<()> {
     let repo_path = repo_path();
+
     let hash = submatch.value_of("hash").expect("required");
+    let hash = try!(ObjectKey::from_hex(hash));
 
     let file_path = submatch.value_of("filepath").expect("required");
     let file_path = PathBuf::from(file_path);
 
-    cmd::extract_file(repo_path, hash, file_path)
+    cmd::extract_file(repo_path, &hash, &file_path)
 }
 
 fn cmd_cache_status(_argmatch: &clap::ArgMatches,

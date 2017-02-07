@@ -9,6 +9,7 @@ use humanreadable::human_bytes;
 use ignore::IgnoreList;
 use objectstore::ObjectStore;
 use pipeline;
+use std::path::Path;
 use std::path::PathBuf;
 
 pub fn init(repo_path: PathBuf) -> Result<()> {
@@ -47,9 +48,8 @@ pub fn hash_object(repo_path: PathBuf, file_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn show_object(repo_path: PathBuf, hash: &str) -> Result<()> {
+pub fn show_object(repo_path: PathBuf, hash: &ObjectKey) -> Result<()> {
 
-    let hash = try!(ObjectKey::from_hex(hash));
     let object_store = try!(ObjectStore::open(repo_path));
 
     if !object_store.has_object(&hash) {
@@ -70,19 +70,17 @@ pub fn show_object(repo_path: PathBuf, hash: &str) -> Result<()> {
 }
 
 pub fn extract_file(repo_path: PathBuf,
-                    hash: &str,
-                    file_path: PathBuf)
+                    hash: &ObjectKey,
+                    file_path: &Path)
                     -> Result<()> {
 
     let mut object_store = try!(ObjectStore::open(repo_path));
     let mut cache = AllCaches::new();
-    let hash = try!(ObjectKey::from_hex(hash));
 
     try!(pipeline::extract_file(&mut object_store,
                                 &hash,
                                 &file_path,
                                 &mut cache));
-
     Ok(())
 }
 
