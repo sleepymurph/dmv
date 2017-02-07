@@ -19,6 +19,15 @@ subcommands:
                 required: true
                 index: 1
 
+    - extract-file:
+        args:
+            - hash:
+                required: true
+                index: 1
+            - filepath:
+                required: true
+                index: 2
+
     - cache-status:
         args:
             - filepath:

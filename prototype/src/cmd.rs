@@ -69,6 +69,23 @@ pub fn show_object(repo_path: PathBuf, hash: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn extract_file(repo_path: PathBuf,
+                    hash: &str,
+                    file_path: PathBuf)
+                    -> Result<()> {
+
+    let mut object_store = try!(ObjectStore::open(repo_path));
+    let mut cache = AllCaches::new();
+    let hash = try!(ObjectKey::from_hex(hash));
+
+    try!(pipeline::extract_file(&mut object_store,
+                                &hash,
+                                &file_path,
+                                &mut cache));
+
+    Ok(())
+}
+
 pub fn cache_status(file_path: PathBuf) -> Result<()> {
     let mut cache = AllCaches::new();
     let cache_status = try!(cache.check(&file_path));
