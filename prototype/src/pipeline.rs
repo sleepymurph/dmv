@@ -79,13 +79,14 @@ fn copy_blob_content(object_store: &ObjectStore,
 
     match handle {
         ObjectHandle::Blob(blob) => {
-            debug!("Extracting single blob {}", hash);
+            trace!("Extracting single blob {}", hash);
             blob.copy_content(writer)?;
         }
         ObjectHandle::ChunkedBlob(index) => {
             debug!("Reading ChunkedBlob {}", hash);
             let index = index.read_content()?;
             for offset in index.chunks {
+                debug!("Extracting: {}", offset);
                 copy_blob_content(object_store, &offset.hash, writer)?;
             }
         }

@@ -1,7 +1,7 @@
 use error::*;
 use humanreadable;
+use std::fmt;
 use std::io;
-
 use super::*;
 
 /// A large blob made of many smaller chunks
@@ -134,6 +134,17 @@ impl ReadObjectContent for ChunkedBlob {
             total_size: total_size,
             chunks: chunks,
         })
+    }
+}
+
+
+impl fmt::Display for ChunkOffset {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,
+               "ChunkOffset( {} at {:#010x} ({}) )",
+               self.hash,
+               self.offset,
+               humanreadable::human_bytes(self.size))
     }
 }
 

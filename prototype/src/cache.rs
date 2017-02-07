@@ -87,6 +87,8 @@ impl HashCache {
                         file_path: path::PathBuf,
                         file_stats: FileStats,
                         hash: dag::ObjectKey) {
+
+        debug!("Caching file hash: {} => {}", file_path.display(), hash);
         self.0.insert(file_path.into(),
                       CacheEntry {
                           filestats: file_stats,
