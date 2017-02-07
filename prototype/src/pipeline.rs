@@ -1,11 +1,8 @@
 use cache::AllCaches;
 use cache::FileStats;
-use dag::ChunkedBlob;
-use dag::ObjectHeader;
+use dag::ObjectHandle;
 use dag::ObjectKey;
-use dag::ObjectType;
 use dag::PartialTree;
-use dag::ReadObjectContent;
 use dag::UnhashedPath;
 use error::*;
 use ignore::IgnoreList;
@@ -16,7 +13,6 @@ use std::fs::OpenOptions;
 use std::fs::read_dir;
 use std::io::BufReader;
 use std::io::Write;
-use std::io::copy;
 use std::path::Path;
 use std::path::PathBuf;
 use walkdir;
@@ -61,26 +57,21 @@ pub fn extract_file(object_store: &ObjectStore,
                     cache: &mut AllCaches)
                     -> Result<()> {
 
-    if !object_store.has_object(&hash) {
-        bail!(ErrorKind::ObjectNotFound(hash.to_owned()))
-    }
-
-    let mut object_file = try!(object_store.open_object_file(&hash));
-    let header = try!(ObjectHeader::read_from(&mut object_file));
+    let handle = try!(object_store.open_object(&hash));
 
     let mut out_file = OpenOptions::new().write(true)
         .create(true)
         .truncate(true)
         .open(file_path)?;
 
-    match header.object_type {
-        ObjectType::Blob => {
+    match handle {
+        ObjectHandle::Blob(blob) => {
             debug!("Extracting single blob {}", hash);
-            copy(&mut object_file, &mut out_file)?;
+            blob.copy_content(&mut out_file)?;
         }
-        ObjectType::ChunkedBlob => {
+        ObjectHandle::ChunkedBlob(index) => {
             debug!("Reading ChunkedBlob {}", hash);
-            let index = ChunkedBlob::read_content(&mut object_file)?;
+            let index = index.read_content()?;
             for offset in index.chunks {
                 debug!("Extracting chunk blob {}", hash);
                 copy_blob_content(object_store, &offset.hash, &mut out_file)?;
@@ -102,18 +93,13 @@ fn copy_blob_content<W>(object_store: &ObjectStore,
                         -> Result<()>
     where W: Write
 {
+    let handle = try!(object_store.open_object(&hash));
 
-    if !object_store.has_object(&hash) {
-        bail!(ErrorKind::ObjectNotFound(hash.to_owned()))
-    }
-
-    let mut object_file = try!(object_store.open_object_file(&hash));
-    let header = try!(ObjectHeader::read_from(&mut object_file));
-    match header.object_type {
-        ObjectType::Blob => {
-            copy(&mut object_file, &mut writer)?;
+    match handle {
+        ObjectHandle::Blob(blob) => {
+            blob.copy_content(&mut writer)?;
         }
-        other => bail!("Expected a Blob or ChunkedBlob, got a {:?}", other),
+        other => bail!("Expected a Blob, got a {:?}", other),
     };
     Ok(())
 }

@@ -91,7 +91,7 @@ impl ObjectHandle {
         Ok(handle)
     }
 
-    /// Get the header
+    /// Get the parsed header
     pub fn header(&self) -> &ObjectHeader {
         match *self {
             ObjectHandle::Blob(ref raw) => &raw.header,
@@ -123,6 +123,9 @@ impl<O: ReadObjectContent> RawHandle<O> {
             phantom: PhantomData,
         }
     }
+
+    /// Get the parsed header
+    pub fn header(&self) -> &ObjectHeader { &self.header }
 
     /// Read and parse the rest of the file, returning the appropriate object
     pub fn read_content(mut self) -> Result<O> {

@@ -37,8 +37,20 @@ impl ObjectStore {
     pub fn open_object_file(&self,
                             key: &dag::ObjectKey)
                             -> Result<io::BufReader<fs::File>> {
+
+        if !self.has_object(&key) {
+            bail!(ErrorKind::ObjectNotFound(key.to_owned()))
+        }
+
         let file = try!(fs::File::open(self.object_path(key)).err_into());
         Ok(io::BufReader::new(file))
+    }
+
+    pub fn open_object(&self,
+                       key: &dag::ObjectKey)
+                       -> Result<dag::ObjectHandle> {
+        let file = self.open_object_file(key)?;
+        dag::ObjectHandle::read_header(Box::new(file))
     }
 
     /// Writes a single object into the object store

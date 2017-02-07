@@ -2,9 +2,8 @@
 
 use cache::AllCaches;
 use dag::ObjectCommon;
-use dag::ObjectHeader;
+use dag::ObjectHandle;
 use dag::ObjectKey;
-use dag::ObjectType;
 use error::*;
 use humanreadable::human_bytes;
 use ignore::IgnoreList;
@@ -56,14 +55,13 @@ pub fn show_object(repo_path: PathBuf, hash: &str) -> Result<()> {
     if !object_store.has_object(&hash) {
         println!("No such object");
     } else {
-        let mut reader = try!(object_store.open_object_file(&hash));
-        let header = try!(ObjectHeader::read_from(&mut reader));
-        match header.object_type {
-            ObjectType::Blob => {
-                println!("{}", header);
+        let handle = try!(object_store.open_object(&hash));
+        match handle {
+            ObjectHandle::Blob(blobhandle) => {
+                println!("{}", blobhandle.header());
             }
             _ => {
-                let object = try!(header.read_content(&mut reader));
+                let object = try!(handle.read_content());
                 println!("{}", object.pretty_print());
             }
         }
