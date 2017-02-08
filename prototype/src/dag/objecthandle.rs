@@ -1,4 +1,3 @@
-use error::*;
 use std::fmt;
 use std::io::BufRead;
 use std::io::Write;

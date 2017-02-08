@@ -1,5 +1,4 @@
 use cache::CacheStatus;
-use error::*;
 use humanreadable;
 use std::collections;
 use std::io;

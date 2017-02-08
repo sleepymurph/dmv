@@ -93,7 +93,6 @@ impl ObjectStore {
 pub mod test {
     use dag;
     use dag::ToHashed;
-    use error::*;
     use std::fs;
     use super::*;
     use tempdir::TempDir;

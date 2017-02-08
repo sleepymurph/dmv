@@ -1,4 +1,3 @@
-use error::*;
 use humanreadable;
 use std::fmt;
 use std::io;

@@ -1,4 +1,3 @@
-use error::*;
 use std::io;
 use super::*;
 

@@ -160,7 +160,6 @@ mod test {
     use dag::ObjectCommon;
     use dag::ObjectKey;
     use dag::ObjectType;
-    use error::*;
     use ignore::IgnoreList;
     use objectstore::test::create_temp_repository;
     use rollinghash::CHUNK_TARGET_SIZE;

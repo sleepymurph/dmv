@@ -184,7 +184,6 @@ impl<W: io::Write> io::Write for HashWriter<W> {
 #[cfg(test)]
 mod test {
 
-    use error::*;
     use rustc_serialize::json;
     use std::io::Write;
     use super::*;
