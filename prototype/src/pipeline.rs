@@ -15,19 +15,7 @@ use std::io::BufReader;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
-use walkdir;
-use walkdir::DirEntry;
-use walkdir::WalkDir;
-use walkdir::WalkDirIterator;
 
-pub fn dirs_depth_first(path: &Path)
-                        -> Box<Iterator<Item = walkdir::Result<DirEntry>>> {
-
-    Box::new(WalkDir::new(path)
-        .sort_by(|a, b| a.cmp(b))
-        .into_iter()
-        .filter_entry(|d| d.file_type().is_dir()))
-}
 
 pub fn hash_file(file_path: PathBuf,
                  cache: &mut AllCaches,

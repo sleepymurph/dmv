@@ -7,7 +7,6 @@ extern crate error_chain;
 extern crate rustc_serialize;
 #[macro_use]
 extern crate log;
-extern crate walkdir;
 
 // Dependencies used only in test / testutil
 extern crate rand;
