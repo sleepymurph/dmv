@@ -5,12 +5,12 @@ extern crate error_chain;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-extern crate prototypelib;
+extern crate prototype;
 
-use prototypelib::cmd;
-use prototypelib::constants;
-use prototypelib::dag::ObjectKey;
-use prototypelib::error::*;
+use prototype::cmd;
+use prototype::constants;
+use prototype::dag::ObjectKey;
+use prototype::error::*;
 use std::env;
 use std::path::PathBuf;
 

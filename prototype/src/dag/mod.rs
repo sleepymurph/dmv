@@ -218,8 +218,8 @@ impl From<Commit> for Object {
 /// provides a convenient `to_object` chain method.
 ///
 /// ```
-/// use prototypelib::dag;
-/// use prototypelib::dag::ToObject;
+/// use prototype::dag;
+/// use prototype::dag::ToObject;
 ///
 /// let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
 ///
@@ -288,8 +288,8 @@ impl<O: Into<Object>> From<O> for HashedObject {
 /// provides a convenient `to_hashed` chain method.
 ///
 /// ```
-/// use prototypelib::dag;
-/// use prototypelib::dag::ToHashed;
+/// use prototype::dag;
+/// use prototype::dag::ToHashed;
 ///
 /// let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
 ///

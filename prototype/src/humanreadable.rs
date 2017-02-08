@@ -7,8 +7,8 @@
 /// KiB, and 2049 bytes is rounded down.
 ///
 /// ```
-/// extern crate prototypelib;
-/// use prototypelib::humanreadable::human_bytes;
+/// extern crate prototype;
+/// use prototype::humanreadable::human_bytes;
 ///
 /// fn main() {
 ///     // Bytes endings are right-padded for alignment

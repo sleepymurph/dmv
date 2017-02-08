@@ -11,7 +11,7 @@ use tempdir::TempDir;
 /// Generates deterministic psuedorandom bytes
 ///
 /// ```
-/// use prototypelib::testutil::RandBytes;
+/// use prototype::testutil::RandBytes;
 ///
 /// # fn main() {
 /// let mut rng0 = RandBytes::default();
@@ -39,7 +39,7 @@ impl RandBytes {
     /// Default can also be used to create an instance with a default seed.
     ///
     /// ```
-    /// use prototypelib::testutil::RandBytes;
+    /// use prototype::testutil::RandBytes;
     ///
     /// # fn main() {
     /// let mut rng0 = RandBytes::default();
@@ -103,7 +103,7 @@ impl<'a> Read for RandBytesRead<'a> {
 /// Create a temporary directory in an in-memory filesystem
 ///
 /// ```
-/// use prototypelib::testutil::in_mem_tempdir;
+/// use prototype::testutil::in_mem_tempdir;
 ///
 /// # fn main() {
 /// let temp_path;
@@ -130,7 +130,7 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
 /// - create parent directories if they do not exist.
 ///
 /// ```
-/// use prototypelib::testutil::{in_mem_tempdir, write_file, RandBytes};
+/// use prototype::testutil::{in_mem_tempdir, write_file, RandBytes};
 ///
 /// # fn main() {
 /// let temp = in_mem_tempdir("example").unwrap();
@@ -168,7 +168,7 @@ pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
 /// Used to allow the `write_file` function to take varied parameters.
 ///
 /// ```
-/// use prototypelib::testutil::{ByteSource, RandBytes};
+/// use prototype::testutil::{ByteSource, RandBytes};
 /// use std::io::BufReader;
 ///
 /// # fn main() {
@@ -220,8 +220,8 @@ pub fn read_file_to_end(path: &Path) -> io::Result<Vec<u8>> {
 ///
 /// ```
 /// #[macro_use]
-/// extern crate prototypelib;
-/// use prototypelib::testutil::{in_mem_tempdir,RandBytes};
+/// extern crate prototype;
+/// use prototype::testutil::{in_mem_tempdir,RandBytes};
 ///
 /// fn main() {
 ///     let temp = in_mem_tempdir("example").unwrap();

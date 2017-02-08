@@ -4,12 +4,13 @@ version = "0.1.0"
 authors = ["Mike Murphy <codermurph@sleepymurph.com>"]
 
 [lib]
-name = "prototypelib"
+name = "prototype"
 path = "src/lib.rs"
 
 [[bin]]
 name = "prototype"
 path = "src/main.rs"
+doc = false
 
 [dependencies]
 byteorder = "0.5"
