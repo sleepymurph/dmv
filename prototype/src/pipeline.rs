@@ -208,7 +208,7 @@ mod test {
         let filesize = 3 * CHUNK_TARGET_SIZE as u64;
 
         let mut rng = testutil::RandBytes::default();
-        testutil::write_file(&filepath, rng.as_read(filesize)).unwrap();
+        testutil::write_file(&filepath, rng.take(filesize)).unwrap();
 
         let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
 
@@ -277,7 +277,7 @@ mod test {
         let mut rng = testutil::RandBytes::default();
         let filesize = 3 * CHUNK_TARGET_SIZE as u64;
         let mut in_file = Vec::new();
-        rng.as_read(filesize).read_to_end(&mut in_file).unwrap();
+        rng.take(filesize).read_to_end(&mut in_file).unwrap();
 
         let mut hash = ObjectKey::zero();
         for object in read_file_objects(Cursor::new(&in_file)) {

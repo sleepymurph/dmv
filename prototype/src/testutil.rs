@@ -55,14 +55,14 @@ impl RandBytes {
     /// Get a random vector of the given size
     pub fn next_many(&mut self, size: usize) -> Vec<u8> {
         let mut vec = Vec::with_capacity(size);
-        self.as_read(size as u64)
+        self.take(size as u64)
             .read_to_end(&mut vec)
             .expect("read random bytes");
         vec
     }
 
     /// Create a reader (std::io::Read) that draws random bytes
-    pub fn as_read(&mut self, limit: u64) -> RandBytesRead {
+    pub fn take(&mut self, limit: u64) -> RandBytesRead {
         RandBytesRead {
             rng: self,
             count: 0,
@@ -139,8 +139,8 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
 ///
 /// // Combine with RandomBytes to generate deterministic psuedo-random files
 /// let mut rng = RandBytes::default();
-/// write_file(temp.path().join("random0.bin"), rng.as_read(10)).unwrap();
-/// write_file(temp.path().join("random1.bin"), rng.as_read(10)).unwrap();
+/// write_file(temp.path().join("random0.bin"), rng.take(10)).unwrap();
+/// write_file(temp.path().join("random1.bin"), rng.take(10)).unwrap();
 ///
 /// assert!(temp.path().join("hello.txt").is_file());
 /// assert!(temp.path().join("random0.bin").is_file());
@@ -182,7 +182,7 @@ pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
 ///
 /// // Combine with RandomBytes
 /// let mut rng = RandBytes::default();
-/// ByteSource::from(rng.as_read(10));
+/// ByteSource::from(rng.take(10));
 /// # }
 /// ```
 pub struct ByteSource<R: Read>(R);
@@ -234,7 +234,7 @@ pub fn read_file_to_end(path: &Path) -> io::Result<Vec<u8>> {
 ///         temp.path();
 ///         "hello.txt" => "Hello world!",
 ///         "bytes.bin" => &vec![0u8,1,2,3],
-///         "random.bin" => rng.as_read(20),
+///         "random.bin" => rng.take(20),
 ///         "subdir/subfile.txt" => "Will create subdirectories!",
 ///     };
 ///     assert!(temp.path().join("hello.txt").is_file());
@@ -269,7 +269,7 @@ fn test_rand_bytes_read() {
     let mut rng = RandBytes::default();
     let mut rand_bytes: Vec<u8> = Vec::new();
     rand_bytes.resize(16, 0);
-    let count = rng.as_read(10)
+    let count = rng.take(10)
         .read(rand_bytes.as_mut())
         .expect("Read random bytes");
     assert_eq!(count, 10, "Number of read bytes by hitting read limit");
@@ -280,7 +280,7 @@ fn test_rand_bytes_read() {
     let mut rng = RandBytes::default();
     rand_bytes.clear();
     rand_bytes.resize(10, 0);
-    let count = rng.as_read(20)
+    let count = rng.take(20)
         .read(rand_bytes.as_mut())
         .expect("Read random bytes");
     assert_eq!(count, 10, "Number of read bytes by hitting end of buffer");
