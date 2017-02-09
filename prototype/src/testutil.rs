@@ -60,15 +60,6 @@ impl RandBytes {
             .expect("read random bytes");
         vec
     }
-
-    /// Create a reader (std::io::Read) that draws random bytes
-    pub fn take(&mut self, limit: u64) -> RandBytesRead {
-        RandBytesRead {
-            rng: self,
-            count: 0,
-            limit: limit,
-        }
-    }
 }
 
 impl<'a> IntoIterator for &'a mut RandBytes {
@@ -79,22 +70,12 @@ impl<'a> IntoIterator for &'a mut RandBytes {
 }
 
 
-/// A reader (std::io::Read) that gives a set number of random bytes
-///
-/// Spawned by the `read` method on RandBytes.
-pub struct RandBytesRead<'a> {
-    rng: &'a mut RandBytes,
-    count: u64,
-    limit: u64,
-}
-
-impl<'a> Read for RandBytesRead<'a> {
+impl<'a> Read for &'a mut RandBytes {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut pos = 0;
-        while pos < buf.len() && self.count < self.limit {
-            buf[pos] = self.rng.next();
+        while pos < buf.len() {
+            buf[pos] = self.next();
             pos += 1;
-            self.count += 1;
         }
         Ok(pos)
     }
@@ -131,6 +112,7 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
 ///
 /// ```
 /// use prototype::testutil::{in_mem_tempdir, write_file, RandBytes};
+/// use std::io::Read;
 ///
 /// # fn main() {
 /// let temp = in_mem_tempdir("example").unwrap();
@@ -173,6 +155,7 @@ pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
 /// ```
 /// use prototype::testutil::{ByteSource, RandBytes};
 /// use std::io::BufReader;
+/// use std::io::Read;
 ///
 /// # fn main() {
 /// ByteSource::from("hello!");                             // strings
@@ -225,6 +208,7 @@ pub fn read_file_to_end(path: &Path) -> io::Result<Vec<u8>> {
 /// #[macro_use]
 /// extern crate prototype;
 /// use prototype::testutil::{in_mem_tempdir,RandBytes};
+/// use std::io::Read;
 ///
 /// fn main() {
 ///     let temp = in_mem_tempdir("example").unwrap();
