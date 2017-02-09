@@ -1,4 +1,4 @@
-//! Wrappers that allow common types to implement Encodable and Decodable
+//! Wrappers to implement/adjust serialization for common types
 
 use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
@@ -40,6 +40,12 @@ wrapper_struct!{
 ///     assert_eq!(encoded, "\"hello/world\"");
 /// }
 /// ```
+///
+/// # Panics
+///
+/// Will panic when attempting to encode a path that contains a bad UTF-8
+/// sequence.
+///
 #[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub struct PathBuf(path::PathBuf);
 }
@@ -90,6 +96,9 @@ wrapper_struct!{
 ///     assert_eq!(encoded, "[120,55]");
 /// }
 /// ```
+/// # Panics
+///
+/// Panics when attempting to encode a SystemTime that is before the Unix epoch.
 ///
 #[derive(Clone,Eq,PartialEq,Debug)]
 pub struct SystemTime(time::SystemTime);
@@ -101,12 +110,17 @@ impl SystemTime {
     /// This is a convenience method for testing, since constructing a specific
     /// SystemTime instance is quite verbose.
     ///
-    #[cfg(test)]
     pub fn unix_epoch_plus(secs: u64, nanos: u32) -> Self {
         SystemTime(time::UNIX_EPOCH + time::Duration::new(secs, nanos))
     }
 
-    fn secs_nanos_since_epoch(&self) -> (u64, u32) {
+    /// Gives a tuple containing the seconds and nanos since the Unix epoch
+    ///
+    /// # Panics
+    ///
+    /// Panics if the inner SystemTime is before the Unix epoch.
+    ///
+    pub fn secs_nanos_since_epoch(&self) -> (u64, u32) {
         let since_epoch = self.duration_since(time::UNIX_EPOCH)
             .expect("mod time was before the Unix Epoch");
         (since_epoch.as_secs(), since_epoch.subsec_nanos())
@@ -122,7 +136,7 @@ impl Encodable for SystemTime {
 impl Decodable for SystemTime {
     fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
         let (secs, nanos) = try!(<(u64, u32)>::decode(d));
-        Ok(SystemTime(time::UNIX_EPOCH + time::Duration::new(secs, nanos)))
+        Ok(SystemTime::unix_epoch_plus(secs, nanos))
     }
 }
 
