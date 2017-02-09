@@ -13,16 +13,17 @@ extern crate rustc_serialize;
 extern crate wrapperstruct;
 extern crate humanreadable;
 
-// Dependencies used only in test / testutil
-extern crate rand;
+#[cfg(test)]
+#[macro_use]
+extern crate testutil;
+
+#[cfg(test)]
 extern crate tempdir;
 
 
 // Low-level code that isn't specific to the project.
 // Could potentially be spun off into their own crates.
 pub mod encodable;
-#[macro_use]
-pub mod testutil;
 pub mod fsutil;
 
 // Project-specific code

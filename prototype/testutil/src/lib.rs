@@ -1,4 +1,7 @@
 pub extern crate rand;
+extern crate tempdir;
+#[macro_use]
+extern crate wrapperstruct;
 
 use rand::{Rng, SeedableRng, XorShiftRng};
 use std::fs;
@@ -12,7 +15,7 @@ use tempdir::TempDir;
 /// An RNG with a fixed seed, for deterministic random tests
 ///
 /// ```
-/// use prototype::testutil::TestRand;
+/// use testutil::TestRand;
 ///
 /// let mut rng0 = TestRand::default();
 /// let mut rng1 = TestRand::default();
@@ -41,7 +44,7 @@ impl TestRand {
     /// Default can also be used to create an instance with a default seed.
     ///
     /// ```
-    /// use prototype::testutil::TestRand;
+    /// use testutil::TestRand;
     ///
     /// let mut rng0 = TestRand::default();
     /// let mut rng1 = TestRand::from_seed([0,1,2,3]);
@@ -84,7 +87,7 @@ impl Rng for TestRand {
 /// Create a temporary directory in an in-memory filesystem
 ///
 /// ```
-/// use prototype::testutil::in_mem_tempdir;
+/// use testutil::in_mem_tempdir;
 ///
 /// # fn main() {
 /// let temp_path;
@@ -111,7 +114,7 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
 /// - create parent directories if they do not exist.
 ///
 /// ```
-/// use prototype::testutil::{in_mem_tempdir, write_file, TestRand};
+/// use testutil::{in_mem_tempdir, write_file, TestRand};
 /// use std::io::Read;
 ///
 /// # fn main() {
@@ -153,7 +156,7 @@ pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
 /// Used to allow the `write_file` function to take varied parameters.
 ///
 /// ```
-/// use prototype::testutil::{ByteSource, TestRand};
+/// use testutil::{ByteSource, TestRand};
 /// use std::io::BufReader;
 /// use std::io::Read;
 ///
@@ -206,8 +209,8 @@ pub fn read_file_to_end(path: &Path) -> io::Result<Vec<u8>> {
 ///
 /// ```
 /// #[macro_use]
-/// extern crate prototype;
-/// use prototype::testutil::{in_mem_tempdir,TestRand};
+/// extern crate testutil;
+/// use testutil::{in_mem_tempdir,TestRand};
 /// use std::io::Read;
 ///
 /// fn main() {
@@ -233,7 +236,7 @@ pub fn read_file_to_end(path: &Path) -> io::Result<Vec<u8>> {
 macro_rules! write_files {
     ($base_path:expr; $( $fname:expr => $contents:expr, )* ) => {
         $(
-            $crate::testutil::write_file(
+            $crate::write_file(
                 &$base_path.join($fname), $contents
             ).expect("Could not write test file");
         )*

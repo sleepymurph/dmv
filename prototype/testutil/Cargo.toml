@@ -1,0 +1,10 @@
+[package]
+name = "testutil"
+version = "0.1.0"
+authors = ["Mike Murphy <codermurph@sleepymurph.com>"]
+
+[dependencies]
+rand = "0.3"
+tempdir = "0.3"
+
+wrapperstruct = { path = "../wrapperstruct" }
