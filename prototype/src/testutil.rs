@@ -16,9 +16,9 @@ use tempdir::TempDir;
 /// let mut rng0 = RandBytes::default();
 /// let mut rng1 = RandBytes::default();
 ///
-/// let vec_from_rng0: Vec<u8> = rng0.next_many(10);
+/// let vec_from_rng0: Vec<u8> = rng0.gen_byte_vec(10);
 ///
-/// assert_eq!(vec_from_rng0, rng1.next_many(10),
+/// assert_eq!(vec_from_rng0, rng1.gen_byte_vec(10),
 ///             "Same seed should produce same sequence every time");
 /// ```
 ///
@@ -50,10 +50,10 @@ impl RandBytes {
     }
 
     /// Get one random byte
-    pub fn next(&mut self) -> u8 { self.rng.gen() }
+    pub fn next_byte(&mut self) -> u8 { self.rng.gen() }
 
     /// Get a random vector of the given size
-    pub fn next_many(&mut self, size: usize) -> Vec<u8> {
+    pub fn gen_byte_vec(&mut self, size: usize) -> Vec<u8> {
         let mut vec = Vec::with_capacity(size);
         self.take(size as u64)
             .read_to_end(&mut vec)
@@ -74,7 +74,7 @@ impl<'a> Read for &'a mut RandBytes {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut pos = 0;
         while pos < buf.len() {
-            buf[pos] = self.next();
+            buf[pos] = self.next_byte();
             pos += 1;
         }
         Ok(pos)

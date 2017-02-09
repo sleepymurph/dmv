@@ -80,7 +80,7 @@ mod test {
     use testutil;
 
     fn random_hash(rng: &mut testutil::RandBytes) -> ObjectKey {
-        let rand_bytes = rng.next_many(KEY_SIZE_BYTES);
+        let rand_bytes = rng.gen_byte_vec(KEY_SIZE_BYTES);
         ObjectKey::from_bytes(rand_bytes.as_slice()).unwrap()
     }
 

@@ -383,7 +383,7 @@ mod test {
     #[test]
     fn test_chunk_reader() {
         let mut rng = RandBytes::default();
-        let rand_bytes = rng.next_many(10 * CHUNK_TARGET_SIZE);
+        let rand_bytes = rng.gen_byte_vec(10 * CHUNK_TARGET_SIZE);
         let mut chunk_read = ChunkReader::wrap(rand_bytes.as_slice());
 
         let mut chunks: Vec<Vec<u8>> = Vec::new();
@@ -421,7 +421,7 @@ mod test {
     #[test]
     fn test_object_iterator_one_chunk() {
         let mut rng = RandBytes::default();
-        let input_bytes = rng.next_many(10);
+        let input_bytes = rng.gen_byte_vec(10);
         let mut object_read = read_file_objects(input_bytes.as_slice());
 
         let obj = object_read.next().expect("Some").expect("Ok");
@@ -449,7 +449,7 @@ mod test {
     fn do_object_reconstruction_test(input_size: usize,
                                      expected_chunks: usize) {
         let mut rng = RandBytes::default();
-        let input_bytes = rng.next_many(input_size);
+        let input_bytes = rng.gen_byte_vec(input_size);
         let mut object_read = read_file_objects(input_bytes.as_slice());
 
         let mut objects = ObjectStore::new();
