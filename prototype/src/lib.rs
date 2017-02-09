@@ -5,20 +5,17 @@ extern crate byteorder;
 extern crate crypto;
 #[macro_use]
 extern crate error_chain;
+extern crate humanreadable;
 #[macro_use]
 extern crate log;
 extern crate rustc_serialize;
-
 #[macro_use]
 extern crate wrapperstruct;
-extern crate humanreadable;
 
+// Test-only dependencies
 #[cfg(test)]
 #[macro_use]
 extern crate testutil;
-
-#[cfg(test)]
-extern crate tempdir;
 
 
 // Low-level code that isn't specific to the project.

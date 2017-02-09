@@ -95,8 +95,8 @@ pub mod test {
     use dag::ToHashed;
     use std::fs;
     use super::*;
-    use tempdir::TempDir;
     use testutil;
+    use testutil::tempdir::TempDir;
 
     pub fn create_temp_repository() -> Result<(TempDir, ObjectStore)> {
         let wd_temp = try!(testutil::in_mem_tempdir("test_directory"));

@@ -1,7 +1,7 @@
 //! Utilities for testing, including randomness and temporary files
 
 pub extern crate rand;
-extern crate tempdir;
+pub extern crate tempdir;
 #[macro_use]
 extern crate wrapperstruct;
 

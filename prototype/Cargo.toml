@@ -21,9 +21,6 @@ env_logger = "0.3"
 rustc-serialize = "0.3"
 rust-crypto = "0.2"
 
-# Test-only
-tempdir = "0.3"
-
 humanreadable = { path = "humanreadable" }
 testutil = { path = "testutil" }
 wrapperstruct = { path = "wrapperstruct" }
