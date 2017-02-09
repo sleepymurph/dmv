@@ -278,7 +278,7 @@ mod test {
     fn test_rolling_hash_values() {
         let mut hasher = RollingHasher::new(256);
         let mut hashvals: Vec<RollingHashValue> = Vec::new();
-        for byte in RandBytes::default().into_iter().take(10) {
+        for byte in RandBytes::default().gen_byte_iter().take(10) {
             hasher.slide(byte);
             hashvals.push(hasher.value());
         }
@@ -324,7 +324,7 @@ mod test {
         let mut flagger = ChunkFlagger::new();
         let mut chunk_offsets: Vec<usize> = Vec::new();
         for (count, byte) in RandBytes::default()
-            .into_iter()
+            .gen_byte_iter()
             .take(CHUNK_TARGET_SIZE * CHUNK_REPEAT)
             .enumerate() {
 
@@ -363,10 +363,7 @@ mod test {
 
     #[test]
     fn test_chunk_slide_over() {
-        let mut data: Vec<u8> = Vec::new();
-        data.extend(RandBytes::default()
-            .into_iter()
-            .take(10 * CHUNK_TARGET_SIZE));
+        let data = RandBytes::default().gen_byte_vec(10 * CHUNK_TARGET_SIZE);
 
         let mut flagger = ChunkFlagger::new();
         let chunk_offsets = flagger.slide_over(&data);

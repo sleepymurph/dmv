@@ -4,7 +4,6 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::io;
 use std::io::Read;
-use std::iter::IntoIterator;
 use std::path::Path;
 use tempdir::TempDir;
 
@@ -22,9 +21,10 @@ use tempdir::TempDir;
 ///             "Same seed should produce same sequence every time");
 /// ```
 ///
-pub struct RandBytes {
-    rng: XorShiftRng,
-}
+/// Implements Read (std::io) to read random bytes. If writing to a file, be
+/// sure to use `Read::take()` to limit the number of bytes read.
+///
+pub struct RandBytes(XorShiftRng);
 
 type Seed = [u32; 4];
 const DEFAULT_SEED: Seed = [255, 20, 110, 0];
@@ -46,11 +46,11 @@ impl RandBytes {
     /// ```
     ///
     pub fn with_seed(seed: Seed) -> Self {
-        RandBytes { rng: XorShiftRng::from_seed(seed) }
+        RandBytes(XorShiftRng::from_seed(seed))
     }
 
     /// Get one random byte
-    pub fn next_byte(&mut self) -> u8 { self.rng.gen() }
+    pub fn next_byte(&mut self) -> u8 { self.0.gen() }
 
     /// Get a random vector of the given size
     pub fn gen_byte_vec(&mut self, size: usize) -> Vec<u8> {
@@ -60,15 +60,13 @@ impl RandBytes {
             .expect("read random bytes");
         vec
     }
+
+    pub fn gen_byte_iter(&mut self) -> Generator<u8, XorShiftRng> {
+        self.0.gen_iter::<u8>()
+    }
 }
 
-impl<'a> IntoIterator for &'a mut RandBytes {
-    type Item = u8;
-    type IntoIter = Generator<'a, u8, XorShiftRng>;
-
-    fn into_iter(self) -> Self::IntoIter { self.rng.gen_iter::<u8>() }
-}
-
+impl_deref_mut!(RandBytes => XorShiftRng);
 
 impl<'a> Read for &'a mut RandBytes {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -242,9 +240,7 @@ macro_rules! write_files {
 
 #[test]
 fn test_rand_bytes_same_every_time() {
-    let mut rng = RandBytes::default();
-    let mut rand_bytes: Vec<u8> = Vec::new();
-    rand_bytes.extend(rng.into_iter().take(10));
+    let rand_bytes = RandBytes::default().gen_byte_vec(10);
     assert_eq!(rand_bytes, [7, 179, 173, 173, 109, 225, 168, 201, 120, 240]);
 }
 
