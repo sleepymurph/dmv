@@ -1,4 +1,6 @@
-/// Quickly implement the From trait for single-field structs
+//! Macros for implementing conversions like Deref or From on simple structs
+
+/// Shorthand to implement the From trait for single-field structs
 ///
 /// Works with one-field structs, or one-field tuple structs.
 ///
@@ -46,7 +48,7 @@ macro_rules! impl_from {
     };
 }
 
-/// Quickly implement Deref by referring to a single field
+/// Shorthand to implement Deref by referring to a single field
 ///
 /// Works with structs, or tuple structs.
 ///
@@ -93,7 +95,7 @@ macro_rules! impl_deref {
     };
 }
 
-/// Quickly implement Deref and DerefMut by referring to a single field
+/// Shorthand to implement Deref and DerefMut by referring to a single field
 ///
 /// Works with structs, or tuple structs.
 ///
@@ -141,10 +143,10 @@ macro_rules! impl_deref_mut {
     };
 }
 
-/// Easily create simple structs that act as transparent wrappers
+/// Shorthand to create single-field structs that act as transparent wrappers
 ///
 /// Define a single-field struct or single-field tuple struct inside this macro,
-/// and it will automatically implement From, Deref, and DerefMut appropriately.
+/// and it will implement From, Deref, and DerefMut to refer to that field.
 ///
 /// ```
 /// #[macro_use]
