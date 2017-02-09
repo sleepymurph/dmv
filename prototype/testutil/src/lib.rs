@@ -1,3 +1,5 @@
+//! Utilities for testing, including randomness and temporary files
+
 pub extern crate rand;
 extern crate tempdir;
 #[macro_use]
@@ -89,7 +91,6 @@ impl Rng for TestRand {
 /// ```
 /// use testutil::in_mem_tempdir;
 ///
-/// # fn main() {
 /// let temp_path;
 /// {
 ///     let temp = in_mem_tempdir("example").unwrap();
@@ -98,7 +99,8 @@ impl Rng for TestRand {
 /// }
 ///
 /// assert!(!temp_path.exists(), "Directory should be deleted when dropped");
-/// # }
+/// ```
+///
 pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
     TempDir::new_in("/dev/shm", prefix)
 }
@@ -117,7 +119,6 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
 /// use testutil::{in_mem_tempdir, write_file, TestRand};
 /// use std::io::Read;
 ///
-/// # fn main() {
 /// let temp = in_mem_tempdir("example").unwrap();
 /// write_file(temp.path().join("hello.txt"), "Hello, world!").unwrap();
 /// write_file(temp.path().join("bytes.bin"), &vec![0u8,1,2,3]).unwrap();
@@ -129,8 +130,8 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
 ///
 /// assert!(temp.path().join("hello.txt").is_file());
 /// assert!(temp.path().join("random0.bin").is_file());
-/// # }
 /// ```
+///
 pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
     where P: AsRef<Path>,
           R: io::Read,
@@ -153,14 +154,14 @@ pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
 
 /// Wrapper type for a Reader (std::io::Read)
 ///
-/// Used to allow the `write_file` function to take varied parameters.
+/// Used to allow the `write_file` function and `write_files` macro to take
+/// varied parameters, via the various From implementations.
 ///
 /// ```
 /// use testutil::{ByteSource, TestRand};
 /// use std::io::BufReader;
 /// use std::io::Read;
 ///
-/// # fn main() {
 /// ByteSource::from("hello!");                             // strings
 /// ByteSource::from(vec![0u8, 1, 2, 3].as_slice());        // byte slices
 /// ByteSource::from(&vec![0u8, 1, 2, 3]);                  // byte vectors
@@ -169,8 +170,8 @@ pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
 /// // Combine with RandomBytes
 /// let mut rng = TestRand::default();
 /// ByteSource::from(rng.take(10));
-/// # }
 /// ```
+///
 pub struct ByteSource<R: Read>(R);
 
 impl<'a, R: 'a + Read> From<R> for ByteSource<R> {
@@ -205,7 +206,7 @@ pub fn read_file_to_end(path: &Path) -> io::Result<Vec<u8>> {
 }
 
 
-/// Easily create a directory full of files for testing
+/// Write several files to a directory for testing
 ///
 /// ```
 /// #[macro_use]
@@ -232,6 +233,7 @@ pub fn read_file_to_end(path: &Path) -> io::Result<Vec<u8>> {
 /// # Panics
 ///
 /// Panics if there is any error.
+///
 #[macro_export]
 macro_rules! write_files {
     ($base_path:expr; $( $fname:expr => $contents:expr, )* ) => {
