@@ -162,7 +162,7 @@ mod test {
         -> (Vec<u8>, collections::HashMap<ObjectKey, Blob>, ChunkedBlob)
     {
         // Set up a "file" of random bytes
-        let mut rng = testutil::RandBytes::default();
+        let mut rng = testutil::TestRand::default();
         let rand_bytes = rng.gen_byte_vec(10 * rollinghash::CHUNK_TARGET_SIZE);
 
         // Break into chunks, indexed by ChunkedBlob

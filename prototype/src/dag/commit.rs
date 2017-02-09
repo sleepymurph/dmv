@@ -79,7 +79,7 @@ mod test {
     use super::super::*;
     use testutil;
 
-    fn random_hash(rng: &mut testutil::RandBytes) -> ObjectKey {
+    fn random_hash(rng: &mut testutil::TestRand) -> ObjectKey {
         let rand_bytes = rng.gen_byte_vec(KEY_SIZE_BYTES);
         ObjectKey::from_bytes(rand_bytes.as_slice()).unwrap()
     }
@@ -87,7 +87,7 @@ mod test {
     #[test]
     fn test_write_tree() {
         // Construct object
-        let mut rng = testutil::RandBytes::default();
+        let mut rng = testutil::TestRand::default();
 
         let mut object = Commit::new();
         object.tree = random_hash(&mut rng);

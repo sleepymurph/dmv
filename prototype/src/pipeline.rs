@@ -207,7 +207,7 @@ mod test {
         let filepath = temp.path().join("foo");
         let filesize = 3 * CHUNK_TARGET_SIZE as u64;
 
-        let mut rng = testutil::RandBytes::default();
+        let mut rng = testutil::TestRand::default();
         testutil::write_file(&filepath, rng.take(filesize)).unwrap();
 
         let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
@@ -274,7 +274,7 @@ mod test {
         let (temp, mut object_store) = create_temp_repository().unwrap();
         let mut cache = AllCaches::new();
 
-        let mut rng = testutil::RandBytes::default();
+        let mut rng = testutil::TestRand::default();
         let filesize = 3 * CHUNK_TARGET_SIZE as u64;
         let mut in_file = Vec::new();
         rng.take(filesize).read_to_end(&mut in_file).unwrap();

@@ -7,13 +7,13 @@ use std::io::Read;
 use std::path::Path;
 use tempdir::TempDir;
 
-/// Generates deterministic psuedorandom bytes
+/// An RNG with a fixed seed, for deterministic random tests
 ///
 /// ```
-/// use prototype::testutil::RandBytes;
+/// use prototype::testutil::TestRand;
 ///
-/// let mut rng0 = RandBytes::default();
-/// let mut rng1 = RandBytes::default();
+/// let mut rng0 = TestRand::default();
+/// let mut rng1 = TestRand::default();
 ///
 /// let vec_from_rng0: Vec<u8> = rng0.gen_byte_vec(10);
 ///
@@ -24,29 +24,29 @@ use tempdir::TempDir;
 /// Implements Read (std::io) to read random bytes. If writing to a file, be
 /// sure to use `Read::take()` to limit the number of bytes read.
 ///
-pub struct RandBytes(XorShiftRng);
+pub struct TestRand(XorShiftRng);
 
 type Seed = [u32; 4];
 const DEFAULT_SEED: Seed = [255, 20, 110, 0];
 
-impl Default for RandBytes {
-    fn default() -> Self { RandBytes::with_seed(DEFAULT_SEED) }
+impl Default for TestRand {
+    fn default() -> Self { TestRand::with_seed(DEFAULT_SEED) }
 }
 
-impl RandBytes {
+impl TestRand {
     /// Create an instance using the given seed
     ///
     /// Default can also be used to create an instance with a default seed.
     ///
     /// ```
-    /// use prototype::testutil::RandBytes;
+    /// use prototype::testutil::TestRand;
     ///
-    /// let mut rng0 = RandBytes::default();
-    /// let mut rng1 = RandBytes::with_seed([0,1,2,3]);
+    /// let mut rng0 = TestRand::default();
+    /// let mut rng1 = TestRand::with_seed([0,1,2,3]);
     /// ```
     ///
     pub fn with_seed(seed: Seed) -> Self {
-        RandBytes(XorShiftRng::from_seed(seed))
+        TestRand(XorShiftRng::from_seed(seed))
     }
 
     /// Get one random byte
@@ -66,9 +66,9 @@ impl RandBytes {
     }
 }
 
-impl_deref_mut!(RandBytes => XorShiftRng);
+impl_deref_mut!(TestRand => XorShiftRng);
 
-impl<'a> Read for &'a mut RandBytes {
+impl<'a> Read for &'a mut TestRand {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut pos = 0;
         while pos < buf.len() {
@@ -109,7 +109,7 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
 /// - create parent directories if they do not exist.
 ///
 /// ```
-/// use prototype::testutil::{in_mem_tempdir, write_file, RandBytes};
+/// use prototype::testutil::{in_mem_tempdir, write_file, TestRand};
 /// use std::io::Read;
 ///
 /// # fn main() {
@@ -118,7 +118,7 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
 /// write_file(temp.path().join("bytes.bin"), &vec![0u8,1,2,3]).unwrap();
 ///
 /// // Combine with RandomBytes to generate deterministic psuedo-random files
-/// let mut rng = RandBytes::default();
+/// let mut rng = TestRand::default();
 /// write_file(temp.path().join("random0.bin"), rng.take(10)).unwrap();
 /// write_file(temp.path().join("random1.bin"), rng.take(10)).unwrap();
 ///
@@ -151,7 +151,7 @@ pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
 /// Used to allow the `write_file` function to take varied parameters.
 ///
 /// ```
-/// use prototype::testutil::{ByteSource, RandBytes};
+/// use prototype::testutil::{ByteSource, TestRand};
 /// use std::io::BufReader;
 /// use std::io::Read;
 ///
@@ -162,7 +162,7 @@ pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
 /// ByteSource::from(BufReader::new("hello!".as_bytes()));  // other readers
 ///
 /// // Combine with RandomBytes
-/// let mut rng = RandBytes::default();
+/// let mut rng = TestRand::default();
 /// ByteSource::from(rng.take(10));
 /// # }
 /// ```
@@ -205,12 +205,12 @@ pub fn read_file_to_end(path: &Path) -> io::Result<Vec<u8>> {
 /// ```
 /// #[macro_use]
 /// extern crate prototype;
-/// use prototype::testutil::{in_mem_tempdir,RandBytes};
+/// use prototype::testutil::{in_mem_tempdir,TestRand};
 /// use std::io::Read;
 ///
 /// fn main() {
 ///     let temp = in_mem_tempdir("example").unwrap();
-///     let mut rng = RandBytes::default();
+///     let mut rng = TestRand::default();
 ///
 ///     write_files!{
 ///         temp.path();
@@ -240,13 +240,13 @@ macro_rules! write_files {
 
 #[test]
 fn test_rand_bytes_same_every_time() {
-    let rand_bytes = RandBytes::default().gen_byte_vec(10);
+    let rand_bytes = TestRand::default().gen_byte_vec(10);
     assert_eq!(rand_bytes, [7, 179, 173, 173, 109, 225, 168, 201, 120, 240]);
 }
 
 #[test]
 fn test_rand_bytes_read() {
-    let mut rng = RandBytes::default();
+    let mut rng = TestRand::default();
     let mut rand_bytes: Vec<u8> = Vec::new();
     rand_bytes.resize(16, 0);
     let count = rng.take(10)
@@ -257,7 +257,7 @@ fn test_rand_bytes_read() {
                [7, 179, 173, 173, 109, 225, 168, 201, 120, 240, 0, 0, 0, 0,
                 0, 0]);
 
-    let mut rng = RandBytes::default();
+    let mut rng = TestRand::default();
     rand_bytes.clear();
     rand_bytes.resize(10, 0);
     let count = rng.take(20)

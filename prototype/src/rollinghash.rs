@@ -268,7 +268,7 @@ mod test {
     use std::io;
     use std::io::Write;
     use super::*;
-    use testutil::RandBytes;
+    use testutil::TestRand;
 
     #[test]
     /// This test shows that the Rabin value increases slowly after a reset
@@ -278,7 +278,7 @@ mod test {
     fn test_rolling_hash_values() {
         let mut hasher = RollingHasher::new(256);
         let mut hashvals: Vec<RollingHashValue> = Vec::new();
-        for byte in RandBytes::default().gen_byte_iter().take(10) {
+        for byte in TestRand::default().gen_byte_iter().take(10) {
             hasher.slide(byte);
             hashvals.push(hasher.value());
         }
@@ -323,7 +323,7 @@ mod test {
 
         let mut flagger = ChunkFlagger::new();
         let mut chunk_offsets: Vec<usize> = Vec::new();
-        for (count, byte) in RandBytes::default()
+        for (count, byte) in TestRand::default()
             .gen_byte_iter()
             .take(CHUNK_TARGET_SIZE * CHUNK_REPEAT)
             .enumerate() {
@@ -363,7 +363,7 @@ mod test {
 
     #[test]
     fn test_chunk_slide_over() {
-        let data = RandBytes::default().gen_byte_vec(10 * CHUNK_TARGET_SIZE);
+        let data = TestRand::default().gen_byte_vec(10 * CHUNK_TARGET_SIZE);
 
         let mut flagger = ChunkFlagger::new();
         let chunk_offsets = flagger.slide_over(&data);
@@ -379,7 +379,7 @@ mod test {
 
     #[test]
     fn test_chunk_reader() {
-        let mut rng = RandBytes::default();
+        let mut rng = TestRand::default();
         let rand_bytes = rng.gen_byte_vec(10 * CHUNK_TARGET_SIZE);
         let mut chunk_read = ChunkReader::wrap(rand_bytes.as_slice());
 
@@ -417,7 +417,7 @@ mod test {
 
     #[test]
     fn test_object_iterator_one_chunk() {
-        let mut rng = RandBytes::default();
+        let mut rng = TestRand::default();
         let input_bytes = rng.gen_byte_vec(10);
         let mut object_read = read_file_objects(input_bytes.as_slice());
 
@@ -445,7 +445,7 @@ mod test {
 
     fn do_object_reconstruction_test(input_size: usize,
                                      expected_chunks: usize) {
-        let mut rng = RandBytes::default();
+        let mut rng = TestRand::default();
         let input_bytes = rng.gen_byte_vec(input_size);
         let mut object_read = read_file_objects(input_bytes.as_slice());
 
