@@ -8,8 +8,10 @@ extern crate error_chain;
 #[macro_use]
 extern crate log;
 extern crate rustc_serialize;
+
 #[macro_use]
 extern crate wrapperstruct;
+extern crate humanreadable;
 
 // Dependencies used only in test / testutil
 extern crate rand;
@@ -18,7 +20,6 @@ extern crate tempdir;
 
 // Low-level code that isn't specific to the project.
 // Could potentially be spun off into their own crates.
-pub mod humanreadable;
 pub mod encodable;
 #[macro_use]
 pub mod testutil;
