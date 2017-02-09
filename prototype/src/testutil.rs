@@ -1,4 +1,6 @@
-use rand::{Rng, SeedableRng, Generator, XorShiftRng};
+pub extern crate rand;
+
+use rand::{Rng, SeedableRng, XorShiftRng};
 use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -59,10 +61,6 @@ impl TestRand {
             .read_to_end(&mut vec)
             .expect("read random bytes");
         vec
-    }
-
-    pub fn gen_byte_iter(&mut self) -> Generator<u8, XorShiftRng> {
-        self.0.gen_iter::<u8>()
     }
 }
 

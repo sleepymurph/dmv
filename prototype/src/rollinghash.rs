@@ -269,6 +269,7 @@ mod test {
     use std::io::Write;
     use super::*;
     use testutil::TestRand;
+    use testutil::rand::Rng;
 
     #[test]
     /// This test shows that the Rabin value increases slowly after a reset
@@ -278,7 +279,7 @@ mod test {
     fn test_rolling_hash_values() {
         let mut hasher = RollingHasher::new(256);
         let mut hashvals: Vec<RollingHashValue> = Vec::new();
-        for byte in TestRand::default().gen_byte_iter().take(10) {
+        for byte in TestRand::default().gen_iter::<u8>().take(10) {
             hasher.slide(byte);
             hashvals.push(hasher.value());
         }
@@ -324,7 +325,7 @@ mod test {
         let mut flagger = ChunkFlagger::new();
         let mut chunk_offsets: Vec<usize> = Vec::new();
         for (count, byte) in TestRand::default()
-            .gen_byte_iter()
+            .gen_iter::<u8>()
             .take(CHUNK_TARGET_SIZE * CHUNK_REPEAT)
             .enumerate() {
 
