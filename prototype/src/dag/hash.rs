@@ -1,5 +1,7 @@
 //! Code relating to the object hashes used to identify objects in the DAG
 
+use crypto::digest::Digest;
+use crypto::sha1::Sha1;
 use error::*;
 use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
@@ -9,11 +11,8 @@ use std::convert;
 use std::fmt;
 use std::io;
 
-extern crate crypto;
-use self::crypto::digest::Digest;
-
 /// Hash type
-pub type Hasher = crypto::sha1::Sha1;
+pub type Hasher = Sha1;
 
 /// Object key size in bits
 pub const KEY_SIZE_BITS: usize = 160;

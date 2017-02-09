@@ -2,18 +2,20 @@
 
 // Dependencies
 extern crate byteorder;
+extern crate crypto;
 #[macro_use]
 extern crate error_chain;
-extern crate rustc_serialize;
 #[macro_use]
 extern crate log;
+extern crate rustc_serialize;
 
 // Dependencies used only in test / testutil
 extern crate rand;
 extern crate tempdir;
 
 
-// Low-level code that isn't specific to the project
+// Low-level code that isn't specific to the project.
+// Could potentially be spun off into their own crates.
 #[macro_use]
 pub mod wrapperstruct;
 pub mod humanreadable;
