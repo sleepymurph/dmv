@@ -15,7 +15,7 @@ use std::io;
 pub type Hasher = Sha1;
 
 /// Object key size in bits
-pub const KEY_SIZE_BITS: usize = 160;
+const KEY_SIZE_BITS: usize = 160;
 
 /// Object key size in bytes
 pub const KEY_SIZE_BYTES: usize = KEY_SIZE_BITS / 8;

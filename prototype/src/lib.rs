@@ -27,9 +27,9 @@ pub mod fsutil;
 // Project-specific code
 pub mod error;
 pub mod constants;
-pub mod rollinghash;
 #[macro_use]
 pub mod dag;
+pub mod rollinghash;
 pub mod objectstore;
 #[macro_use]
 pub mod cache;
