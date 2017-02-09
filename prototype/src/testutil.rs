@@ -30,7 +30,7 @@ type Seed = [u32; 4];
 const DEFAULT_SEED: Seed = [255, 20, 110, 0];
 
 impl Default for TestRand {
-    fn default() -> Self { TestRand::with_seed(DEFAULT_SEED) }
+    fn default() -> Self { TestRand::from_seed(DEFAULT_SEED) }
 }
 
 impl TestRand {
@@ -42,10 +42,10 @@ impl TestRand {
     /// use prototype::testutil::TestRand;
     ///
     /// let mut rng0 = TestRand::default();
-    /// let mut rng1 = TestRand::with_seed([0,1,2,3]);
+    /// let mut rng1 = TestRand::from_seed([0,1,2,3]);
     /// ```
     ///
-    pub fn with_seed(seed: Seed) -> Self {
+    pub fn from_seed(seed: Seed) -> Self {
         TestRand(XorShiftRng::from_seed(seed))
     }
 
@@ -77,6 +77,10 @@ impl<'a> Read for &'a mut TestRand {
         }
         Ok(pos)
     }
+}
+
+impl Rng for TestRand {
+    fn next_u32(&mut self) -> u32 { self.0.next_u32() }
 }
 
 /// Create a temporary directory in an in-memory filesystem
