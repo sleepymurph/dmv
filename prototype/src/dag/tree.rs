@@ -28,14 +28,11 @@ impl Tree {
     pub fn len(&self) -> usize { self.entries.len() }
 }
 
+/// Create and populate a Tree object
 #[macro_export]
 macro_rules! tree_object {
-    ( $( $path:expr => $hash:expr , )* ) => {
-        {
-            let mut tree = $crate::dag::Tree::new();
-            $( tree.insert($path, $hash); )*
-            tree
-        }
+    ( $( $k:expr => $v:expr , )* ) => {
+        map!{ $crate::dag::Tree::new(), $( $k=>$v, )* };
     }
 }
 
@@ -202,16 +199,11 @@ impl From<Tree> for PartialTree {
     }
 }
 
+/// Create and populate a PartialTree object
 #[macro_export]
 macro_rules! partial_tree {
-    (
-        $( $name:expr => $hashed_or_not:expr , )*
-    ) => {
-        {
-            let mut partial = $crate::dag::PartialTree::new();
-            $( partial.insert($name, $hashed_or_not); )*
-            partial
-        }
+    ( $( $k:expr => $v:expr , )*) => {
+        map!{ $crate::dag::PartialTree::new(), $( $k => $v, )* };
     }
 }
 
