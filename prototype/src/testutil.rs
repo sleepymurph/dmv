@@ -1,5 +1,5 @@
-use fsutil;
 use rand::{Rng, SeedableRng, Generator, XorShiftRng};
+use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io;
@@ -153,7 +153,10 @@ pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
 {
     let path = path.as_ref();
 
-    try!(fsutil::create_parents(&path));
+    if let Some(parent) = path.parent() {
+        try!(fs::create_dir_all(parent));
+    }
+
     let mut file = try!(OpenOptions::new()
         .write(true)
         .create(true)
