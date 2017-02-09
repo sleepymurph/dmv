@@ -13,7 +13,6 @@ use tempdir::TempDir;
 /// ```
 /// use prototype::testutil::RandBytes;
 ///
-/// # fn main() {
 /// let mut rng0 = RandBytes::default();
 /// let mut rng1 = RandBytes::default();
 ///
@@ -21,7 +20,8 @@ use tempdir::TempDir;
 ///
 /// assert_eq!(vec_from_rng0, rng1.next_many(10),
 ///             "Same seed should produce same sequence every time");
-/// # }
+/// ```
+///
 pub struct RandBytes {
     rng: XorShiftRng,
 }
@@ -41,10 +41,10 @@ impl RandBytes {
     /// ```
     /// use prototype::testutil::RandBytes;
     ///
-    /// # fn main() {
     /// let mut rng0 = RandBytes::default();
     /// let mut rng1 = RandBytes::with_seed([0,1,2,3]);
-    /// # }
+    /// ```
+    ///
     pub fn with_seed(seed: Seed) -> Self {
         RandBytes { rng: XorShiftRng::from_seed(seed) }
     }
@@ -119,7 +119,7 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
     TempDir::new_in("/dev/shm", prefix)
 }
 
-/// Quickly write a file from different byte sources
+/// Write a file from different byte sources
 ///
 /// See the `write_files` macro for a more concise syntax.
 ///
