@@ -164,6 +164,7 @@ mod test {
     use objectstore::test::create_temp_repository;
     use rollinghash::CHUNK_TARGET_SIZE;
     use rollinghash::read_file_objects;
+    use std::fs::create_dir;
     use std::io::Cursor;
     use std::io::Read;
     use super::*;
@@ -295,6 +296,44 @@ mod test {
         assert_eq!(cache.check(&out_file).unwrap(),
                    CacheStatus::Cached { hash: hash },
                    "Cache should be primed with extracted file's hash");
+    }
+
+    #[test]
+    fn test_extract_file_clobber_existing_file() {
+        let (temp, mut object_store) = create_temp_repository().unwrap();
+        let mut cache = AllCaches::new();
+
+        let blob = Blob::from("12345");
+        let hash = object_store.store_object(&blob).unwrap();
+
+        let out_file = temp.path().join("foo");
+        testutil::write_file(&out_file, "Existing content. To be clobbered.")
+            .unwrap();
+
+        extract_file(&object_store, &hash, &out_file, &mut cache).unwrap();
+
+        let out_content = testutil::read_file_to_string(&out_file).unwrap();
+        assert_eq!(out_content, "12345");
+
+        assert_eq!(cache.check(&out_file).unwrap(),
+                   CacheStatus::Cached { hash: hash },
+                   "Cache should be primed with extracted file's hash");
+    }
+
+    #[test]
+    fn test_extract_file_abort_on_existing_directory() {
+        let (temp, mut object_store) = create_temp_repository().unwrap();
+        let mut cache = AllCaches::new();
+
+        let blob = Blob::from("12345");
+        let hash = object_store.store_object(&blob).unwrap();
+
+        let out_file = temp.path().join("foo");
+        create_dir(&out_file).unwrap();
+
+        let result = extract_file(&object_store, &hash, &out_file, &mut cache);
+
+        assert!(result.is_err());
     }
 
     #[test]
@@ -436,7 +475,7 @@ mod test {
     }
 
     #[test]
-    fn test_ignore_objectstore_dir() {
+    fn test_store_directory_ignore_objectstore_dir() {
         let (temp, mut object_store) = create_temp_repository().unwrap();
         let mut ignored = IgnoreList::default();
         ignored.insert(object_store.path());
