@@ -1,5 +1,8 @@
 //! Library for master's thesis prototype
 
+// error_chain uses macro with a lot of recursion
+#![recursion_limit = "1024"]
+
 // Dependencies
 extern crate byteorder;
 extern crate crypto;

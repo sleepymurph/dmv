@@ -47,6 +47,10 @@ pub fn extract_file(object_store: &ObjectStore,
 
     return_if_cache_matches!(cache, file_path, hash);
 
+    if file_path.is_dir() {
+        bail!(ErrorKind::WouldClobberDirectory(file_path.to_owned()));
+    }
+
     let mut out_file = OpenOptions::new().write(true)
         .create(true)
         .truncate(true)
@@ -334,6 +338,12 @@ mod test {
         let result = extract_file(&object_store, &hash, &out_file, &mut cache);
 
         assert!(result.is_err());
+        match result {
+            Err(Error(ErrorKind::WouldClobberDirectory(p), _)) => {
+                assert_eq!(p, out_file)
+            }
+            _ => panic!("Got incorrect error: {:?}", result),
+        }
     }
 
     #[test]

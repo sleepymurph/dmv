@@ -50,6 +50,12 @@ error_chain!{
             description("object not found in object store")
             display("object not found in object store: {}", h)
         }
+
+        WouldClobberDirectory(p: ::std::path::PathBuf) {
+            description("this operation would clobber a directory")
+            display("this operation would clobber a directory: '{}'",
+                    p.display())
+        }
     }
 }
 
