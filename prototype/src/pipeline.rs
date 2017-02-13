@@ -10,7 +10,9 @@ use objectstore::ObjectStore;
 use rollinghash::read_file_objects;
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::fs::create_dir;
 use std::fs::read_dir;
+use std::fs::remove_file;
 use std::io::BufReader;
 use std::io::Write;
 use std::path::Path;
@@ -126,16 +128,19 @@ impl ObjectFsTransfer {
                           path: &Path)
                           -> Result<()> {
 
-        let handle = self.object_store.open_object(hash)?;
+        let handle = self.object_store
+            .open_object(hash)
+            .chain_err(|| {
+                format!("Could not extract {} to {}", hash, path.display())
+            })?;
+
         match handle {
             ObjectHandle::Blob(_) |
             ObjectHandle::ChunkedBlob(_) => {
-                info!("Hash refers to a file");
                 self.extract_file_open(handle, hash, path)
             }
             ObjectHandle::Tree(_) |
             ObjectHandle::Commit(_) => {
-                info!("Hash refers to a tree");
                 self.extract_tree_open(handle, hash, path)
             }
         }
@@ -146,7 +151,31 @@ impl ObjectFsTransfer {
                          hash: &ObjectKey,
                          dir_path: &Path)
                          -> Result<()> {
-        unimplemented!()
+
+        match handle {
+            ObjectHandle::Commit(_) => {
+                debug!("Extracting commit {}", hash);
+                unimplemented!()
+            }
+            ObjectHandle::Tree(tree) => {
+                debug!("Extracting tree {} to {}", hash, dir_path.display());
+
+                if !dir_path.is_dir() {
+                    if dir_path.exists() {
+                        remove_file(&dir_path)?;
+                    }
+                    create_dir(&dir_path)?;
+                }
+
+                let tree = tree.read_content()?;
+
+                for (ref name, ref hash) in tree.iter() {
+                    self.extract_object(hash, &dir_path.join(name))?;
+                }
+                Ok(())
+            }
+            _ => bail!("Expected a Tree or Commit, got: {:?}", handle),
+        }
     }
 
     fn extract_file_open(&mut self,
@@ -156,6 +185,8 @@ impl ObjectFsTransfer {
                          -> Result<()> {
 
         return_if_cache_matches!(self.cache, file_path, hash);
+
+        debug!("Extracting file {} to {}", hash, file_path.display());
 
         if file_path.is_dir() {
             bail!(ErrorKind::WouldClobberDirectory(file_path.to_owned()));
@@ -307,13 +338,7 @@ mod test {
         let hash = Blob::from("12345").calculate_hash();
 
         let result = fs_transfer.extract_object(&hash, &out_file);
-
-        match result {
-            Err(Error(ErrorKind::ObjectNotFound(err_hash), _)) => {
-                assert_eq!(err_hash, hash)
-            }
-            _ => panic!("Unexpected result {:?}", result),
-        }
+        assert!(result.is_err());
     }
 
     #[test]
@@ -618,6 +643,108 @@ mod test {
 
         let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
         assert_eq!(partial, expected_cached_partial);
+    }
+
+    #[test]
+    fn test_extract_directory_recursive() {
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
+
+        let wd_path = temp.path().join("work_dir");
+
+        write_files!{
+            wd_path;
+            "foo" => "123",
+            "level1/bar" => "1234",
+            "level1/level2/baz" => "12345",
+        };
+
+        let expected_cached_partial = partial_tree!{
+            "foo" => Blob::from("123").calculate_hash(),
+            "level1" => partial_tree!{
+                "bar" => Blob::from("1234").calculate_hash(),
+                "level2" => partial_tree!{
+                    "baz" => Blob::from("12345").calculate_hash(),
+                },
+            },
+        };
+
+        // Hash and store files
+
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
+        let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
+
+        // Extract and compare
+        let extract_path = temp.path().join("extract_dir");
+        fs_transfer.extract_object(&hash, &extract_path).unwrap();
+
+        let extract_partial = fs_transfer.dir_to_partial_tree(&extract_path)
+            .unwrap();
+        assert_eq!(extract_partial, expected_cached_partial);
+    }
+
+    #[test]
+    fn test_extract_directory_clobber_file() {
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
+
+        let wd_path = temp.path().join("work_dir");
+
+        write_files!{ wd_path; "foo" => "123", };
+        let expected_cached_partial = partial_tree!{
+            "foo" => Blob::from("123").calculate_hash(),
+        };
+
+        // Hash and store files
+
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
+        let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
+
+        // Extract path is an existing file
+        let extract_path = temp.path().join("extract_dir");
+        testutil::write_file(&extract_path, "Existing file").unwrap();
+
+        // Extract and compare
+        fs_transfer.extract_object(&hash, &extract_path).unwrap();
+
+        let extract_partial = fs_transfer.dir_to_partial_tree(&extract_path)
+            .unwrap();
+        assert_eq!(extract_partial, expected_cached_partial);
+    }
+
+    #[test]
+    fn test_extract_directory_ok_with_existing_dir() {
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
+
+        let wd_path = temp.path().join("work_dir");
+
+        write_files!{ wd_path; "foo" => "123", };
+        let expected_cached_partial = partial_tree!{
+            "foo" => Blob::from("123").calculate_hash(),
+        };
+
+        // Hash and store files
+
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
+        let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
+
+        // Extract path is an existing directory
+        let extract_path = temp.path().join("extract_dir");
+        write_files!{ extract_path; "foo" => "Exiting file", };
+
+        // Extract and compare
+        fs_transfer.extract_object(&hash, &extract_path).unwrap();
+
+        let extract_partial = fs_transfer.dir_to_partial_tree(&extract_path)
+            .unwrap();
+        assert_eq!(extract_partial, expected_cached_partial);
     }
 
 }
