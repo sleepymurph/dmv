@@ -39,39 +39,80 @@ pub fn hash_file(file_path: PathBuf,
     Ok(last_hash)
 }
 
-pub fn extract_file(object_store: &ObjectStore,
-                    hash: &ObjectKey,
-                    file_path: &Path,
-                    cache: &mut AllCaches)
-                    -> Result<()> {
+pub fn extract_object(object_store: &ObjectStore,
+                      hash: &ObjectKey,
+                      path: &Path,
+                      cache: &mut AllCaches)
+                      -> Result<()> {
+
+    let handle = object_store.open_object(hash)?;
+    match handle {
+        ObjectHandle::Blob(_) |
+        ObjectHandle::ChunkedBlob(_) => {
+            info!("Hash refers to a file");
+            extract_file_open(handle, object_store, hash, path, cache)
+        }
+        ObjectHandle::Tree(_) |
+        ObjectHandle::Commit(_) => {
+            info!("Hash refers to a tree");
+            extract_tree_open(handle, object_store, hash, path, cache)
+        }
+    }
+}
+
+fn extract_tree_open(handle: ObjectHandle,
+                     object_store: &ObjectStore,
+                     hash: &ObjectKey,
+                     dir_path: &Path,
+                     cache: &mut AllCaches)
+                     -> Result<()> {
+    unimplemented!()
+}
+
+fn extract_file_open(handle: ObjectHandle,
+                     object_store: &ObjectStore,
+                     hash: &ObjectKey,
+                     file_path: &Path,
+                     cache: &mut AllCaches)
+                     -> Result<()> {
 
     return_if_cache_matches!(cache, file_path, hash);
+    let mut out_file = prep_file(file_path)?;
+    copy_blob_content_open(handle, object_store, hash, &mut out_file)?;
+    set_file_cache(&mut out_file, file_path, hash, cache)?;
+    Ok(())
+}
+
+fn prep_file(file_path: &Path) -> Result<File> {
 
     if file_path.is_dir() {
         bail!(ErrorKind::WouldClobberDirectory(file_path.to_owned()));
     }
 
-    let mut out_file = OpenOptions::new().write(true)
+    OpenOptions::new()
+        .write(true)
         .create(true)
         .truncate(true)
-        .open(file_path)?;
+        .open(file_path)
+        .err_into()
+}
 
-    try!(copy_blob_content(object_store, hash, &mut out_file));
-
+fn set_file_cache(out_file: &mut File,
+                  file_path: &Path,
+                  hash: &ObjectKey,
+                  cache: &mut AllCaches)
+                  -> Result<()> {
     try!(out_file.flush());
     let file_stats = FileStats::from(out_file.metadata()?);
     try!(cache.insert(file_path.to_owned(), file_stats, hash.to_owned()));
-
     Ok(())
 }
 
-fn copy_blob_content(object_store: &ObjectStore,
-                     hash: &ObjectKey,
-                     writer: &mut Write)
-                     -> Result<()> {
-
-    let handle = try!(object_store.open_object(&hash));
-
+fn copy_blob_content_open(handle: ObjectHandle,
+                          object_store: &ObjectStore,
+                          hash: &ObjectKey,
+                          writer: &mut Write)
+                          -> Result<()> {
     match handle {
         ObjectHandle::Blob(blob) => {
             debug!("Extracting blob {}", hash);
@@ -82,13 +123,18 @@ fn copy_blob_content(object_store: &ObjectStore,
             let index = index.read_content()?;
             for offset in index.chunks {
                 debug!("{}", offset);
-                copy_blob_content(object_store, &offset.hash, writer)?;
+                let ch_handle = object_store.open_object(&offset.hash)?;
+                copy_blob_content_open(ch_handle,
+                                       object_store,
+                                       &offset.hash,
+                                       writer)?;
             }
         }
-        other => bail!("Expected a Blob or ChunkedBlob, got a {:?}", other),
+        _ => bail!("Expected a Blob or ChunkedBlob, got: {:?}", handle),
     };
     Ok(())
 }
+
 
 
 /// Read filesystem to construct a PartialTree
@@ -239,13 +285,14 @@ mod test {
     }
 
     #[test]
-    fn test_extract_file_object_not_found() {
+    fn test_extract_object_object_not_found() {
         let (temp, object_store) = create_temp_repository().unwrap();
         let mut cache = AllCaches::new();
         let out_file = temp.path().join("foo");
         let hash = Blob::from("12345").calculate_hash();
 
-        let result = extract_file(&object_store, &hash, &out_file, &mut cache);
+        let result =
+            extract_object(&object_store, &hash, &out_file, &mut cache);
 
         match result {
             Err(Error(ErrorKind::ObjectNotFound(err_hash), _)) => {
@@ -256,7 +303,7 @@ mod test {
     }
 
     #[test]
-    fn test_extract_file_single_blob() {
+    fn test_extract_object_single_blob() {
         let (temp, mut object_store) = create_temp_repository().unwrap();
         let mut cache = AllCaches::new();
 
@@ -264,7 +311,7 @@ mod test {
         let hash = object_store.store_object(&blob).unwrap();
 
         let out_file = temp.path().join("foo");
-        extract_file(&object_store, &hash, &out_file, &mut cache).unwrap();
+        extract_object(&object_store, &hash, &out_file, &mut cache).unwrap();
 
         let out_content = testutil::read_file_to_string(&out_file).unwrap();
         assert_eq!(out_content, "12345");
@@ -275,7 +322,7 @@ mod test {
     }
 
     #[test]
-    fn test_extract_file_multi_chunks() {
+    fn test_extract_object_multi_chunks() {
         let (temp, mut object_store) = create_temp_repository().unwrap();
         let mut cache = AllCaches::new();
 
@@ -290,7 +337,7 @@ mod test {
         }
 
         let out_file = temp.path().join("foo");
-        extract_file(&object_store, &hash, &out_file, &mut cache).unwrap();
+        extract_object(&object_store, &hash, &out_file, &mut cache).unwrap();
 
         assert_eq!(out_file.metadata().unwrap().len(), filesize);
 
@@ -303,7 +350,7 @@ mod test {
     }
 
     #[test]
-    fn test_extract_file_clobber_existing_file() {
+    fn test_extract_object_clobber_existing_file() {
         let (temp, mut object_store) = create_temp_repository().unwrap();
         let mut cache = AllCaches::new();
 
@@ -314,7 +361,7 @@ mod test {
         testutil::write_file(&out_file, "Existing content. To be clobbered.")
             .unwrap();
 
-        extract_file(&object_store, &hash, &out_file, &mut cache).unwrap();
+        extract_object(&object_store, &hash, &out_file, &mut cache).unwrap();
 
         let out_content = testutil::read_file_to_string(&out_file).unwrap();
         assert_eq!(out_content, "12345");
@@ -325,7 +372,7 @@ mod test {
     }
 
     #[test]
-    fn test_extract_file_abort_on_existing_directory() {
+    fn test_extract_object_abort_on_existing_directory() {
         let (temp, mut object_store) = create_temp_repository().unwrap();
         let mut cache = AllCaches::new();
 
@@ -335,7 +382,8 @@ mod test {
         let out_file = temp.path().join("foo");
         create_dir(&out_file).unwrap();
 
-        let result = extract_file(&object_store, &hash, &out_file, &mut cache);
+        let result =
+            extract_object(&object_store, &hash, &out_file, &mut cache);
 
         assert!(result.is_err());
         match result {

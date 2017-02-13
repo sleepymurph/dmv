@@ -30,7 +30,7 @@ fn run() -> Result<()> {
                 "init" => cmd_init,
                 "hash-object" => cmd_hash_object,
                 "show-object" => cmd_show_object,
-                "extract-file" => cmd_extract_file,
+                "extract-object" => cmd_extract_object,
                 "cache-status" => cmd_cache_status,
                 _ => unimplemented!(),
             };
@@ -72,9 +72,9 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches,
     cmd::show_object(repo_path, &hash)
 }
 
-fn cmd_extract_file(_argmatch: &clap::ArgMatches,
-                    submatch: &clap::ArgMatches)
-                    -> Result<()> {
+fn cmd_extract_object(_argmatch: &clap::ArgMatches,
+                      submatch: &clap::ArgMatches)
+                      -> Result<()> {
     let repo_path = repo_path();
 
     let hash = submatch.value_of("hash").expect("required");
@@ -83,7 +83,7 @@ fn cmd_extract_file(_argmatch: &clap::ArgMatches,
     let file_path = submatch.value_of("filepath").expect("required");
     let file_path = PathBuf::from(file_path);
 
-    cmd::extract_file(repo_path, &hash, &file_path)
+    cmd::extract_object(repo_path, &hash, &file_path)
 }
 
 fn cmd_cache_status(_argmatch: &clap::ArgMatches,

@@ -8,6 +8,7 @@ subcommands:
                 help: "create bare object store without working directory"
 
     - hash-object:
+        help: "hash and store a file or directory in the object store"
         args:
             - filepath:
                 required: true
@@ -19,7 +20,8 @@ subcommands:
                 required: true
                 index: 1
 
-    - extract-file:
+    - extract-object:
+        help: "pull a file or tree out of repo and onto the disk"
         args:
             - hash:
                 required: true

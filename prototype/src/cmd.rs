@@ -69,18 +69,18 @@ pub fn show_object(repo_path: PathBuf, hash: &ObjectKey) -> Result<()> {
     Ok(())
 }
 
-pub fn extract_file(repo_path: PathBuf,
-                    hash: &ObjectKey,
-                    file_path: &Path)
-                    -> Result<()> {
+pub fn extract_object(repo_path: PathBuf,
+                      hash: &ObjectKey,
+                      file_path: &Path)
+                      -> Result<()> {
 
     let mut object_store = try!(ObjectStore::open(repo_path));
     let mut cache = AllCaches::new();
 
-    try!(pipeline::extract_file(&mut object_store,
-                                &hash,
-                                &file_path,
-                                &mut cache));
+    try!(pipeline::extract_object(&mut object_store,
+                                  &hash,
+                                  &file_path,
+                                  &mut cache));
     Ok(())
 }
 
