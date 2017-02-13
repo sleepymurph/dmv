@@ -19,6 +19,10 @@ extern crate wrapperstruct;
 #[cfg(test)]
 #[macro_use]
 extern crate testutil;
+#[cfg(test)]
+#[macro_use]
+extern crate hamcrest;
+
 
 /// Create and populate a map (or any struct with an insert method)
 ///
