@@ -16,193 +16,198 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 
-
-pub fn hash_file(file_path: PathBuf,
-                 cache: &mut AllCaches,
-                 object_store: &mut ObjectStore)
-                 -> Result<ObjectKey> {
-
-    let file = try!(File::open(&file_path));
-    let file_stats = FileStats::from(file.metadata()?);
-    let file = BufReader::new(file);
-
-    return_if_cached!(cache, &file_path, &file_stats);
-    info!("Hashing {}", file_path.display());
-
-    let mut last_hash = ObjectKey::zero();
-    for object in read_file_objects(file) {
-        last_hash = try!(object_store.store_object(&object?));
-    }
-
-    try!(cache.insert(file_path, file_stats, last_hash.clone()));
-
-    Ok(last_hash)
+pub struct ObjectFsTransfer {
+    pub object_store: ObjectStore,
+    pub cache: AllCaches,
+    pub ignored: IgnoreList,
 }
 
-pub fn extract_object(object_store: &ObjectStore,
-                      hash: &ObjectKey,
-                      path: &Path,
-                      cache: &mut AllCaches)
-                      -> Result<()> {
+impl ObjectFsTransfer {
+    pub fn with_object_store(object_store: ObjectStore) -> Self {
+        let mut ignored = IgnoreList::default();
+        ignored.insert(object_store.path());
 
-    let handle = object_store.open_object(hash)?;
-    match handle {
-        ObjectHandle::Blob(_) |
-        ObjectHandle::ChunkedBlob(_) => {
-            info!("Hash refers to a file");
-            extract_file_open(handle, object_store, hash, path, cache)
-        }
-        ObjectHandle::Tree(_) |
-        ObjectHandle::Commit(_) => {
-            info!("Hash refers to a tree");
-            extract_tree_open(handle, object_store, hash, path, cache)
+        ObjectFsTransfer {
+            object_store: object_store,
+            ignored: ignored,
+            cache: AllCaches::new(),
         }
     }
-}
 
-fn extract_tree_open(handle: ObjectHandle,
-                     object_store: &ObjectStore,
-                     hash: &ObjectKey,
-                     dir_path: &Path,
-                     cache: &mut AllCaches)
-                     -> Result<()> {
-    unimplemented!()
-}
-
-fn extract_file_open(handle: ObjectHandle,
-                     object_store: &ObjectStore,
-                     hash: &ObjectKey,
-                     file_path: &Path,
-                     cache: &mut AllCaches)
-                     -> Result<()> {
-
-    return_if_cache_matches!(cache, file_path, hash);
-    let mut out_file = prep_file(file_path)?;
-    copy_blob_content_open(handle, object_store, hash, &mut out_file)?;
-    set_file_cache(&mut out_file, file_path, hash, cache)?;
-    Ok(())
-}
-
-fn prep_file(file_path: &Path) -> Result<File> {
-
-    if file_path.is_dir() {
-        bail!(ErrorKind::WouldClobberDirectory(file_path.to_owned()));
+    pub fn with_repo_path(repo_path: PathBuf) -> Result<Self> {
+        Ok(ObjectFsTransfer::with_object_store(ObjectStore::open(repo_path)?))
     }
 
-    OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(file_path)
-        .err_into()
-}
+    pub fn hash_file(&mut self, file_path: PathBuf) -> Result<ObjectKey> {
+        let file = try!(File::open(&file_path));
+        let file_stats = FileStats::from(file.metadata()?);
+        let file = BufReader::new(file);
 
-fn set_file_cache(out_file: &mut File,
-                  file_path: &Path,
-                  hash: &ObjectKey,
-                  cache: &mut AllCaches)
-                  -> Result<()> {
-    try!(out_file.flush());
-    let file_stats = FileStats::from(out_file.metadata()?);
-    try!(cache.insert(file_path.to_owned(), file_stats, hash.to_owned()));
-    Ok(())
-}
+        return_if_cached!(self.cache, &file_path, &file_stats);
+        info!("Hashing {}", file_path.display());
 
-fn copy_blob_content_open(handle: ObjectHandle,
-                          object_store: &ObjectStore,
+        let mut last_hash = ObjectKey::zero();
+        for object in read_file_objects(file) {
+            last_hash = try!(self.object_store.store_object(&object?));
+        }
+
+        try!(self.cache.insert(file_path, file_stats, last_hash.clone()));
+
+        Ok(last_hash)
+    }
+
+
+    /// Read filesystem to construct a PartialTree
+    pub fn dir_to_partial_tree(&mut self,
+                               dir_path: &Path)
+                               -> Result<PartialTree> {
+        if dir_path.is_dir() {
+            let mut partial = PartialTree::new();
+
+            for entry in try!(read_dir(dir_path)) {
+                let entry = try!(entry);
+
+                let ch_path = entry.path();
+                let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
+                let ch_metadata = try!(entry.metadata());
+
+                if self.ignored.ignores(&ch_path) {
+                    continue;
+                }
+
+                if ch_metadata.is_file() {
+
+                    let cache_status = self.cache
+                        .check_with(&ch_path, &ch_metadata.into())?;
+                    partial.insert(ch_name, cache_status);
+
+                } else if ch_metadata.is_dir() {
+
+                    let subpartial = self.dir_to_partial_tree(&ch_path)?;
+                    partial.insert(ch_name, subpartial);
+
+                } else {
+                    unimplemented!()
+                }
+            }
+
+            Ok(partial)
+        } else {
+            bail!(ErrorKind::NotADirectory(dir_path.to_owned()))
+        }
+    }
+
+
+    pub fn hash_partial_tree(&mut self,
+                             dir_path: &Path,
+                             mut partial: PartialTree)
+                             -> Result<ObjectKey> {
+
+        for (ch_name, unknown) in partial.unhashed().clone() {
+            let ch_path = dir_path.join(&ch_name);
+
+            let hash = match unknown {
+                UnhashedPath::File(_) => self.hash_file(ch_path),
+                UnhashedPath::Dir(partial) => {
+                    self.hash_partial_tree(&ch_path, partial)
+                }
+            };
+            partial.insert(ch_name, hash?);
+        }
+
+        assert!(partial.is_complete());
+        self.object_store.store_object(partial.tree())
+    }
+
+
+
+    pub fn extract_object(&mut self,
                           hash: &ObjectKey,
-                          writer: &mut Write)
+                          path: &Path)
                           -> Result<()> {
-    match handle {
-        ObjectHandle::Blob(blob) => {
-            debug!("Extracting blob {}", hash);
-            blob.copy_content(writer)?;
-        }
-        ObjectHandle::ChunkedBlob(index) => {
-            debug!("Reading ChunkedBlob {}", hash);
-            let index = index.read_content()?;
-            for offset in index.chunks {
-                debug!("{}", offset);
-                let ch_handle = object_store.open_object(&offset.hash)?;
-                copy_blob_content_open(ch_handle,
-                                       object_store,
-                                       &offset.hash,
-                                       writer)?;
+
+        let handle = self.object_store.open_object(hash)?;
+        match handle {
+            ObjectHandle::Blob(_) |
+            ObjectHandle::ChunkedBlob(_) => {
+                info!("Hash refers to a file");
+                self.extract_file_open(handle, hash, path)
+            }
+            ObjectHandle::Tree(_) |
+            ObjectHandle::Commit(_) => {
+                info!("Hash refers to a tree");
+                self.extract_tree_open(handle, hash, path)
             }
         }
-        _ => bail!("Expected a Blob or ChunkedBlob, got: {:?}", handle),
-    };
-    Ok(())
-}
-
-
-
-/// Read filesystem to construct a PartialTree
-pub fn dir_to_partial_tree(dir_path: &Path,
-                           ignored: &IgnoreList,
-                           cache: &mut AllCaches)
-                           -> Result<PartialTree> {
-    if dir_path.is_dir() {
-        let mut partial = PartialTree::new();
-
-        for entry in try!(read_dir(dir_path)) {
-            let entry = try!(entry);
-
-            let ch_path = entry.path();
-            let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
-            let ch_metadata = try!(entry.metadata());
-
-            if ignored.ignores(&ch_path) {
-                continue;
-            }
-
-            if ch_metadata.is_file() {
-
-                let cache_status =
-                    try!(cache.check_with(&ch_path, &ch_metadata.into()));
-                partial.insert(ch_name, cache_status);
-
-            } else if ch_metadata.is_dir() {
-
-                let subpartial =
-                    try!(dir_to_partial_tree(&ch_path, &ignored, cache));
-                partial.insert(ch_name, subpartial);
-
-            } else {
-                unimplemented!()
-            }
-        }
-
-        Ok(partial)
-    } else {
-        bail!(ErrorKind::NotADirectory(dir_path.to_owned()))
     }
-}
 
-pub fn hash_partial_tree(dir_path: &Path,
-                         mut partial: PartialTree,
-                         cache: &mut AllCaches,
-                         object_store: &mut ObjectStore)
-                         -> Result<ObjectKey> {
-    for (ch_name, unknown) in partial.unhashed().clone() {
-        let ch_path = dir_path.join(&ch_name);
+    fn extract_tree_open(&mut self,
+                         handle: ObjectHandle,
+                         hash: &ObjectKey,
+                         dir_path: &Path)
+                         -> Result<()> {
+        unimplemented!()
+    }
 
-        let hash = match unknown {
-            UnhashedPath::File(_) => hash_file(ch_path, cache, object_store),
-            UnhashedPath::Dir(partial) => {
-                hash_partial_tree(&ch_path, partial, cache, object_store)
+    fn extract_file_open(&mut self,
+                         handle: ObjectHandle,
+                         hash: &ObjectKey,
+                         file_path: &Path)
+                         -> Result<()> {
+
+        return_if_cache_matches!(self.cache, file_path, hash);
+
+        if file_path.is_dir() {
+            bail!(ErrorKind::WouldClobberDirectory(file_path.to_owned()));
+        }
+
+        let mut out_file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(file_path)?;
+
+        self.copy_blob_content_open(handle, hash, &mut out_file)?;
+
+        out_file.flush()?;
+        let file_stats = FileStats::from(out_file.metadata()?);
+        self.cache.insert(file_path.to_owned(), file_stats, hash.to_owned())?;
+
+        Ok(())
+    }
+
+    fn copy_blob_content_open(&mut self,
+                              handle: ObjectHandle,
+                              hash: &ObjectKey,
+                              writer: &mut Write)
+                              -> Result<()> {
+        match handle {
+            ObjectHandle::Blob(blob) => {
+                debug!("Extracting blob {}", hash);
+                blob.copy_content(writer)?;
             }
+            ObjectHandle::ChunkedBlob(index) => {
+                debug!("Reading ChunkedBlob {}", hash);
+                let index = index.read_content()?;
+                for offset in index.chunks {
+                    debug!("{}", offset);
+                    let ch_handle = self.object_store
+                        .open_object(&offset.hash)?;
+                    self.copy_blob_content_open(ch_handle,
+                                                &offset.hash,
+                                                writer)?;
+                }
+            }
+            _ => bail!("Expected a Blob or ChunkedBlob, got: {:?}", handle),
         };
-        partial.insert(ch_name, hash?);
+        Ok(())
     }
-
-    assert!(partial.is_complete());
-    object_store.store_object(partial.tree())
 }
+
+
 
 #[cfg(test)]
 mod test {
-    use cache::AllCaches;
     use cache::CacheStatus;
     use dag::Blob;
     use dag::HashedOrNot;
@@ -210,8 +215,6 @@ mod test {
     use dag::ObjectCommon;
     use dag::ObjectKey;
     use dag::ObjectType;
-    use ignore::IgnoreList;
-    use objectstore::test::create_temp_repository;
     use rollinghash::CHUNK_TARGET_SIZE;
     use rollinghash::read_file_objects;
     use std::fs::create_dir;
@@ -222,48 +225,57 @@ mod test {
 
     #[test]
     fn test_hash_file_empty() {
-        let (temp, mut object_store) = create_temp_repository().unwrap();
-        let mut cache = AllCaches::new();
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
+
         let filepath = temp.path().join("foo");
         testutil::write_file(&filepath, "").unwrap();
 
-        let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
+        let hash = fs_transfer.hash_file(filepath).unwrap();
 
-        let mut objfile = object_store.open_object_file(&hash).unwrap();
-        let obj = Object::read_from(&mut objfile).unwrap();
+        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
+        let obj = Object::read_from(&mut obj).unwrap();
 
         assert_eq!(Object::Blob(Blob::empty()), obj);
     }
 
     #[test]
     fn test_hash_file_small() {
-        let (temp, mut object_store) = create_temp_repository().unwrap();
-        let mut cache = AllCaches::new();
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
+
         let filepath = temp.path().join("foo");
 
         testutil::write_file(&filepath, "foo").unwrap();
 
-        let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
+        let hash = fs_transfer.hash_file(filepath).unwrap();
 
-        let mut objfile = object_store.open_object_file(&hash).unwrap();
-        let obj = Object::read_from(&mut objfile).unwrap();
+        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
+        let obj = Object::read_from(&mut obj).unwrap();
 
         assert_eq!(Object::Blob(Blob::from("foo")), obj);
     }
 
     #[test]
     fn test_hash_file_chunked() {
-        let (temp, mut object_store) = create_temp_repository().unwrap();
-        let mut cache = AllCaches::new();
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
+
         let filepath = temp.path().join("foo");
         let filesize = 3 * CHUNK_TARGET_SIZE as u64;
 
         let mut rng = testutil::TestRand::default();
         testutil::write_file(&filepath, rng.take(filesize)).unwrap();
 
-        let hash = hash_file(filepath, &mut cache, &mut object_store).unwrap();
+        let hash = fs_transfer.hash_file(filepath).unwrap();
 
-        let mut obj = object_store.open_object_file(&hash).unwrap();
+        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
         let obj = Object::read_from(&mut obj).unwrap();
 
         if let Object::ChunkedBlob(chunked) = obj {
@@ -271,7 +283,8 @@ mod test {
             assert_eq!(chunked.chunks.len(), 5);
 
             for chunkrecord in chunked.chunks {
-                let mut obj = object_store.open_object_file(&chunkrecord.hash)
+                let mut obj = fs_transfer.object_store
+                    .open_object_file(&chunkrecord.hash)
                     .unwrap();
                 let obj = Object::read_from(&mut obj).unwrap();
                 assert_eq!(obj.object_type(), ObjectType::Blob);
@@ -286,13 +299,15 @@ mod test {
 
     #[test]
     fn test_extract_object_object_not_found() {
-        let (temp, object_store) = create_temp_repository().unwrap();
-        let mut cache = AllCaches::new();
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
+
         let out_file = temp.path().join("foo");
         let hash = Blob::from("12345").calculate_hash();
 
-        let result =
-            extract_object(&object_store, &hash, &out_file, &mut cache);
+        let result = fs_transfer.extract_object(&hash, &out_file);
 
         match result {
             Err(Error(ErrorKind::ObjectNotFound(err_hash), _)) => {
@@ -304,27 +319,31 @@ mod test {
 
     #[test]
     fn test_extract_object_single_blob() {
-        let (temp, mut object_store) = create_temp_repository().unwrap();
-        let mut cache = AllCaches::new();
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
 
         let blob = Blob::from("12345");
-        let hash = object_store.store_object(&blob).unwrap();
+        let hash = fs_transfer.object_store.store_object(&blob).unwrap();
 
         let out_file = temp.path().join("foo");
-        extract_object(&object_store, &hash, &out_file, &mut cache).unwrap();
+        fs_transfer.extract_object(&hash, &out_file).unwrap();
 
         let out_content = testutil::read_file_to_string(&out_file).unwrap();
         assert_eq!(out_content, "12345");
 
-        assert_eq!(cache.check(&out_file).unwrap(),
+        assert_eq!(fs_transfer.cache.check(&out_file).unwrap(),
                    CacheStatus::Cached { hash: hash },
                    "Cache should be primed with extracted file's hash");
     }
 
     #[test]
     fn test_extract_object_multi_chunks() {
-        let (temp, mut object_store) = create_temp_repository().unwrap();
-        let mut cache = AllCaches::new();
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
 
         let mut rng = testutil::TestRand::default();
         let filesize = 3 * CHUNK_TARGET_SIZE as u64;
@@ -333,59 +352,63 @@ mod test {
 
         let mut hash = ObjectKey::zero();
         for object in read_file_objects(Cursor::new(&in_file)) {
-            hash = object_store.store_object(&object.unwrap()).unwrap();
+            hash = fs_transfer.object_store
+                .store_object(&object.unwrap())
+                .unwrap();
         }
 
         let out_file = temp.path().join("foo");
-        extract_object(&object_store, &hash, &out_file, &mut cache).unwrap();
+        fs_transfer.extract_object(&hash, &out_file).unwrap();
 
         assert_eq!(out_file.metadata().unwrap().len(), filesize);
 
         let out_content = testutil::read_file_to_end(&out_file).unwrap();
         assert!(out_content == in_file);
 
-        assert_eq!(cache.check(&out_file).unwrap(),
+        assert_eq!(fs_transfer.cache.check(&out_file).unwrap(),
                    CacheStatus::Cached { hash: hash },
                    "Cache should be primed with extracted file's hash");
     }
 
     #[test]
     fn test_extract_object_clobber_existing_file() {
-        let (temp, mut object_store) = create_temp_repository().unwrap();
-        let mut cache = AllCaches::new();
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
 
         let blob = Blob::from("12345");
-        let hash = object_store.store_object(&blob).unwrap();
+        let hash = fs_transfer.object_store.store_object(&blob).unwrap();
 
         let out_file = temp.path().join("foo");
         testutil::write_file(&out_file, "Existing content. To be clobbered.")
             .unwrap();
 
-        extract_object(&object_store, &hash, &out_file, &mut cache).unwrap();
+        fs_transfer.extract_object(&hash, &out_file).unwrap();
 
         let out_content = testutil::read_file_to_string(&out_file).unwrap();
         assert_eq!(out_content, "12345");
 
-        assert_eq!(cache.check(&out_file).unwrap(),
+        assert_eq!(fs_transfer.cache.check(&out_file).unwrap(),
                    CacheStatus::Cached { hash: hash },
                    "Cache should be primed with extracted file's hash");
     }
 
     #[test]
     fn test_extract_object_abort_on_existing_directory() {
-        let (temp, mut object_store) = create_temp_repository().unwrap();
-        let mut cache = AllCaches::new();
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
 
         let blob = Blob::from("12345");
-        let hash = object_store.store_object(&blob).unwrap();
+        let hash = fs_transfer.object_store.store_object(&blob).unwrap();
 
         let out_file = temp.path().join("foo");
         create_dir(&out_file).unwrap();
 
-        let result =
-            extract_object(&object_store, &hash, &out_file, &mut cache);
+        let result = fs_transfer.extract_object(&hash, &out_file);
 
-        assert!(result.is_err());
         match result {
             Err(Error(ErrorKind::WouldClobberDirectory(p), _)) => {
                 assert_eq!(p, out_file)
@@ -396,9 +419,11 @@ mod test {
 
     #[test]
     fn test_store_directory_shallow() {
-        let (temp, mut object_store) = create_temp_repository().unwrap();
-        let ignored = IgnoreList::default();
-        let mut cache = AllCaches::new();
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
+
         let wd_path = temp.path().join("work_dir");
 
         write_files!{
@@ -422,43 +447,41 @@ mod test {
 
         // Build partial tree
 
-        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
-            .unwrap();
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
         assert_eq!(partial, expected_partial);
         assert_eq!(partial.unhashed_size(), 12);
 
         // Hash and store files
 
-        let hash =
-            hash_partial_tree(&wd_path, partial, &mut cache, &mut object_store)
-                .unwrap();
+        let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
 
-        let mut file = object_store.open_object_file(&hash).unwrap();
-        let tree = Object::read_from(&mut file).unwrap();
+        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
+        let tree = Object::read_from(&mut obj).unwrap();
 
         assert_eq!(tree, Object::Tree(expected_tree.clone()));
 
         // Check that children are stored
 
         for (name, hash) in expected_tree.iter() {
-            assert!(object_store.has_object(&hash),
+            assert!(fs_transfer.object_store.has_object(&hash),
                     "Object for '{}' was not stored",
                     name.display());
         }
 
         // Check again that files are cached now
 
-        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
-            .unwrap();
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
         assert!(partial.is_complete());
         assert_eq!(partial.tree(), &expected_tree);
     }
 
     #[test]
     fn test_store_directory_recursive() {
-        let (temp, mut object_store) = create_temp_repository().unwrap();
-        let ignored = IgnoreList::default();
-        let mut cache = AllCaches::new();
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
+
         let wd_path = temp.path().join("work_dir");
 
         write_files!{
@@ -502,31 +525,27 @@ mod test {
 
         // Build partial tree
 
-        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
-            .unwrap();
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
         assert_eq!(partial, expected_partial);
         assert_eq!(partial.unhashed_size(), 12);
 
         // Hash and store files
 
-        let hash =
-            hash_partial_tree(&wd_path, partial, &mut cache, &mut object_store)
-                .unwrap();
+        let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
 
-        let mut file = object_store.open_object_file(&hash).unwrap();
-        let tree = Object::read_from(&mut file).unwrap();
+        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
+        let tree = Object::read_from(&mut obj).unwrap();
 
         assert_eq!(tree, Object::Tree(expected_tree.clone()));
 
         // Check that deepest child is stored
 
-        assert!(object_store.has_object(&deepest_child_hash),
+        assert!(fs_transfer.object_store.has_object(&deepest_child_hash),
                 "Object for deepest child was not stored");
 
         // Check again that files are cached now
 
-        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
-            .unwrap();
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
         assert_eq!(partial.unhashed_size(), 0);
         assert!(!partial.is_complete());
         assert_eq!(partial, expected_cached_partial);
@@ -534,10 +553,11 @@ mod test {
 
     #[test]
     fn test_store_directory_ignore_objectstore_dir() {
-        let (temp, mut object_store) = create_temp_repository().unwrap();
-        let mut ignored = IgnoreList::default();
-        ignored.insert(object_store.path());
-        let mut cache = AllCaches::new();
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
+
         let wd_path = temp.path();
 
         write_files!{
@@ -579,28 +599,25 @@ mod test {
 
         // Build partial tree
 
-        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
-            .unwrap();
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
         assert_eq!(partial, expected_partial);
 
         // Hash and store files
 
-        let hash =
-            hash_partial_tree(&wd_path, partial, &mut cache, &mut object_store)
-                .unwrap();
+        let hash = fs_transfer.hash_partial_tree(&wd_path, partial)
+            .unwrap();
 
-        let mut file = object_store.open_object_file(&hash).unwrap();
-        let tree = Object::read_from(&mut file).unwrap();
+        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
+        let tree = Object::read_from(&mut obj).unwrap();
 
         assert_eq!(tree, Object::Tree(expected_tree.clone()));
 
         // Flush cache files
-        cache.flush();
+        fs_transfer.cache.flush();
 
         // Build partial tree again -- make sure it doesn't pick up cache files
 
-        let partial = dir_to_partial_tree(&wd_path, &ignored, &mut cache)
-            .unwrap();
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
         assert_eq!(partial, expected_cached_partial);
     }
 

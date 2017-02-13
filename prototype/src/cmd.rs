@@ -6,9 +6,8 @@ use dag::ObjectHandle;
 use dag::ObjectKey;
 use error::*;
 use humanreadable::human_bytes;
-use ignore::IgnoreList;
 use objectstore::ObjectStore;
-use pipeline;
+use pipeline::ObjectFsTransfer;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -19,27 +18,18 @@ pub fn init(repo_path: PathBuf) -> Result<()> {
 
 pub fn hash_object(repo_path: PathBuf, file_path: PathBuf) -> Result<()> {
 
-    let mut object_store = try!(ObjectStore::open(repo_path));
-    let mut cache = AllCaches::new();
+    let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)?;
 
     let hash;
     if file_path.is_file() {
-        hash = try!(pipeline::hash_file(file_path.clone(),
-                                        &mut cache,
-                                        &mut object_store));
-    } else if file_path.is_dir() {
-        let mut ignored = IgnoreList::default();
-        ignored.insert(object_store.path());
+        hash = fs_transfer.hash_file(file_path.clone())?;
 
-        let partial = try!(pipeline::dir_to_partial_tree(&file_path,
-                                                         &ignored,
-                                                         &mut cache));
+    } else if file_path.is_dir() {
+
+        let partial = fs_transfer.dir_to_partial_tree(&file_path)?;
         println!("{} to hash. Hashing...",
                  human_bytes(partial.unhashed_size()));
-        hash = try!(pipeline::hash_partial_tree(&file_path,
-                                                partial,
-                                                &mut cache,
-                                                &mut object_store));
+        hash = fs_transfer.hash_partial_tree(&file_path, partial)?;
     } else {
         unimplemented!()
     };
@@ -74,14 +64,8 @@ pub fn extract_object(repo_path: PathBuf,
                       file_path: &Path)
                       -> Result<()> {
 
-    let mut object_store = try!(ObjectStore::open(repo_path));
-    let mut cache = AllCaches::new();
-
-    try!(pipeline::extract_object(&mut object_store,
-                                  &hash,
-                                  &file_path,
-                                  &mut cache));
-    Ok(())
+    let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)?;
+    fs_transfer.extract_object(&hash, &file_path)
 }
 
 pub fn cache_status(file_path: PathBuf) -> Result<()> {

@@ -105,6 +105,38 @@ pub fn in_mem_tempdir(prefix: &str) -> io::Result<TempDir> {
     TempDir::new_in("/dev/shm", prefix)
 }
 
+/// Create a temporary directory in an in-memory filesystem
+///
+/// A wrapper for the `in_mem_tempdir` function. It makes the call more concise
+/// by also doing the following:
+///
+/// - Creating a default directory name based on the `module_path!()` of the
+/// current module.
+/// - Unwrapping the result.
+///
+/// ```
+/// #[macro_use]
+/// extern crate testutil;
+///
+/// fn main() {
+///     let temp_path;
+///     {
+///         let temp = in_mem_tempdir!();
+///         temp_path = temp.path().to_owned();
+///         assert!(temp_path.is_dir(), "Directory should be created");
+///     }
+///
+///     assert!(!temp_path.exists(), "Directory should be deleted");
+/// }
+/// ```
+///
+#[macro_export]
+macro_rules! in_mem_tempdir {
+    () => {
+        $crate::in_mem_tempdir(&module_path!().replace(":","_")).unwrap()
+    }
+}
+
 /// Write a file from different byte sources
 ///
 /// See the `write_files` macro for a more concise syntax.
