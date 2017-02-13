@@ -22,5 +22,7 @@ rustc-serialize = "0.3"
 rust-crypto = "0.2"
 
 humanreadable = { path = "humanreadable" }
-testutil = { path = "testutil" }
 wrapperstruct = { path = "wrapperstruct" }
+
+[dev-dependencies]
+testutil = { path = "testutil" }
