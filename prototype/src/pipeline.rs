@@ -161,8 +161,7 @@ impl ObjectFsTransfer {
             bail!(ErrorKind::WouldClobberDirectory(file_path.to_owned()));
         }
 
-        let mut out_file = OpenOptions::new()
-            .write(true)
+        let mut out_file = OpenOptions::new().write(true)
             .create(true)
             .truncate(true)
             .open(file_path)?;
@@ -235,8 +234,8 @@ mod test {
 
         let hash = fs_transfer.hash_file(filepath).unwrap();
 
-        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
-        let obj = Object::read_from(&mut obj).unwrap();
+        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
+        let obj = obj.read_content().unwrap();
 
         assert_eq!(Object::Blob(Blob::empty()), obj);
     }
@@ -254,8 +253,8 @@ mod test {
 
         let hash = fs_transfer.hash_file(filepath).unwrap();
 
-        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
-        let obj = Object::read_from(&mut obj).unwrap();
+        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
+        let obj = obj.read_content().unwrap();
 
         assert_eq!(Object::Blob(Blob::from("foo")), obj);
     }
@@ -275,18 +274,18 @@ mod test {
 
         let hash = fs_transfer.hash_file(filepath).unwrap();
 
-        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
-        let obj = Object::read_from(&mut obj).unwrap();
+        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
+        let obj = obj.read_content().unwrap();
 
         if let Object::ChunkedBlob(chunked) = obj {
             assert_eq!(chunked.total_size, filesize);
             assert_eq!(chunked.chunks.len(), 5);
 
             for chunkrecord in chunked.chunks {
-                let mut obj = fs_transfer.object_store
-                    .open_object_file(&chunkrecord.hash)
+                let obj = fs_transfer.object_store
+                    .open_object(&chunkrecord.hash)
                     .unwrap();
-                let obj = Object::read_from(&mut obj).unwrap();
+                let obj = obj.read_content().unwrap();
                 assert_eq!(obj.object_type(), ObjectType::Blob);
                 assert_eq!(obj.content_size(), chunkrecord.size);
             }
@@ -455,10 +454,10 @@ mod test {
 
         let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
 
-        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
-        let tree = Object::read_from(&mut obj).unwrap();
+        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
+        let obj = obj.read_content().unwrap();
 
-        assert_eq!(tree, Object::Tree(expected_tree.clone()));
+        assert_eq!(obj, Object::Tree(expected_tree.clone()));
 
         // Check that children are stored
 
@@ -533,10 +532,10 @@ mod test {
 
         let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
 
-        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
-        let tree = Object::read_from(&mut obj).unwrap();
+        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
+        let obj = obj.read_content().unwrap();
 
-        assert_eq!(tree, Object::Tree(expected_tree.clone()));
+        assert_eq!(obj, Object::Tree(expected_tree.clone()));
 
         // Check that deepest child is stored
 
@@ -607,10 +606,10 @@ mod test {
         let hash = fs_transfer.hash_partial_tree(&wd_path, partial)
             .unwrap();
 
-        let mut obj = fs_transfer.object_store.open_object_file(&hash).unwrap();
-        let tree = Object::read_from(&mut obj).unwrap();
+        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
+        let obj = obj.read_content().unwrap();
 
-        assert_eq!(tree, Object::Tree(expected_tree.clone()));
+        assert_eq!(obj, Object::Tree(expected_tree.clone()));
 
         // Flush cache files
         fs_transfer.cache.flush();
