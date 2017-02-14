@@ -95,37 +95,52 @@ impl ObjectFsTransfer {
 
             for entry in try!(read_dir(dir_path)) {
                 let entry = try!(entry);
-
                 let ch_path = entry.path();
-                let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
-                let ch_metadata = try!(entry.metadata());
 
                 if self.ignored.ignores(&ch_path) {
                     continue;
                 }
 
-                if ch_metadata.is_file() {
-
-                    let cache_status = self.cache
-                        .check_with(&ch_path, &ch_metadata.into())?;
-                    partial.insert(ch_name, cache_status);
-
-                } else if ch_metadata.is_dir() {
-
-                    let subpartial = self.dir_to_partial_tree(&ch_path)?;
-                    if !subpartial.is_empty() {
-                        partial.insert(ch_name, subpartial);
-                    }
-
-                } else {
-                    unimplemented!()
+                let hashed_status = self.check_hashed_status(&ch_path)?;
+                let is_empty = match &hashed_status {
+                    &HashedOrNot::Dir(ref subdir) if subdir.is_empty() => true,
+                    _ => false,
+                };
+                if !is_empty {
+                    let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
+                    partial.insert(ch_name, hashed_status);
                 }
+
             }
 
             Ok(partial)
         } else {
             bail!(ErrorKind::NotADirectory(dir_path.to_owned()))
         }
+    }
+
+
+    pub fn check_hashed_status(&mut self, path: &Path) -> Result<HashedOrNot> {
+
+        let path_meta = try!(path.metadata());
+        let hashed_or_not;
+
+        if path_meta.is_file() {
+
+            let cache_status = self.cache
+                .check_with(&path, &path_meta.into())?;
+            hashed_or_not = HashedOrNot::from(cache_status);
+
+        } else if path_meta.is_dir() {
+
+            let subpartial = self.dir_to_partial_tree(&path)?;
+            hashed_or_not = HashedOrNot::from(subpartial);
+
+        } else {
+            bail!("Path {} was neither file nor directory", path.display());
+        }
+
+        Ok(hashed_or_not)
     }
 
 
