@@ -67,6 +67,18 @@ impl ObjectFsTransfer {
         Ok(ObjectFsTransfer::with_object_store(ObjectStore::open(repo_path)?))
     }
 
+    pub fn hash_object(&mut self,
+                       path: &Path,
+                       status: HashedOrNot)
+                       -> Result<ObjectKey> {
+        use dag::HashedOrNot::*;
+        match status {
+            Hashed(hash) => Ok(hash),
+            UnhashedFile(_) => self.hash_file(path.to_owned()),
+            Dir(partial) => self.hash_partial_tree(&path, partial),
+        }
+    }
+
     pub fn hash_file(&mut self, file_path: PathBuf) -> Result<ObjectKey> {
         let file = try!(File::open(&file_path));
         let file_stats = FileStats::from(file.metadata()?);

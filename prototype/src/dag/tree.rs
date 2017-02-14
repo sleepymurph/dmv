@@ -242,6 +242,17 @@ impl From<ObjectKey> for HashedOrNot {
     fn from(hash: ObjectKey) -> Self { HashedOrNot::Hashed(hash) }
 }
 
+impl HashedOrNot {
+    pub fn unhashed_size(&self) -> ObjectSize {
+        use self::HashedOrNot::*;
+        match self {
+            &Hashed(_) => 0,
+            &UnhashedFile(size) => size,
+            &Dir(ref partial) => partial.unhashed_size(),
+        }
+    }
+}
+
 // Conversions for UnhashedPath
 
 impl From<ObjectSize> for UnhashedPath {

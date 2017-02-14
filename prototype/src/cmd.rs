@@ -16,25 +16,18 @@ pub fn init(repo_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn hash_object(repo_path: PathBuf, file_path: PathBuf) -> Result<()> {
+pub fn hash_object(repo_path: PathBuf, path: PathBuf) -> Result<()> {
 
     let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)?;
 
-    let hash;
-    if file_path.is_file() {
-        hash = fs_transfer.hash_file(file_path.clone())?;
-
-    } else if file_path.is_dir() {
-
-        let partial = fs_transfer.dir_to_partial_tree(&file_path)?;
+    let status = fs_transfer.check_hashed_status(&path)?;
+    if status.unhashed_size() > 0 {
         println!("{} to hash. Hashing...",
-                 human_bytes(partial.unhashed_size()));
-        hash = fs_transfer.hash_partial_tree(&file_path, partial)?;
-    } else {
-        unimplemented!()
-    };
+                 human_bytes(status.unhashed_size()));
+    }
 
-    println!("{} {}", hash, file_path.display());
+    let hash = fs_transfer.hash_object(&path, status)?;
+    println!("{} {}", hash, path.display());
     Ok(())
 }
 
