@@ -496,8 +496,16 @@ mod test {
         }
     }
 
-    #[test]
-    fn test_store_directory_shallow() {
+    use dag::Tree;
+    fn do_store_directory_test<WF, ATF>(write_files: WF,
+                                        expected_partial: PartialTree,
+                                        expected_tree: Tree,
+                                        expected_cached_partial: PartialTree,
+                                        additional_tests: ATF)
+        where WF: FnOnce(&Path),
+              ATF: FnOnce(&mut ObjectFsTransfer)
+    {
+
         let temp = in_mem_tempdir!();
         let repo_path = temp.path().join("object_store");
         let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
@@ -505,11 +513,44 @@ mod test {
 
         let wd_path = temp.path().join("work_dir");
 
-        write_files!{
-            wd_path;
-            "foo" => "123",
-            "bar" => "1234",
-            "baz" => "12345",
+        write_files(&wd_path);
+
+        // Build partial tree
+
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
+        assert_eq!(partial, expected_partial);
+
+        // Hash and store files
+
+        let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
+
+        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
+        let obj = obj.read_content().unwrap();
+
+        assert_eq!(obj, Object::Tree(expected_tree.clone()));
+
+        // Flush cache files
+        fs_transfer.cache.flush();
+
+        // Build partial tree again -- make sure it doesn't pick up cache files
+
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
+        assert_eq!(partial, expected_cached_partial);
+
+        // Additional tests on the store
+        additional_tests(&mut fs_transfer);
+    }
+
+    #[test]
+    fn test_store_directory_shallow() {
+
+        let write_files = |wd_path: &Path| {
+            write_files!{
+                wd_path;
+                "foo" => "123",
+                "bar" => "1234",
+                "baz" => "12345",
+            };
         };
 
         let expected_partial = partial_tree!{
@@ -524,50 +565,37 @@ mod test {
             "baz" => Blob::from("12345").calculate_hash(),
         };
 
-        // Build partial tree
+        let expected_cached_partial = partial_tree!{
+            "foo" => Blob::from("123").calculate_hash(),
+            "bar" => Blob::from("1234").calculate_hash(),
+            "baz" => Blob::from("12345").calculate_hash(),
+        };
 
-        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
-        assert_eq!(partial, expected_partial);
-        assert_eq!(partial.unhashed_size(), 12);
+        let additional_tests = |fs_transfer: &mut ObjectFsTransfer| {
+            for (name, hash) in expected_tree.iter() {
+                assert!(fs_transfer.object_store.has_object(hash),
+                        "Object for '{}' was not stored",
+                        name.display());
+            }
+        };
 
-        // Hash and store files
-
-        let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
-
-        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
-        let obj = obj.read_content().unwrap();
-
-        assert_eq!(obj, Object::Tree(expected_tree.clone()));
-
-        // Check that children are stored
-
-        for (name, hash) in expected_tree.iter() {
-            assert!(fs_transfer.object_store.has_object(&hash),
-                    "Object for '{}' was not stored",
-                    name.display());
-        }
-
-        // Check again that files are cached now
-
-        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
-        assert!(partial.is_complete());
-        assert_eq!(partial.tree(), &expected_tree);
+        do_store_directory_test(write_files,
+                                expected_partial,
+                                expected_tree.clone(),
+                                expected_cached_partial,
+                                additional_tests);
     }
 
     #[test]
     fn test_store_directory_recursive() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
 
-        let wd_path = temp.path().join("work_dir");
-
-        write_files!{
-            wd_path;
-            "foo" => "123",
-            "level1/bar" => "1234",
-            "level1/level2/baz" => "12345",
+        let write_files = |wd_path: &Path| {
+            write_files!{
+                wd_path;
+                "foo" => "123",
+                "level1/bar" => "1234",
+                "level1/level2/baz" => "12345",
+            };
         };
 
         let expected_partial = partial_tree!{
@@ -600,50 +628,29 @@ mod test {
             },
         };
 
-        let deepest_child_hash = Blob::from("12345").calculate_hash();
+        let additional_tests = |fs_transfer: &mut ObjectFsTransfer| {
+            // Check that deepest child is stored
+            let deepest_child_hash = Blob::from("12345").calculate_hash();
+            assert!(fs_transfer.object_store.has_object(&deepest_child_hash),
+                    "Object for deepest child was not stored");
+        };
 
-        // Build partial tree
-
-        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
-        assert_eq!(partial, expected_partial);
-        assert_eq!(partial.unhashed_size(), 12);
-
-        // Hash and store files
-
-        let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
-
-        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
-        let obj = obj.read_content().unwrap();
-
-        assert_eq!(obj, Object::Tree(expected_tree.clone()));
-
-        // Check that deepest child is stored
-
-        assert!(fs_transfer.object_store.has_object(&deepest_child_hash),
-                "Object for deepest child was not stored");
-
-        // Check again that files are cached now
-
-        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
-        assert_eq!(partial.unhashed_size(), 0);
-        assert!(!partial.is_complete());
-        assert_eq!(partial, expected_cached_partial);
+        do_store_directory_test(write_files,
+                                expected_partial,
+                                expected_tree,
+                                expected_cached_partial,
+                                additional_tests);
     }
 
     #[test]
     fn test_store_directory_ignore_objectstore_dir() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
-
-        let wd_path = temp.path();
-
-        write_files!{
-            wd_path;
-            "foo" => "123",
-            "level1/bar" => "1234",
-            "level1/level2/baz" => "12345",
+        let write_files = |wd_path: &Path| {
+            write_files!{
+                wd_path;
+                "foo" => "123",
+                "level1/bar" => "1234",
+                "level1/level2/baz" => "12345",
+            };
         };
 
         let expected_partial = partial_tree!{
@@ -676,45 +683,25 @@ mod test {
             },
         };
 
-        // Build partial tree
+        let additional_tests = |_fs_transfer: &mut ObjectFsTransfer| {
+        };
 
-        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
-        assert_eq!(partial, expected_partial);
-
-        // Hash and store files
-
-        let hash = fs_transfer.hash_partial_tree(&wd_path, partial)
-            .unwrap();
-
-        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
-        let obj = obj.read_content().unwrap();
-
-        assert_eq!(obj, Object::Tree(expected_tree.clone()));
-
-        // Flush cache files
-        fs_transfer.cache.flush();
-
-        // Build partial tree again -- make sure it doesn't pick up cache files
-
-        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
-        assert_eq!(partial, expected_cached_partial);
+        do_store_directory_test(write_files,
+                                expected_partial,
+                                expected_tree,
+                                expected_cached_partial,
+                                additional_tests);
     }
 
     #[test]
     fn test_store_directory_ignore_empty_dirs() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
-
-        let wd_path = temp.path().join("work_dir");
-
-        write_files!{
-            wd_path;
-            "foo" => "123",
+        let write_files = |wd_path: &Path| {
+            write_files!{
+                wd_path;
+                "foo" => "123",
+            };
+            create_dir_all(wd_path.join("empty1/empty2/empty3")).unwrap();
         };
-
-        create_dir_all(wd_path.join("empty1/empty2/empty3")).unwrap();
 
         let expected_partial = partial_tree!{
             "foo" => HashedOrNot::UnhashedFile(3),
@@ -724,17 +711,18 @@ mod test {
             "foo" => Blob::from("123").calculate_hash(),
         };
 
-        // Build partial tree
+        let expected_cached_partial = partial_tree!{
+            "foo" => Blob::from("123").calculate_hash(),
+        };
 
-        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
-        assert_eq!(partial, expected_partial);
+        let additional_tests = |_fs_transfer: &mut ObjectFsTransfer| {
+        };
 
-        // Hash and store files
-
-        let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
-        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
-        let obj = obj.read_content().unwrap();
-        assert_eq!(obj, Object::Tree(expected_tree.clone()));
+        do_store_directory_test(write_files,
+                                expected_partial,
+                                expected_tree,
+                                expected_cached_partial,
+                                additional_tests);
     }
 
     #[test]
