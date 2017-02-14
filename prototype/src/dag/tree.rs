@@ -188,6 +188,11 @@ impl PartialTree {
     /// we have about its children. So we should not do that until we can be
     /// sure that the tree has been stored in an object store.
     pub fn is_complete(&self) -> bool { self.unhashed.len() == 0 }
+
+    /// Does this directory have no children at all?
+    pub fn is_empty(&self) -> bool {
+        self.tree.len() == 0 && self.unhashed.len() == 0
+    }
 }
 
 impl From<Tree> for PartialTree {

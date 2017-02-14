@@ -86,7 +86,9 @@ impl ObjectFsTransfer {
                 } else if ch_metadata.is_dir() {
 
                     let subpartial = self.dir_to_partial_tree(&ch_path)?;
-                    partial.insert(ch_name, subpartial);
+                    if !subpartial.is_empty() {
+                        partial.insert(ch_name, subpartial);
+                    }
 
                 } else {
                     unimplemented!()
@@ -248,6 +250,7 @@ mod test {
     use rollinghash::CHUNK_TARGET_SIZE;
     use rollinghash::read_file_objects;
     use std::fs::create_dir;
+    use std::fs::create_dir_all;
     use std::io::Cursor;
     use std::io::Read;
     use super::*;
@@ -643,6 +646,43 @@ mod test {
 
         let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
         assert_eq!(partial, expected_cached_partial);
+    }
+
+    #[test]
+    fn test_store_directory_ignore_empty_dirs() {
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join("object_store");
+        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
+            .unwrap();
+
+        let wd_path = temp.path().join("work_dir");
+
+        write_files!{
+            wd_path;
+            "foo" => "123",
+        };
+
+        create_dir_all(wd_path.join("empty1/empty2/empty3")).unwrap();
+
+        let expected_partial = partial_tree!{
+            "foo" => HashedOrNot::UnhashedFile(3),
+        };
+
+        let expected_tree = tree_object!{
+            "foo" => Blob::from("123").calculate_hash(),
+        };
+
+        // Build partial tree
+
+        let partial = fs_transfer.dir_to_partial_tree(&wd_path).unwrap();
+        assert_eq!(partial, expected_partial);
+
+        // Hash and store files
+
+        let hash = fs_transfer.hash_partial_tree(&wd_path, partial).unwrap();
+        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
+        let obj = obj.read_content().unwrap();
+        assert_eq!(obj, Object::Tree(expected_tree.clone()));
     }
 
     #[test]
