@@ -84,5 +84,5 @@ pub mod objectstore;
 #[macro_use]
 pub mod cache;
 pub mod ignore;
-pub mod pipeline;
+pub mod fs_transfer;
 pub mod cmd;

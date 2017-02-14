@@ -5,9 +5,9 @@ use dag::ObjectCommon;
 use dag::ObjectHandle;
 use dag::ObjectKey;
 use error::*;
+use fs_transfer::ObjectFsTransfer;
 use humanreadable::human_bytes;
 use objectstore::ObjectStore;
-use pipeline::ObjectFsTransfer;
 use std::path::Path;
 use std::path::PathBuf;
 

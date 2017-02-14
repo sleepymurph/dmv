@@ -1,3 +1,5 @@
+//! Functionality for transfering files between filesystem and object store
+
 use cache::AllCaches;
 use cache::FileStats;
 use dag::ObjectHandle;
