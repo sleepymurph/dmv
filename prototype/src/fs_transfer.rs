@@ -90,10 +90,30 @@ impl ObjectFsTransfer {
     pub fn dir_to_partial_tree(&mut self,
                                dir_path: &Path)
                                -> Result<PartialTree> {
-        if dir_path.is_dir() {
+
+        match self.check_hashed_status(&dir_path)? {
+            HashedOrNot::Dir(partial) => Ok(partial),
+            _ => bail!(ErrorKind::NotADirectory(dir_path.to_owned())),
+        }
+    }
+
+
+    pub fn check_hashed_status(&mut self, path: &Path) -> Result<HashedOrNot> {
+
+        let path_meta = try!(path.metadata());
+        let hashed_or_not;
+
+        if path_meta.is_file() {
+
+            let cache_status = self.cache
+                .check_with(&path, &path_meta.into())?;
+            hashed_or_not = HashedOrNot::from(cache_status);
+
+        } else if path_meta.is_dir() {
+
             let mut partial = PartialTree::new();
 
-            for entry in try!(read_dir(dir_path)) {
+            for entry in try!(read_dir(path)) {
                 let entry = try!(entry);
                 let ch_path = entry.path();
 
@@ -112,29 +132,7 @@ impl ObjectFsTransfer {
                 }
 
             }
-
-            Ok(partial)
-        } else {
-            bail!(ErrorKind::NotADirectory(dir_path.to_owned()))
-        }
-    }
-
-
-    pub fn check_hashed_status(&mut self, path: &Path) -> Result<HashedOrNot> {
-
-        let path_meta = try!(path.metadata());
-        let hashed_or_not;
-
-        if path_meta.is_file() {
-
-            let cache_status = self.cache
-                .check_with(&path, &path_meta.into())?;
-            hashed_or_not = HashedOrNot::from(cache_status);
-
-        } else if path_meta.is_dir() {
-
-            let subpartial = self.dir_to_partial_tree(&path)?;
-            hashed_or_not = HashedOrNot::from(subpartial);
+            hashed_or_not = HashedOrNot::from(partial);
 
         } else {
             bail!("Path {} was neither file nor directory", path.display());
