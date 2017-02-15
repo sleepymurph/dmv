@@ -292,14 +292,19 @@ mod test {
     use std::fs::create_dir_all;
     use super::*;
     use testutil;
+    use testutil::tempdir::TempDir;
+
+    fn create_temp_repo(dir_name: &str) -> (TempDir, ObjectFsTransfer) {
+        let temp = in_mem_tempdir!();
+        let repo_path = temp.path().join(dir_name);
+        let fs_transfer = ObjectFsTransfer::with_repo_path(repo_path).unwrap();
+        (temp, fs_transfer)
+    }
 
     fn do_store_single_file_test(in_file: &[u8],
                                  expected_object_type: ObjectType) {
 
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
+        let (temp, mut fs_transfer) = create_temp_repo("object_store");
 
         let filepath = temp.path().join("foo");
         testutil::write_file(&filepath, in_file).unwrap();
@@ -340,10 +345,7 @@ mod test {
 
     #[test]
     fn test_extract_object_object_not_found() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
+        let (temp, mut fs_transfer) = create_temp_repo("object_store");
 
         let out_file = temp.path().join("foo");
         let hash = Blob::from("12345").calculate_hash();
@@ -354,10 +356,7 @@ mod test {
 
     #[test]
     fn test_extract_object_clobber_existing_file() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
+        let (temp, mut fs_transfer) = create_temp_repo("object_store");
 
         let blob = Blob::from("12345");
         let hash = fs_transfer.object_store.store_object(&blob).unwrap();
@@ -378,10 +377,7 @@ mod test {
 
     #[test]
     fn test_extract_object_abort_on_existing_directory() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
+        let (temp, mut fs_transfer) = create_temp_repo("object_store");
 
         let blob = Blob::from("12345");
         let hash = fs_transfer.object_store.store_object(&blob).unwrap();
@@ -408,13 +404,9 @@ mod test {
         where WF: FnOnce(&Path)
     {
 
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
+        let (temp, mut fs_transfer) = create_temp_repo("object_store");
 
         let wd_path = temp.path().join(workdir_name);
-
         write_files(&wd_path);
 
         // Build partial tree
@@ -613,10 +605,7 @@ mod test {
 
     #[test]
     fn test_extract_directory_clobber_file() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
+        let (temp, mut fs_transfer) = create_temp_repo("object_store");
 
         let wd_path = temp.path().join("work_dir");
 
@@ -644,10 +633,7 @@ mod test {
 
     #[test]
     fn test_extract_directory_ok_with_existing_dir() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
+        let (temp, mut fs_transfer) = create_temp_repo("object_store");
 
         let wd_path = temp.path().join("work_dir");
 
