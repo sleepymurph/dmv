@@ -498,7 +498,8 @@ mod test {
     }
 
     use dag::Tree;
-    fn do_store_directory_test<WF>(write_files: WF,
+    fn do_store_directory_test<WF>(workdir_name: &str,
+                                   write_files: WF,
                                    expected_partial: PartialTree,
                                    expected_tree: Tree,
                                    expected_cached_partial: PartialTree)
@@ -510,7 +511,7 @@ mod test {
         let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
             .unwrap();
 
-        let wd_path = temp.path().join("work_dir");
+        let wd_path = temp.path().join(workdir_name);
 
         write_files(&wd_path);
 
@@ -575,7 +576,8 @@ mod test {
             "baz" => Blob::from("12345").calculate_hash(),
         };
 
-        do_store_directory_test(write_files,
+        do_store_directory_test("work_dir",
+                                write_files,
                                 expected_partial,
                                 expected_tree.clone(),
                                 expected_cached_partial);
@@ -623,7 +625,8 @@ mod test {
             },
         };
 
-        do_store_directory_test(write_files,
+        do_store_directory_test("work_dir",
+                                write_files,
                                 expected_partial,
                                 expected_tree,
                                 expected_cached_partial);
@@ -670,7 +673,8 @@ mod test {
             },
         };
 
-        do_store_directory_test(write_files,
+        do_store_directory_test("",
+                                write_files,
                                 expected_partial,
                                 expected_tree,
                                 expected_cached_partial);
@@ -698,7 +702,8 @@ mod test {
             "foo" => Blob::from("123").calculate_hash(),
         };
 
-        do_store_directory_test(write_files,
+        do_store_directory_test("work_dir",
+                                write_files,
                                 expected_partial,
                                 expected_tree,
                                 expected_cached_partial);
