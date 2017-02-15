@@ -92,16 +92,9 @@ impl ObjectFsTransfer {
                     continue;
                 }
 
+                let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
                 let hashed_status = self.check_hashed_status(&ch_path)?;
-                let is_empty = match &hashed_status {
-                    &HashedOrNot::Dir(ref subdir) if subdir.is_empty() => true,
-                    _ => false,
-                };
-                if !is_empty {
-                    let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
-                    partial.insert(ch_name, hashed_status);
-                }
-
+                partial.insert(ch_name, hashed_status);
             }
             hashed_or_not = partial.into();
 

@@ -156,7 +156,9 @@ impl PartialTree {
                 self.insert_unhashed(path, UnhashedPath::File(size))
             }
             HashedOrNot::Dir(partial) => {
-                self.insert_unhashed(path, UnhashedPath::Dir(partial))
+                if !partial.is_empty() {
+                    self.insert_unhashed(path, UnhashedPath::Dir(partial))
+                }
             }
         }
     }
