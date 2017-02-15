@@ -112,7 +112,8 @@ impl ObjectFsTransfer {
 
     pub fn check_hashed_status(&mut self, path: &Path) -> Result<HashedOrNot> {
 
-        let path_meta = try!(path.metadata());
+        let path_meta = path.metadata()
+            .chain_err(|| format!("getting metadata for {}", path.display()))?;
         let hashed_or_not;
 
         if path_meta.is_file() {

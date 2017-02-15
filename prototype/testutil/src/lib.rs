@@ -172,14 +172,23 @@ pub fn write_file<P, R, S>(path: P, source: S) -> io::Result<u64>
     let path = path.as_ref();
 
     if let Some(parent) = path.parent() {
-        try!(fs::create_dir_all(parent));
+        fs::create_dir_all(parent).map_err(|e| {
+                let msg = format!("Could not create parent dir '{}': '{:?}'",
+                                  parent.display(),
+                                  e);
+                io::Error::new(io::ErrorKind::Other, msg)
+            })?;
     }
 
-    let mut file = try!(OpenOptions::new()
-        .write(true)
+    let mut file = OpenOptions::new().write(true)
         .create(true)
         .open(&path)
-        .map_err(|e| io::Error::new(e.kind(), format!("{}", &path.display()))));
+        .map_err(|e| {
+            let msg = format!("Could not open/create file '{}': '{:?}'",
+                              path.display(),
+                              e);
+            io::Error::new(io::ErrorKind::Other, msg)
+        })?;
 
     io::copy(&mut source.into().0, &mut file)
 }
