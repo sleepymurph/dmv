@@ -311,7 +311,8 @@ mod test {
         testutil::write_file(&filepath, in_file).unwrap();
 
         // Hash input file
-        let hash = fs_transfer.hash_file(filepath).unwrap();
+        let status = fs_transfer.check_hashed_status(&filepath).unwrap();
+        let hash = fs_transfer.hash_object(&filepath, status).unwrap();
 
         // Check the object type
         let obj = fs_transfer.object_store.open_object(&hash).unwrap();
