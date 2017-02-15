@@ -286,89 +286,56 @@ mod test {
     use dag::HashedOrNot;
     use dag::Object;
     use dag::ObjectCommon;
-    use dag::ObjectKey;
     use dag::ObjectType;
     use rollinghash::CHUNK_TARGET_SIZE;
-    use rollinghash::read_file_objects;
     use std::fs::create_dir;
     use std::fs::create_dir_all;
-    use std::io::Cursor;
-    use std::io::Read;
     use super::*;
     use testutil;
 
-    #[test]
-    fn test_hash_file_empty() {
+    fn do_store_single_file_test(in_file: &[u8],
+                                 expected_object_type: ObjectType) {
+
         let temp = in_mem_tempdir!();
         let repo_path = temp.path().join("object_store");
         let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
             .unwrap();
 
         let filepath = temp.path().join("foo");
-        testutil::write_file(&filepath, "").unwrap();
+        testutil::write_file(&filepath, in_file).unwrap();
 
         let hash = fs_transfer.hash_file(filepath).unwrap();
 
         let obj = fs_transfer.object_store.open_object(&hash).unwrap();
-        let obj = obj.read_content().unwrap();
+        assert_eq!(obj.header().object_type, expected_object_type);
 
-        assert_eq!(Object::Blob(Blob::empty()), obj);
+        let out_file = temp.path().join("bar");
+        fs_transfer.extract_object(&hash, &out_file).unwrap();
+        assert_eq!(out_file.metadata().unwrap().len(), in_file.len() as u64);
+
+        let out_content = testutil::read_file_to_end(&out_file).unwrap();
+        assert!(out_content.as_slice() == in_file, "file contents differ");
+
+        assert_eq!(fs_transfer.cache.check(&out_file).unwrap(),
+                   CacheStatus::Cached { hash: hash },
+                   "Cache should be primed with extracted file's hash");
+    }
+
+    #[test]
+    fn test_hash_file_empty() {
+        do_store_single_file_test(&Vec::new(), ObjectType::Blob);
     }
 
     #[test]
     fn test_hash_file_small() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
-
-        let filepath = temp.path().join("foo");
-
-        testutil::write_file(&filepath, "foo").unwrap();
-
-        let hash = fs_transfer.hash_file(filepath).unwrap();
-
-        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
-        let obj = obj.read_content().unwrap();
-
-        assert_eq!(Object::Blob(Blob::from("foo")), obj);
+        do_store_single_file_test("foo".as_bytes(), ObjectType::Blob);
     }
 
     #[test]
     fn test_hash_file_chunked() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
-
-        let filepath = temp.path().join("foo");
-        let filesize = 3 * CHUNK_TARGET_SIZE as u64;
-
-        let mut rng = testutil::TestRand::default();
-        testutil::write_file(&filepath, rng.take(filesize)).unwrap();
-
-        let hash = fs_transfer.hash_file(filepath).unwrap();
-
-        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
-        let obj = obj.read_content().unwrap();
-
-        if let Object::ChunkedBlob(chunked) = obj {
-            assert_eq!(chunked.total_size, filesize);
-            assert_eq!(chunked.chunks.len(), 5);
-
-            for chunkrecord in chunked.chunks {
-                let obj = fs_transfer.object_store
-                    .open_object(&chunkrecord.hash)
-                    .unwrap();
-                let obj = obj.read_content().unwrap();
-                assert_eq!(obj.object_type(), ObjectType::Blob);
-                assert_eq!(obj.content_size(), chunkrecord.size);
-            }
-
-        } else {
-            panic!("Not a ChunkedBlob: {:?}", obj);
-        }
-
+        let filesize = 3 * CHUNK_TARGET_SIZE;
+        let in_file = testutil::TestRand::default().gen_byte_vec(filesize);
+        do_store_single_file_test(&in_file, ObjectType::ChunkedBlob);
     }
 
     #[test]
@@ -383,59 +350,6 @@ mod test {
 
         let result = fs_transfer.extract_object(&hash, &out_file);
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_extract_object_single_blob() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
-
-        let blob = Blob::from("12345");
-        let hash = fs_transfer.object_store.store_object(&blob).unwrap();
-
-        let out_file = temp.path().join("foo");
-        fs_transfer.extract_object(&hash, &out_file).unwrap();
-
-        let out_content = testutil::read_file_to_string(&out_file).unwrap();
-        assert_eq!(out_content, "12345");
-
-        assert_eq!(fs_transfer.cache.check(&out_file).unwrap(),
-                   CacheStatus::Cached { hash: hash },
-                   "Cache should be primed with extracted file's hash");
-    }
-
-    #[test]
-    fn test_extract_object_multi_chunks() {
-        let temp = in_mem_tempdir!();
-        let repo_path = temp.path().join("object_store");
-        let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)
-            .unwrap();
-
-        let mut rng = testutil::TestRand::default();
-        let filesize = 3 * CHUNK_TARGET_SIZE as u64;
-        let mut in_file = Vec::new();
-        rng.take(filesize).read_to_end(&mut in_file).unwrap();
-
-        let mut hash = ObjectKey::zero();
-        for object in read_file_objects(Cursor::new(&in_file)) {
-            hash = fs_transfer.object_store
-                .store_object(&object.unwrap())
-                .unwrap();
-        }
-
-        let out_file = temp.path().join("foo");
-        fs_transfer.extract_object(&hash, &out_file).unwrap();
-
-        assert_eq!(out_file.metadata().unwrap().len(), filesize);
-
-        let out_content = testutil::read_file_to_end(&out_file).unwrap();
-        assert!(out_content == in_file);
-
-        assert_eq!(fs_transfer.cache.check(&out_file).unwrap(),
-                   CacheStatus::Cached { hash: hash },
-                   "Cache should be primed with extracted file's hash");
     }
 
     #[test]
