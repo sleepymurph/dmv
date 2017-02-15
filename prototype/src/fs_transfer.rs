@@ -67,36 +67,6 @@ impl ObjectFsTransfer {
         Ok(ObjectFsTransfer::with_object_store(ObjectStore::open(repo_path)?))
     }
 
-    pub fn hash_object(&mut self,
-                       path: &Path,
-                       status: HashedOrNot)
-                       -> Result<ObjectKey> {
-        use dag::HashedOrNot::*;
-        match status {
-            Hashed(hash) => Ok(hash),
-            UnhashedFile(_) => self.hash_file(path.to_owned()),
-            Dir(partial) => self.hash_partial_tree(&path, partial),
-        }
-    }
-
-    fn hash_file(&mut self, file_path: PathBuf) -> Result<ObjectKey> {
-        let file = try!(File::open(&file_path));
-        let file_stats = FileStats::from(file.metadata()?);
-        let file = BufReader::new(file);
-
-        return_if_cached!(self.cache, &file_path, &file_stats);
-        info!("Hashing {}", file_path.display());
-
-        let mut last_hash = ObjectKey::zero();
-        for object in read_file_objects(file) {
-            last_hash = try!(self.object_store.store_object(&object?));
-        }
-
-        try!(self.cache.insert(file_path, file_stats, last_hash.clone()));
-
-        Ok(last_hash)
-    }
-
 
     pub fn check_hashed_status(&mut self, path: &Path) -> Result<HashedOrNot> {
 
@@ -142,6 +112,36 @@ impl ObjectFsTransfer {
         Ok(hashed_or_not)
     }
 
+
+    pub fn hash_object(&mut self,
+                       path: &Path,
+                       status: HashedOrNot)
+                       -> Result<ObjectKey> {
+        use dag::HashedOrNot::*;
+        match status {
+            Hashed(hash) => Ok(hash),
+            UnhashedFile(_) => self.hash_file(path.to_owned()),
+            Dir(partial) => self.hash_partial_tree(&path, partial),
+        }
+    }
+
+    fn hash_file(&mut self, file_path: PathBuf) -> Result<ObjectKey> {
+        let file = try!(File::open(&file_path));
+        let file_stats = FileStats::from(file.metadata()?);
+        let file = BufReader::new(file);
+
+        return_if_cached!(self.cache, &file_path, &file_stats);
+        info!("Hashing {}", file_path.display());
+
+        let mut last_hash = ObjectKey::zero();
+        for object in read_file_objects(file) {
+            last_hash = try!(self.object_store.store_object(&object?));
+        }
+
+        try!(self.cache.insert(file_path, file_stats, last_hash.clone()));
+
+        Ok(last_hash)
+    }
 
     fn hash_partial_tree(&mut self,
                          dir_path: &Path,
