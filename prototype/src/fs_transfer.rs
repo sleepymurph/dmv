@@ -306,21 +306,27 @@ mod test {
 
         let (temp, mut fs_transfer) = create_temp_repo("object_store");
 
+        // Write input file to disk
         let filepath = temp.path().join("foo");
         testutil::write_file(&filepath, in_file).unwrap();
 
+        // Hash input file
         let hash = fs_transfer.hash_file(filepath).unwrap();
 
+        // Check the object type
         let obj = fs_transfer.object_store.open_object(&hash).unwrap();
         assert_eq!(obj.header().object_type, expected_object_type);
 
+        // Extract the object
         let out_file = temp.path().join("bar");
         fs_transfer.extract_object(&hash, &out_file).unwrap();
-        assert_eq!(out_file.metadata().unwrap().len(), in_file.len() as u64);
 
+        // Compare input and output
+        assert_eq!(out_file.metadata().unwrap().len(), in_file.len() as u64);
         let out_content = testutil::read_file_to_end(&out_file).unwrap();
         assert!(out_content.as_slice() == in_file, "file contents differ");
 
+        // Make sure the output is cached
         assert_eq!(fs_transfer.cache.check(&out_file).unwrap(),
                    CacheStatus::Cached { hash: hash },
                    "Cache should be primed with extracted file's hash");
