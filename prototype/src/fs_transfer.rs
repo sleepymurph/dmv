@@ -79,7 +79,7 @@ impl ObjectFsTransfer {
         }
     }
 
-    pub fn hash_file(&mut self, file_path: PathBuf) -> Result<ObjectKey> {
+    fn hash_file(&mut self, file_path: PathBuf) -> Result<ObjectKey> {
         let file = try!(File::open(&file_path));
         let file_stats = FileStats::from(file.metadata()?);
         let file = BufReader::new(file);
@@ -143,10 +143,10 @@ impl ObjectFsTransfer {
     }
 
 
-    pub fn hash_partial_tree(&mut self,
-                             dir_path: &Path,
-                             mut partial: PartialTree)
-                             -> Result<ObjectKey> {
+    fn hash_partial_tree(&mut self,
+                         dir_path: &Path,
+                         mut partial: PartialTree)
+                         -> Result<ObjectKey> {
 
         for (ch_name, unknown) in partial.unhashed().clone() {
             let ch_path = dir_path.join(&ch_name);
