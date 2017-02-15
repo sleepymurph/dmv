@@ -141,6 +141,10 @@ impl ObjectFsTransfer {
                          mut partial: PartialTree)
                          -> Result<ObjectKey> {
 
+        if partial.is_empty() {
+            bail!("Refusing to hash empty directory: {}", dir_path.display());
+        }
+
         for (ch_name, unknown) in partial.unhashed().clone() {
             let ch_path = dir_path.join(&ch_name);
 
@@ -601,6 +605,24 @@ mod test {
                                 expected_partial,
                                 expected_tree,
                                 expected_cached_partial);
+    }
+
+    #[test]
+    fn test_store_directory_error_if_empty() {
+        let (temp, mut fs_transfer) = create_temp_repo("object_store");
+        let wd_path = temp.path().join("work_dir");
+        create_dir_all(wd_path.join("empty1/empty2/empty3")).unwrap();
+
+        // Build partial tree
+
+        let partial = fs_transfer.check_hashed_status(&wd_path).unwrap();
+        assert_eq!(partial, HashedOrNot::Dir(PartialTree::new()));
+
+        // Hash and store files
+
+        let hash = fs_transfer.hash_object(&wd_path, partial);
+        assert!(hash.is_err());
+        // hash.unwrap();
     }
 
     #[test]
