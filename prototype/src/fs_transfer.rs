@@ -72,13 +72,13 @@ impl ObjectFsTransfer {
 
         let path_meta = path.metadata()
             .chain_err(|| format!("getting metadata for {}", path.display()))?;
-        let hashed_or_not;
+
+        let hashed_or_not: HashedOrNot;
 
         if path_meta.is_file() {
 
-            let cache_status = self.cache
-                .check_with(&path, &path_meta.into())?;
-            hashed_or_not = HashedOrNot::from(cache_status);
+            hashed_or_not =
+                self.cache.check_with(&path, &path_meta.into())?.into();
 
         } else if path_meta.is_dir() {
 
@@ -103,7 +103,7 @@ impl ObjectFsTransfer {
                 }
 
             }
-            hashed_or_not = HashedOrNot::from(partial);
+            hashed_or_not = partial.into();
 
         } else {
             bail!("Path {} was neither file nor directory", path.display());
