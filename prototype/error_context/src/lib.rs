@@ -50,6 +50,28 @@ impl From<ErrorContext> for io::Error {
 }
 
 
+#[macro_export]
+macro_rules! err_context{
+    (@errctx $block:expr; $ctx_pat:expr; $($ctx_arg:expr),*) => {
+        || -> ::std::result::Result<(), Box<::std::error::Error
+                                            + ::std::marker::Send
+                                            + ::std::marker::Sync>>
+        {
+            { $block }
+            Ok(())
+        }
+        ()
+        .err_context(|| format!($ctx_pat, $($ctx_arg),*))
+    };
+    ($ctx_str:expr; $block:expr) => {
+        err_context!(@errctx $block; $ctx_str; )
+    };
+    ($ctx_pat:expr, $($ctx_arg:expr),*; $block:expr) => {
+        err_context!(@errctx $block; $ctx_pat; $($ctx_arg),*)
+    };
+}
+
+
 #[cfg(test)]
 mod test {
     use std::io;
@@ -68,7 +90,7 @@ mod test {
                 let e = e.into();
                 let display = format!("{}", e);
                 if !display.contains(expected) {
-                    panic!("Expected error to contain '{}', got: {}",
+                    panic!("Expected error message to contain '{}', got: {}",
                            expected,
                            display);
                 }
@@ -124,4 +146,62 @@ mod test {
         let result = closure();
         assert_error_contains(result, "Not enough context");
     }
+
+    #[test]
+    fn test_try_macros() {
+        let result = err_context!("Added context"; {
+            failed_io_op()?;
+        });
+        assert_error_contains(result, "Added context");
+    }
+
+    #[test]
+    fn test_try_macros_one_arg() {
+        let result = err_context!("Added context {}", 1; {
+            failed_io_op()?;
+        });
+        assert_error_contains(result, "Added context 1");
+    }
+
+    #[test]
+    fn test_try_macros_args_two_args() {
+        let result = err_context!("Added context {} {}", 1, 2; {
+            failed_io_op()?;
+        });
+        assert_error_contains(result, "Added context 1 2");
+    }
+
+    #[test]
+    fn test_try_macros_args_three_args() {
+        let result = err_context!("Added context {} {} {}", 1, 2, 3; {
+            failed_io_op()?;
+        });
+        assert_error_contains(result, "Added context 1 2 3");
+    }
+
+    #[test]
+    fn test_set_value_in_block() {
+        let mut val = 0;
+        let result = err_context!("Added context"; {
+            val = 1;
+            failed_io_op()?;
+        });
+        assert_error_contains(result, "Added context");
+        assert_eq!(val, 1);
+    }
+
+    // DOES NOT COMPILE
+    // ```
+    //  #[test]
+    //  fn test_set_unintialized_value_in_block() {
+    //      let val;
+    //      let result = err_context!("Added context"; {
+    //          val = 1;
+    //          failed_io_op()?;
+    //      });
+    //      assert_error_contains(result, "Added context");
+    //      assert_eq!(val, 1);
+    //  }
+    // ```
+
 }
