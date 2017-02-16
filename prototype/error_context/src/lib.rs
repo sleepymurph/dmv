@@ -147,6 +147,39 @@ mod test {
         assert_error_contains(result, "Not enough context");
     }
 
+    // DOES NOT COMPILE
+    //
+    // Cannot infer type of T. I guess inference comes from the call.
+    //
+    // ```
+    //  #[test]
+    //  fn test_return_from_closure() {
+    //      fn inner<T>() -> Result<T, Box<Error + Send + Sync>> {
+    //          failed_io_op()?;
+    //          Ok(0u8)
+    //      }
+    //      let result = inner();
+    //      assert_error_contains(result, "Not enough context");
+    //  }
+    // ```
+
+    // DOES NOT COMPILE
+    //
+    // Specifying the return type at the call site doesn't work either.
+    // Inside the closure it says "expected type parameter, found u8."
+    //
+    // ```
+    //  #[test]
+    //  fn test_return_from_closure() {
+    //      fn inner<T>() -> Result<T, Box<Error + Send + Sync>> {
+    //          failed_io_op()?;
+    //          Ok(0u8)
+    //      }
+    //      let result: Result<u8, Box<Error + Send + Sync>> = inner();
+    //      assert_error_contains(result, "Not enough context");
+    //  }
+    // ```
+
     #[test]
     fn test_try_macros() {
         let result = err_context!("Added context"; {
@@ -191,6 +224,9 @@ mod test {
     }
 
     // DOES NOT COMPILE
+    //
+    // Use of possibly unitialized value in closure.
+    //
     // ```
     //  #[test]
     //  fn test_set_unintialized_value_in_block() {
@@ -203,5 +239,4 @@ mod test {
     //      assert_eq!(val, 1);
     //  }
     // ```
-
 }
