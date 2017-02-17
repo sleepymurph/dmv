@@ -79,7 +79,7 @@ macro_rules! assert_match {
 ///     let err:Result<(), ()> = Err(());
 ///     assert_err!(err);
 ///
-///     // Test that the error's Display includes some text
+///     // Test that the error's Display/Debug/description includes some text
 ///     let err:Result<(), &str> = Err("Example error");
 ///     assert_err!(err, "Example");
 /// }
@@ -90,20 +90,33 @@ macro_rules! assert_err {
     ($result:expr) => {
         assert!($result.is_err());
     };
-    ($result:expr, $expected_description:expr) => {
+    ($result:expr, $expected:expr) => {
         match $result {
             Ok(_) => panic!("Expected error, but was Ok"),
             Err(e) => {
                 let e_debug = format!("{:?}", e);
                 let e_display = format!("{}", e);
-                if !e_display.contains($expected_description) {
+                let e:Box<::std::error::Error> = e.into();
+
+                let mut found = false;
+                let mut next = Some(&*e);
+                while let Some(e) = next {
+                    found = e.description().contains($expected) ||
+                            format!("{}",e).contains($expected) ||
+                            format!("{:?}",e).contains($expected);
+                    if found { break; }
+                    next = e.cause();
+                };
+                if !found {
                     panic!(
         "
                 Expected error with message containing: \"{}\"
-                Got error: {},
-                Display: \"{}\"
+                Error Description: {:?},
+                Error Debug: {},
+                Error Display: {:?}
         ",
-                        $expected_description,
+                        $expected,
+                        e.description(),
                         e_debug,
                         e_display);
                 }
@@ -112,6 +125,33 @@ macro_rules! assert_err {
     }
 }
 
+
+#[test]
+fn test_assert_err_walk_chain() {
+    use std::error::Error;
+    use std::fmt;
+
+    #[derive(Debug)]
+    struct WrappedError {
+        detail: String,
+        cause: Box<Error>,
+    }
+    impl Error for WrappedError {
+        fn description(&self) -> &str { "wrapped error" }
+        fn cause(&self) -> Option<&Error> { Some(self.cause.as_ref()) }
+    }
+    impl fmt::Display for WrappedError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "{}", self.description())
+        }
+    }
+
+    let result: Result<String, WrappedError> = Err(WrappedError {
+        detail: "something happened".to_owned(),
+        cause: "cause 1234".into(),
+    });
+    assert_err!(result, "cause 1234");
+}
 
 
 /// An RNG with a fixed seed, for deterministic random tests
