@@ -14,6 +14,60 @@ use std::io::Read;
 use std::path::Path;
 use tempdir::TempDir;
 
+/// Test that a value matches a given pattern
+///
+/// ```
+/// #[macro_use]
+/// extern crate testutil;
+///
+/// fn main() {
+///     assert_match!(Some("string"), Some(_));
+///
+///     assert_match!(Some("string"), Some(x) => assert!(x.contains("str")));
+///     assert_match!(Some("string"), Some(x) => {
+///         assert!(x.contains("str"))
+///     });
+///
+///     assert_match!(Some(20), Some(x) if x>10);
+///     assert_match!(Some(20), Some(x) if x>10 => {
+///         assert!(x < 25);
+///     });
+/// }
+/// ```
+///
+#[macro_export]
+macro_rules! assert_match {
+    (@_panic $result:expr, $pat_str:expr) => {
+            panic!(
+        "
+                Expected `{}` to match `{}`,
+                Was: {:?}
+        ",
+                stringify!($result),
+                $pat_str,
+                $result)
+    };
+    ($result:expr, $pat:pat) => {
+        assert_match!($result, $pat => {});
+    };
+    ($result:expr, $pat:pat => $block:expr) => {
+        match $result {
+            $pat => $block,
+            _ => assert_match!(@_panic $result, stringify!($pat)),
+        };
+    };
+    ($result:expr, $pat:pat if $guard:expr ) => {
+        assert_match!($result, $pat if $guard => {});
+    };
+    ($result:expr, $pat:pat if $guard:expr => $block:expr ) => {
+        match $result {
+            $pat if $guard => $block,
+            _ => assert_match!(@_panic $result, stringify!($pat if $guard)),
+        };
+    };
+}
+
+
 /// Test that a Result is an Err
 ///
 /// ```

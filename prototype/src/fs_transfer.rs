@@ -619,7 +619,9 @@ mod test {
         create_dir_all(&empty_dir).unwrap();
 
         let result = fs_transfer.extract_object(&in_file_hash, &empty_dir);
-        assert_err!(result, "would clobber");
+        assert_match!(result,
+                Err(Error(ErrorKind::WouldClobberDirectory(ref err_path),_))
+                if err_path == &empty_dir);
 
 
         // File vs non-empty dir
@@ -628,7 +630,9 @@ mod test {
         testutil::write_file(&dir_file, "dir_file content").unwrap();
 
         let result = fs_transfer.extract_object(&in_file_hash, &dir);
-        assert_err!(result, "would clobber");
+        assert_match!(result,
+                Err(Error(ErrorKind::WouldClobberDirectory(ref err_path),_))
+                if err_path == &dir);
     }
 
     #[test]
