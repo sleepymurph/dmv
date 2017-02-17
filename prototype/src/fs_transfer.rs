@@ -16,6 +16,7 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::fs::create_dir;
 use std::fs::read_dir;
+use std::fs::remove_dir_all;
 use std::fs::remove_file;
 use std::io::BufReader;
 use std::io::Write;
@@ -192,24 +193,24 @@ impl ObjectFsTransfer {
     fn extract_file_open(&mut self,
                          handle: ObjectHandle,
                          hash: &ObjectKey,
-                         file_path: &Path)
+                         path: &Path)
                          -> Result<()> {
-        return_if_cache_matches!(self.cache, file_path, hash);
+        return_if_cache_matches!(self.cache, path, hash);
 
-        if file_path.is_dir() {
-            bail!(ErrorKind::WouldClobberDirectory(file_path.to_owned()));
+        if path.is_dir() {
+            remove_dir_all(path)?;
         }
 
         let mut out_file = OpenOptions::new().write(true)
             .create(true)
             .truncate(true)
-            .open(file_path)?;
+            .open(path)?;
 
         self.copy_blob_content_open(handle, hash, &mut out_file)?;
 
         out_file.flush()?;
         let file_stats = FileStats::from(out_file.metadata()?);
-        self.cache.insert(file_path.to_owned(), file_stats, hash.to_owned())?;
+        self.cache.insert(path.to_owned(), file_stats, hash.to_owned())?;
 
         Ok(())
     }
@@ -586,8 +587,9 @@ mod test {
         let target = wd_path.join("empty_dir");
         create_dir_all(&target).unwrap();
 
-        let result = fs_transfer.extract_object(&hash, &target);
-        assert_err!(result, "would clobber");
+        fs_transfer.extract_object(&hash, &target).unwrap();
+        let content = testutil::read_file_to_string(&target).unwrap();
+        assert_that!(&content, equal_to("in_file content"));
 
 
         // File vs non-empty dir
@@ -597,8 +599,9 @@ mod test {
             "dir_file" => "dir_file content",
         };
 
-        let result = fs_transfer.extract_object(&hash, &target);
-        assert_err!(result, "would clobber");
+        fs_transfer.extract_object(&hash, &target).unwrap();
+        let content = testutil::read_file_to_string(&target).unwrap();
+        assert_that!(&content, equal_to("in_file content"));
     }
 
     #[test]
