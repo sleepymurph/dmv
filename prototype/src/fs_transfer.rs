@@ -284,8 +284,8 @@ mod test {
     use dag::Object;
     use dag::ObjectCommon;
     use dag::ObjectType;
+    use hamcrest::prelude::*;
     use rollinghash::CHUNK_TARGET_SIZE;
-    use std::fs::create_dir;
     use std::fs::create_dir_all;
     use super::*;
     use testutil;
@@ -356,47 +356,6 @@ mod test {
 
         let result = fs_transfer.extract_object(&hash, &out_file);
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_extract_object_clobber_existing_file() {
-        let (temp, mut fs_transfer) = create_temp_repo("object_store");
-
-        let blob = Blob::from("12345");
-        let hash = fs_transfer.object_store.store_object(&blob).unwrap();
-
-        let out_file = temp.path().join("foo");
-        testutil::write_file(&out_file, "Existing content. To be clobbered.")
-            .unwrap();
-
-        fs_transfer.extract_object(&hash, &out_file).unwrap();
-
-        let out_content = testutil::read_file_to_string(&out_file).unwrap();
-        assert_eq!(out_content, "12345");
-
-        assert_eq!(fs_transfer.cache.check(&out_file).unwrap(),
-                   CacheStatus::Cached { hash: hash },
-                   "Cache should be primed with extracted file's hash");
-    }
-
-    #[test]
-    fn test_extract_object_abort_on_existing_directory() {
-        let (temp, mut fs_transfer) = create_temp_repo("object_store");
-
-        let blob = Blob::from("12345");
-        let hash = fs_transfer.object_store.store_object(&blob).unwrap();
-
-        let out_file = temp.path().join("foo");
-        create_dir(&out_file).unwrap();
-
-        let result = fs_transfer.extract_object(&hash, &out_file);
-
-        match result {
-            Err(Error(ErrorKind::WouldClobberDirectory(p), _)) => {
-                assert_eq!(p, out_file)
-            }
-            _ => panic!("Got incorrect error: {:?}", result),
-        }
     }
 
     use dag::Tree;
@@ -623,6 +582,53 @@ mod test {
         let hash = fs_transfer.hash_object(&wd_path, partial);
         assert!(hash.is_err());
         // hash.unwrap();
+    }
+
+
+    #[test]
+    fn test_default_overwrite_policy() {
+        let (temp, mut fs_transfer) = create_temp_repo("object_store");
+        let wd_path = temp.path().join("work_dir");
+
+        let in_file = wd_path.join("in_file");
+        testutil::write_file(&in_file, "in_file content").unwrap();
+        let in_file_hash = fs_transfer.hash_file(in_file.clone()).unwrap();
+
+
+        // File vs cached file
+        let cached_file = wd_path.join("cached_file");
+        testutil::write_file(&cached_file, "cached_file content").unwrap();
+        fs_transfer.hash_file(cached_file.clone()).unwrap();
+
+        fs_transfer.extract_object(&in_file_hash, &cached_file).unwrap();
+        let content = testutil::read_file_to_string(&cached_file).unwrap();
+        assert_that!(&content, equal_to("in_file content"));
+
+
+        // File vs uncached file
+        let uncached_file = wd_path.join("uncached_file");
+        testutil::write_file(&uncached_file, "uncached_file content").unwrap();
+
+        fs_transfer.extract_object(&in_file_hash, &uncached_file).unwrap();
+        let content = testutil::read_file_to_string(&uncached_file).unwrap();
+        assert_that!(&content, equal_to("in_file content"));
+
+
+        // File vs empty dir
+        let empty_dir = wd_path.join("empty_dir");
+        create_dir_all(&empty_dir).unwrap();
+
+        let result = fs_transfer.extract_object(&in_file_hash, &empty_dir);
+        assert_err!(result, "would clobber");
+
+
+        // File vs non-empty dir
+        let dir = wd_path.join("dir");
+        let dir_file = dir.join("dir_file");
+        testutil::write_file(&dir_file, "dir_file content").unwrap();
+
+        let result = fs_transfer.extract_object(&in_file_hash, &dir);
+        assert_err!(result, "would clobber");
     }
 
     #[test]

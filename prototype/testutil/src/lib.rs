@@ -14,6 +14,52 @@ use std::io::Read;
 use std::path::Path;
 use tempdir::TempDir;
 
+/// Test that a Result is an Err
+///
+/// ```
+/// #[macro_use]
+/// extern crate testutil;
+///
+/// fn main() {
+///     // Simple error test
+///     let err:Result<(), ()> = Err(());
+///     assert_err!(err);
+///
+///     // Test that the error's Display includes some text
+///     let err:Result<(), &str> = Err("Example error");
+///     assert_err!(err, "Example");
+/// }
+/// ```
+///
+#[macro_export]
+macro_rules! assert_err {
+    ($result:expr) => {
+        assert!($result.is_err());
+    };
+    ($result:expr, $expected_description:expr) => {
+        match $result {
+            Ok(_) => panic!("Expected error, but was Ok"),
+            Err(e) => {
+                let e_debug = format!("{:?}", e);
+                let e_display = format!("{}", e);
+                if !e_display.contains($expected_description) {
+                    panic!(
+        "
+                Expected error with message containing: \"{}\"
+                Got error: {},
+                Display: \"{}\"
+        ",
+                        $expected_description,
+                        e_debug,
+                        e_display);
+                }
+            }
+        }
+    }
+}
+
+
+
 /// An RNG with a fixed seed, for deterministic random tests
 ///
 /// ```
