@@ -21,29 +21,6 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 
-pub enum OverwritePolicy {
-    /// Overwrite all
-    OverwriteAll,
-    /// Keep modified files and directories
-    KeepModified,
-}
-
-impl Default for OverwritePolicy {
-    fn default() -> Self { OverwritePolicy::KeepModified }
-}
-
-impl OverwritePolicy {
-    pub fn should_overwite(&self, target: &HashedOrNot) -> bool {
-        use self::OverwritePolicy::*;
-        use dag::HashedOrNot::*;
-        match (self, target) {
-            (&OverwriteAll, _) => true,
-            (&KeepModified, &Hashed(_)) => true,
-            (&KeepModified, &Dir(ref partial)) => partial.unhashed_size() == 0,
-            (&KeepModified, &UnhashedFile(_)) => false,
-        }
-    }
-}
 
 pub struct ObjectFsTransfer {
     pub object_store: ObjectStore,
