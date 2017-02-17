@@ -640,57 +640,56 @@ mod test {
     #[test]
     fn test_extract_directory_clobber_file() {
         let (temp, mut fs_transfer) = create_temp_repo("object_store");
-
         let wd_path = temp.path().join("work_dir");
 
-        write_files!{ wd_path; "foo" => "123", };
-        let expected_cached_partial = partial_tree!{
-            "foo" => Blob::from("123").calculate_hash(),
+        let source = wd_path.join("in_dir");
+        write_files!{
+                source;
+                "file1" => "dir/file1 content",
+                "file2" => "dir/file2 content",
         };
 
-        // Hash and store files
+        let status = fs_transfer.check_hashed_status(&source).unwrap();
+        let hash = fs_transfer.hash_object(&source, status).unwrap();
 
-        let partial = fs_transfer.check_hashed_status(&wd_path).unwrap();
-        let hash = fs_transfer.hash_object(&wd_path, partial).unwrap();
+        // Dir vs cached file
+        let target = wd_path.join("cached_file");
+        testutil::write_file(&target, "cached_file content").unwrap();
+        fs_transfer.hash_file(target.clone()).unwrap();
 
-        // Extract path is an existing file
-        let extract_path = temp.path().join("extract_dir");
-        testutil::write_file(&extract_path, "Existing file").unwrap();
+        fs_transfer.extract_object(&hash, &target).unwrap();
+        assert_that!(&target, existing_dir());
 
-        // Extract and compare
-        fs_transfer.extract_object(&hash, &extract_path).unwrap();
 
-        let extract_partial = fs_transfer.check_hashed_status(&extract_path)
-            .unwrap();
-        assert_eq!(extract_partial, HashedOrNot::Dir(expected_cached_partial));
-    }
+        // Dir vs uncached file
+        let target = wd_path.join("uncached_file");
+        testutil::write_file(&target, "uncached_file content").unwrap();
+        fs_transfer.hash_file(target.clone()).unwrap();
 
-    #[test]
-    fn test_extract_directory_ok_with_existing_dir() {
-        let (temp, mut fs_transfer) = create_temp_repo("object_store");
+        fs_transfer.extract_object(&hash, &target).unwrap();
+        assert_that!(&target, existing_dir());
 
-        let wd_path = temp.path().join("work_dir");
 
-        write_files!{ wd_path; "foo" => "123", };
-        let expected_cached_partial = partial_tree!{
-            "foo" => Blob::from("123").calculate_hash(),
+        // Dir vs empty dir
+        let target = wd_path.join("empty_dir");
+        create_dir_all(&target).unwrap();
+
+        fs_transfer.extract_object(&hash, &target).unwrap();
+        assert_that!(&target, existing_dir());
+        assert_that!(&target.join("file1"), existing_file());
+
+
+        // Dir vs non-empty dir
+        let target = wd_path.join("non_empty_dir");
+        write_files!{
+            target;
+            "target_file1" => "target_file1 content",
         };
 
-        // Hash and store files
-
-        let partial = fs_transfer.check_hashed_status(&wd_path).unwrap();
-        let hash = fs_transfer.hash_object(&wd_path, partial).unwrap();
-
-        // Extract path is an existing directory
-        let extract_path = temp.path().join("extract_dir");
-        write_files!{ extract_path; "foo" => "Exiting file", };
-
-        // Extract and compare
-        fs_transfer.extract_object(&hash, &extract_path).unwrap();
-
-        let extract_partial = fs_transfer.check_hashed_status(&extract_path)
-            .unwrap();
-        assert_eq!(extract_partial, HashedOrNot::Dir(expected_cached_partial));
+        fs_transfer.extract_object(&hash, &target).unwrap();
+        assert_that!(&target, existing_dir());
+        assert_that!(&target.join("file1"), existing_file());
+        assert_that!(&target.join("file2"), existing_file());
+        assert_that!(&target.join("target_file1"), existing_file());
     }
-
 }
