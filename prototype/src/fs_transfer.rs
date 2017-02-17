@@ -45,7 +45,7 @@ impl ObjectFsTransfer {
     }
 
 
-    pub fn check_hashed_status(&mut self, path: &Path) -> Result<HashedOrNot> {
+    pub fn check_status(&mut self, path: &Path) -> Result<HashedOrNot> {
 
         let path_meta = path.metadata()
             .chain_err(|| format!("getting metadata for {}", path.display()))?;
@@ -70,7 +70,7 @@ impl ObjectFsTransfer {
                 }
 
                 let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
-                let hashed_status = self.check_hashed_status(&ch_path)?;
+                let hashed_status = self.check_status(&ch_path)?;
                 partial.insert(ch_name, hashed_status);
             }
             hashed_or_not = partial.into();
@@ -137,7 +137,6 @@ impl ObjectFsTransfer {
         assert!(partial.is_complete());
         self.object_store.store_object(partial.tree())
     }
-
 
 
     pub fn extract_object(&mut self,
@@ -285,7 +284,7 @@ mod test {
         testutil::write_file(&filepath, in_file).unwrap();
 
         // Hash input file
-        let status = fs_transfer.check_hashed_status(&filepath).unwrap();
+        let status = fs_transfer.check_status(&filepath).unwrap();
         let hash = fs_transfer.hash_object(&filepath, status).unwrap();
 
         // Check the object type
@@ -351,7 +350,7 @@ mod test {
 
         // Build partial tree
 
-        let partial = fs_transfer.check_hashed_status(&wd_path).unwrap();
+        let partial = fs_transfer.check_status(&wd_path).unwrap();
         assert_eq!(partial, HashedOrNot::Dir(expected_partial));
 
         // Hash and store files
@@ -368,14 +367,14 @@ mod test {
 
         // Build partial tree again -- make sure it doesn't pick up cache files
 
-        let partial = fs_transfer.check_hashed_status(&wd_path).unwrap();
+        let partial = fs_transfer.check_status(&wd_path).unwrap();
         assert_eq!(partial, HashedOrNot::Dir(expected_cached_partial.clone()));
 
         // Extract and compare
         let extract_path = temp.path().join("extract_dir");
         fs_transfer.extract_object(&hash, &extract_path).unwrap();
 
-        let extract_partial = fs_transfer.check_hashed_status(&extract_path)
+        let extract_partial = fs_transfer.check_status(&extract_path)
             .unwrap();
         assert_eq!(extract_partial, HashedOrNot::Dir(expected_cached_partial));
     }
@@ -551,7 +550,7 @@ mod test {
 
         // Build partial tree
 
-        let partial = fs_transfer.check_hashed_status(&wd_path).unwrap();
+        let partial = fs_transfer.check_status(&wd_path).unwrap();
         assert_eq!(partial, HashedOrNot::Dir(PartialTree::new()));
 
         // Hash and store files
@@ -626,7 +625,7 @@ mod test {
                 "file2" => "dir/file2 content",
         };
 
-        let status = fs_transfer.check_hashed_status(&source).unwrap();
+        let status = fs_transfer.check_status(&source).unwrap();
         let hash = fs_transfer.hash_object(&source, status).unwrap();
 
         // Dir vs cached file

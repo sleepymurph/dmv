@@ -20,7 +20,7 @@ pub fn hash_object(repo_path: PathBuf, path: PathBuf) -> Result<()> {
 
     let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)?;
 
-    let status = fs_transfer.check_hashed_status(&path)?;
+    let status = fs_transfer.check_status(&path)?;
     if status.unhashed_size() > 0 {
         println!("{} to hash. Hashing...",
                  human_bytes(status.unhashed_size()));
