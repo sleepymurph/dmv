@@ -6,6 +6,7 @@ use dag::HashedOrNot;
 use dag::ObjectHandle;
 use dag::ObjectKey;
 use dag::PartialTree;
+use dag::Tree;
 use dag::UnhashedPath;
 use error::*;
 use ignore::IgnoreList;
@@ -144,54 +145,48 @@ impl ObjectFsTransfer {
                           path: &Path)
                           -> Result<()> {
 
-        let handle = self.object_store
+        self.object_store
             .open_object(hash)
+            .and_then(|handle| self.extract_object_open(handle, hash, path))
             .chain_err(|| {
                 format!("Could not extract {} to {}", hash, path.display())
-            })?;
+            })
+    }
 
+    pub fn extract_object_open(&mut self,
+                               handle: ObjectHandle,
+                               hash: &ObjectKey,
+                               path: &Path)
+                               -> Result<()> {
         match handle {
             ObjectHandle::Blob(_) |
             ObjectHandle::ChunkedBlob(_) => {
+                debug!("Extracting file {} to {}", hash, path.display());
                 self.extract_file_open(handle, hash, path)
             }
-            ObjectHandle::Tree(_) |
-            ObjectHandle::Commit(_) => {
-                self.extract_tree_open(handle, hash, path)
+            ObjectHandle::Tree(tree) => {
+                debug!("Extracting tree {} to {}", hash, path.display());
+                let tree = tree.read_content()?;
+                self.extract_tree_open(tree, path)
             }
+            ObjectHandle::Commit(_) => unimplemented!(),
         }
     }
 
-    fn extract_tree_open(&mut self,
-                         handle: ObjectHandle,
-                         hash: &ObjectKey,
-                         dir_path: &Path)
-                         -> Result<()> {
+    fn extract_tree_open(&mut self, tree: Tree, dir_path: &Path) -> Result<()> {
 
-        match handle {
-            ObjectHandle::Commit(_) => {
-                debug!("Extracting commit {}", hash);
-                unimplemented!()
+        if !dir_path.is_dir() {
+            if dir_path.exists() {
+                remove_file(&dir_path)?;
             }
-            ObjectHandle::Tree(tree) => {
-                debug!("Extracting tree {} to {}", hash, dir_path.display());
-
-                if !dir_path.is_dir() {
-                    if dir_path.exists() {
-                        remove_file(&dir_path)?;
-                    }
-                    create_dir(&dir_path)?;
-                }
-
-                let tree = tree.read_content()?;
-
-                for (ref name, ref hash) in tree.iter() {
-                    self.extract_object(hash, &dir_path.join(name))?;
-                }
-                Ok(())
-            }
-            _ => bail!("Expected a Tree or Commit, got: {:?}", handle),
+            create_dir(&dir_path)?;
         }
+
+        for (ref name, ref hash) in tree.iter() {
+            self.extract_object(hash, &dir_path.join(name))?;
+        }
+
+        Ok(())
     }
 
     fn extract_file_open(&mut self,
@@ -199,10 +194,7 @@ impl ObjectFsTransfer {
                          hash: &ObjectKey,
                          file_path: &Path)
                          -> Result<()> {
-
         return_if_cache_matches!(self.cache, file_path, hash);
-
-        debug!("Extracting file {} to {}", hash, file_path.display());
 
         if file_path.is_dir() {
             bail!(ErrorKind::WouldClobberDirectory(file_path.to_owned()));
@@ -595,9 +587,7 @@ mod test {
         create_dir_all(&target).unwrap();
 
         let result = fs_transfer.extract_object(&hash, &target);
-        assert_match!(result,
-                Err(Error(ErrorKind::WouldClobberDirectory(ref err_path),_))
-                if err_path == &target);
+        assert_err!(result, "would clobber");
 
 
         // File vs non-empty dir
@@ -608,9 +598,7 @@ mod test {
         };
 
         let result = fs_transfer.extract_object(&hash, &target);
-        assert_match!(result,
-                Err(Error(ErrorKind::WouldClobberDirectory(ref err_path),_))
-                if err_path == &target);
+        assert_err!(result, "would clobber");
     }
 
     #[test]

@@ -140,7 +140,7 @@ impl ReadObjectContent for ChunkedBlob {
 impl fmt::Display for ChunkOffset {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f,
-               "ChunkOffset( {} at {:#010x} ({}) )",
+               "ChunkOffset( {} at {:#010x}, {} )",
                self.hash,
                self.offset,
                humanreadable::human_bytes(self.size))
