@@ -590,49 +590,51 @@ mod test {
         let (temp, mut fs_transfer) = create_temp_repo("object_store");
         let wd_path = temp.path().join("work_dir");
 
-        let in_file = wd_path.join("in_file");
-        testutil::write_file(&in_file, "in_file content").unwrap();
-        let in_file_hash = fs_transfer.hash_file(in_file.clone()).unwrap();
+        let source = wd_path.join("in_file");
+        testutil::write_file(&source, "in_file content").unwrap();
+        let hash = fs_transfer.hash_file(source.clone()).unwrap();
 
 
         // File vs cached file
-        let cached_file = wd_path.join("cached_file");
-        testutil::write_file(&cached_file, "cached_file content").unwrap();
-        fs_transfer.hash_file(cached_file.clone()).unwrap();
+        let target = wd_path.join("cached_file");
+        testutil::write_file(&target, "cached_file content").unwrap();
+        fs_transfer.hash_file(target.clone()).unwrap();
 
-        fs_transfer.extract_object(&in_file_hash, &cached_file).unwrap();
-        let content = testutil::read_file_to_string(&cached_file).unwrap();
+        fs_transfer.extract_object(&hash, &target).unwrap();
+        let content = testutil::read_file_to_string(&target).unwrap();
         assert_that!(&content, equal_to("in_file content"));
 
 
         // File vs uncached file
-        let uncached_file = wd_path.join("uncached_file");
-        testutil::write_file(&uncached_file, "uncached_file content").unwrap();
+        let target = wd_path.join("uncached_file");
+        testutil::write_file(&target, "uncached_file content").unwrap();
 
-        fs_transfer.extract_object(&in_file_hash, &uncached_file).unwrap();
-        let content = testutil::read_file_to_string(&uncached_file).unwrap();
+        fs_transfer.extract_object(&hash, &target).unwrap();
+        let content = testutil::read_file_to_string(&target).unwrap();
         assert_that!(&content, equal_to("in_file content"));
 
 
         // File vs empty dir
-        let empty_dir = wd_path.join("empty_dir");
-        create_dir_all(&empty_dir).unwrap();
+        let target = wd_path.join("empty_dir");
+        create_dir_all(&target).unwrap();
 
-        let result = fs_transfer.extract_object(&in_file_hash, &empty_dir);
+        let result = fs_transfer.extract_object(&hash, &target);
         assert_match!(result,
                 Err(Error(ErrorKind::WouldClobberDirectory(ref err_path),_))
-                if err_path == &empty_dir);
+                if err_path == &target);
 
 
         // File vs non-empty dir
-        let dir = wd_path.join("dir");
-        let dir_file = dir.join("dir_file");
-        testutil::write_file(&dir_file, "dir_file content").unwrap();
+        let target = wd_path.join("dir");
+        write_files!{
+            &target;
+            "dir_file" => "dir_file content",
+        };
 
-        let result = fs_transfer.extract_object(&in_file_hash, &dir);
+        let result = fs_transfer.extract_object(&hash, &target);
         assert_match!(result,
                 Err(Error(ErrorKind::WouldClobberDirectory(ref err_path),_))
-                if err_path == &dir);
+                if err_path == &target);
     }
 
     #[test]
