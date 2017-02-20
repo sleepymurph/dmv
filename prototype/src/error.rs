@@ -50,6 +50,11 @@ error_chain!{
             description("object not found in object store")
             display("object not found in object store: {}", h)
         }
+
+        RefNotFound(r: $crate::objectstore::RefName) {
+            description("Ref not found in repository")
+            display("Ref not found in repository: {}", r)
+        }
     }
 }
 

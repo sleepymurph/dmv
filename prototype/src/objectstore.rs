@@ -8,6 +8,9 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 
+pub type RefName = String;
+type RefNameBorrow = str;
+
 pub struct ObjectStore {
     path: PathBuf,
 }
@@ -31,6 +34,10 @@ impl ObjectStore {
             .join(&key[0..2])
             .join(&key[2..4])
             .join(&key[4..])
+    }
+
+    fn ref_path(&self, name: &RefNameBorrow) -> PathBuf {
+        self.path.join("refs").join(name)
     }
 
     pub fn has_object(&self, key: &ObjectKey) -> bool {
@@ -86,6 +93,45 @@ impl ObjectStore {
 
         Ok(key)
     }
+
+
+    pub fn update_ref(&mut self,
+                      name: &RefNameBorrow,
+                      hash: &ObjectKey)
+                      -> Result<()> {
+        use std::io::Write;
+        let ref_path = self.ref_path(name);
+        fsutil::create_parents(&ref_path)
+            .and_then(|_| {
+                fs::OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(&ref_path)
+            })
+            .and_then(|mut file| write!(file, "{}", hash))
+            .chain_err(|| {
+                format!("Could not write ref path: {}", ref_path.display())
+            })
+    }
+
+    pub fn read_ref(&mut self, name: &RefNameBorrow) -> Result<ObjectKey> {
+        use std::io::Read;
+        let ref_path = self.ref_path(name);
+        if !ref_path.exists() {
+            return Err(ErrorKind::RefNotFound(name.to_owned()).into());
+        }
+        fs::File::open(&ref_path)
+            .and_then(|mut file| {
+                let mut ref_str = String::new();
+                file.read_to_string(&mut ref_str).map(|_| ref_str)
+            })
+            .err_into()
+            .and_then(|s| ObjectKey::from_hex(&s))
+            .chain_err(|| {
+                format!("Could not read ref path: {}", ref_path.display())
+            })
+    }
 }
 
 #[cfg(test)]
@@ -106,9 +152,9 @@ pub mod test {
 
     #[test]
     fn test_store_and_retrieve() {
-        let obj = Blob::from("Hello!").to_hashed();
-
         let (_tempdir, mut store) = create_temp_repository().unwrap();
+
+        let obj = Blob::from("Hello!").to_hashed();
 
         assert!(!store.has_object(obj.hash()),
                 "Store should not have key at first");
@@ -128,4 +174,21 @@ pub mod test {
                    "Retrieved object should be the same as stored object");
     }
 
+
+    #[test]
+    fn test_update_and_read_ref() {
+        let (_tempdir, mut store) = create_temp_repository().unwrap();
+        let hash = Blob::from("Hello!").to_hashed().hash().to_owned();
+
+        let result = store.read_ref("master");
+        assert_match!(result,
+                    Err(Error(ErrorKind::RefNotFound(ref name), _))
+                        if name=="master");
+
+        let result = store.update_ref("master", &hash);
+        assert_match!(result, Ok(()));
+
+        let result = store.read_ref("master");
+        assert_match!(result, Ok(x) if x==hash);
+    }
 }
