@@ -1,27 +1,30 @@
-use dag;
+use dag::ObjectCommon;
+use dag::ObjectHandle;
+use dag::ObjectKey;
 use error::*;
 use fsutil;
 use std::fs;
 use std::io;
-use std::path;
+use std::path::Path;
+use std::path::PathBuf;
 
 pub struct ObjectStore {
-    path: path::PathBuf,
+    path: PathBuf,
 }
 
 impl ObjectStore {
-    pub fn init(path: path::PathBuf) -> Result<Self> {
+    pub fn init(path: PathBuf) -> Result<Self> {
         try!(fs::create_dir_all(&path));
         Self::open(path)
     }
 
-    pub fn open(path: path::PathBuf) -> Result<Self> {
+    pub fn open(path: PathBuf) -> Result<Self> {
         Ok(ObjectStore { path: path })
     }
 
-    pub fn path(&self) -> &path::Path { &self.path }
+    pub fn path(&self) -> &Path { &self.path }
 
-    fn object_path(&self, key: &dag::ObjectKey) -> path::PathBuf {
+    fn object_path(&self, key: &ObjectKey) -> PathBuf {
         let key = key.to_hex();
         self.path
             .join("objects")
@@ -30,12 +33,12 @@ impl ObjectStore {
             .join(&key[4..])
     }
 
-    pub fn has_object(&self, key: &dag::ObjectKey) -> bool {
+    pub fn has_object(&self, key: &ObjectKey) -> bool {
         self.object_path(key).is_file()
     }
 
     pub fn open_object_file(&self,
-                            key: &dag::ObjectKey)
+                            key: &ObjectKey)
                             -> Result<io::BufReader<fs::File>> {
 
         if !self.has_object(&key) {
@@ -46,19 +49,15 @@ impl ObjectStore {
         Ok(io::BufReader::new(file))
     }
 
-    pub fn open_object(&self,
-                       key: &dag::ObjectKey)
-                       -> Result<dag::ObjectHandle> {
+    pub fn open_object(&self, key: &ObjectKey) -> Result<ObjectHandle> {
         let file = self.open_object_file(key)?;
-        dag::ObjectHandle::read_header(Box::new(file))
+        ObjectHandle::read_header(Box::new(file))
     }
 
     /// Writes a single object into the object store
     ///
     /// Returns the hash key of the object
-    pub fn store_object(&mut self,
-                        obj: &dag::ObjectCommon)
-                        -> Result<dag::ObjectKey> {
+    pub fn store_object(&mut self, obj: &ObjectCommon) -> Result<ObjectKey> {
 
         // If object already exists, no need to store
         let key = obj.calculate_hash();
@@ -91,18 +90,15 @@ impl ObjectStore {
 
 #[cfg(test)]
 pub mod test {
-    use dag;
+    use dag::Blob;
+    use dag::Object;
     use dag::ToHashed;
-    use std::fs;
     use super::*;
-    use testutil;
     use testutil::tempdir::TempDir;
 
     pub fn create_temp_repository() -> Result<(TempDir, ObjectStore)> {
-        let wd_temp = try!(testutil::in_mem_tempdir("test_directory"));
-        let wd_path = wd_temp.path().to_owned();
-        try!(fs::create_dir_all(&wd_path));
-        let os_path = wd_path.join("object_store");
+        let wd_temp = in_mem_tempdir!();
+        let os_path = wd_temp.path().join("object_store");
         let os = try!(ObjectStore::init(os_path));
 
         Ok((wd_temp, os))
@@ -110,7 +106,7 @@ pub mod test {
 
     #[test]
     fn test_store_and_retrieve() {
-        let obj = dag::Blob::from("Hello!").to_hashed();
+        let obj = Blob::from("Hello!").to_hashed();
 
         let (_tempdir, mut store) = create_temp_repository().unwrap();
 
@@ -126,7 +122,7 @@ pub mod test {
                 "Store should report that key is present");
 
         let mut reader = store.open_object_file(&stored_key).unwrap();
-        let retrieved = dag::Object::read_from(&mut reader).unwrap();
+        let retrieved = Object::read_from(&mut reader).unwrap();
         assert_eq!(retrieved,
                    *obj,
                    "Retrieved object should be the same as stored object");
