@@ -21,13 +21,16 @@ use tempdir::TempDir;
 /// extern crate testutil;
 ///
 /// fn main() {
+///     // Simplest form
 ///     assert_match!(Some("string"), Some(_));
 ///
+///     // Can include a match expression for further tests on the matched value
 ///     assert_match!(Some("string"), Some(x) => assert!(x.contains("str")));
 ///     assert_match!(Some("string"), Some(x) => {
 ///         assert!(x.contains("str"))
 ///     });
 ///
+///     // Can include match guards as well
 ///     assert_match!(Some(20), Some(x) if x>10);
 ///     assert_match!(Some(20), Some(x) if x>10 => {
 ///         assert!(x < 25);
