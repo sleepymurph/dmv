@@ -32,6 +32,7 @@ fn run() -> Result<()> {
                 "show-object" => cmd_show_object,
                 "extract-object" => cmd_extract_object,
                 "cache-status" => cmd_cache_status,
+                "commit" => cmd_commit,
                 _ => unimplemented!(),
             };
             let submatch = argmatch.subcommand_matches(name)
@@ -93,6 +94,16 @@ fn cmd_cache_status(_argmatch: &clap::ArgMatches,
     let file_path = PathBuf::from(file_path);
 
     cmd::cache_status(file_path)
+}
+
+fn cmd_commit(_argmatch: &clap::ArgMatches,
+              submatch: &clap::ArgMatches)
+              -> Result<()> {
+
+    let repo_path = repo_path();
+    let message = submatch.value_of("message").expect("required").to_owned();
+    let path = env::current_dir().expect("current dir");
+    cmd::commit(repo_path, message, path)
 }
 
 fn repo_path() -> PathBuf {

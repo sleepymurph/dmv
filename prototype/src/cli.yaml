@@ -36,4 +36,11 @@ subcommands:
                 required: true
                 index: 1
 
+    - commit:
+        args:
+            - message:
+                short: m
+                takes_value: true
+                required: true
+
 # vim: set sts=4 sw=4 et:

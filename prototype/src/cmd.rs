@@ -1,6 +1,7 @@
 //! High-level commands
 
 use cache::AllCaches;
+use dag::Commit;
 use dag::ObjectCommon;
 use dag::ObjectHandle;
 use dag::ObjectKey;
@@ -19,16 +20,20 @@ pub fn init(repo_path: PathBuf) -> Result<()> {
 pub fn hash_object(repo_path: PathBuf, path: PathBuf) -> Result<()> {
 
     let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)?;
+    let hash = hash_object_inner(&mut fs_transfer, &path)?;
+    println!("{} {}", hash, path.display());
+    Ok(())
+}
 
+fn hash_object_inner(fs_transfer: &mut ObjectFsTransfer,
+                     path: &Path)
+                     -> Result<ObjectKey> {
     let status = fs_transfer.check_status(&path)?;
     if status.unhashed_size() > 0 {
         println!("{} to hash. Hashing...",
                  human_bytes(status.unhashed_size()));
     }
-
-    let hash = fs_transfer.hash_object(&path, status)?;
-    println!("{} {}", hash, path.display());
-    Ok(())
+    fs_transfer.hash_object(&path, status)
 }
 
 pub fn show_object(repo_path: PathBuf, hash: &ObjectKey) -> Result<()> {
@@ -65,5 +70,21 @@ pub fn cache_status(file_path: PathBuf) -> Result<()> {
     let mut cache = AllCaches::new();
     let cache_status = try!(cache.check(&file_path));
     println!("{:?}", cache_status);
+    Ok(())
+}
+
+pub fn commit(repo_path: PathBuf,
+              message: String,
+              path: PathBuf)
+              -> Result<()> {
+    let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)?;
+    let tree_hash = hash_object_inner(&mut fs_transfer, &path)?;
+    let commit = Commit {
+        tree: tree_hash,
+        parents: Vec::new(),
+        message: message,
+    };
+    let commit_hash = fs_transfer.object_store.store_object(&commit)?;
+    println!("{} {}", commit_hash, path.display());
     Ok(())
 }
