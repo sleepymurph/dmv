@@ -150,6 +150,16 @@ impl Decodable for ObjectKey {
     }
 }
 
+pub trait ObjectKeyVecExt {
+    fn to_strings(&self) -> Vec<String>;
+}
+
+impl ObjectKeyVecExt for Vec<ObjectKey> {
+    fn to_strings(&self) -> Vec<String> {
+        self.iter().map(|h| h.to_string()).collect::<Vec<String>>()
+    }
+}
+
 /// Wraps an existing writer and computes a hash of the bytes going into it
 pub struct HashWriter<W: io::Write> {
     writer: W,

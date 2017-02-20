@@ -42,8 +42,6 @@ impl ObjectCommon for Commit {
     fn pretty_print(&self) -> String {
         use std::fmt::Write;
         let mut output = String::new();
-        let parents_vec: Vec<String> =
-            self.parents.iter().map(|h| h.to_string()).collect();
         write!(&mut output,
                "Commit
 
@@ -55,7 +53,7 @@ Parents:    {}
 ",
                humanreadable::human_bytes(self.content_size()),
                self.tree,
-               parents_vec.join(","),
+               self.parents.to_strings().join(","),
                self.message)
             .unwrap();
 
