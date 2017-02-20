@@ -39,7 +39,28 @@ impl ObjectCommon for Commit {
         Ok(())
     }
 
-    fn pretty_print(&self) -> String { unimplemented!() }
+    fn pretty_print(&self) -> String {
+        use std::fmt::Write;
+        let mut output = String::new();
+        let parents_vec: Vec<String> =
+            self.parents.iter().map(|h| h.to_string()).collect();
+        write!(&mut output,
+               "Commit
+
+Object content size:    {:>10}
+Tree:       {}
+Parents:    {}
+
+{}
+",
+               humanreadable::human_bytes(self.content_size()),
+               self.tree,
+               parents_vec.join(","),
+               self.message)
+            .unwrap();
+
+        output
+    }
 }
 
 impl ReadObjectContent for Commit {
