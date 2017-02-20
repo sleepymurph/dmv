@@ -9,10 +9,11 @@ extern crate prototype;
 
 use prototype::cmd;
 use prototype::constants;
-use prototype::dag::ObjectKey;
 use prototype::error::*;
+use prototype::objectstore::RevSpec;
 use std::env;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 // Have error_chain create a main() function that handles Results
 quick_main!(run);
@@ -67,10 +68,10 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches,
                    -> Result<()> {
     let repo_path = repo_path();
 
-    let hash = submatch.value_of("hash").expect("required");
-    let hash = try!(ObjectKey::from_hex(hash));
+    let obj_spec = submatch.value_of("obj-spec").expect("required");
+    let obj_spec = try!(RevSpec::from_str(obj_spec));
 
-    cmd::show_object(repo_path, &hash)
+    cmd::show_object(repo_path, &obj_spec)
 }
 
 fn cmd_extract_object(_argmatch: &clap::ArgMatches,
@@ -78,13 +79,13 @@ fn cmd_extract_object(_argmatch: &clap::ArgMatches,
                       -> Result<()> {
     let repo_path = repo_path();
 
-    let hash = submatch.value_of("hash").expect("required");
-    let hash = try!(ObjectKey::from_hex(hash));
+    let obj_spec = submatch.value_of("obj-spec").expect("required");
+    let obj_spec = try!(RevSpec::from_str(obj_spec));
 
     let file_path = submatch.value_of("filepath").expect("required");
     let file_path = PathBuf::from(file_path);
 
-    cmd::extract_object(repo_path, &hash, &file_path)
+    cmd::extract_object(repo_path, &obj_spec, &file_path)
 }
 
 fn cmd_cache_status(_argmatch: &clap::ArgMatches,

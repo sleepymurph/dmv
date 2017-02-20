@@ -16,14 +16,14 @@ subcommands:
 
     - show-object:
         args:
-            - hash:
+            - obj-spec:
                 required: true
                 index: 1
 
     - extract-object:
         help: "pull a file or tree out of repo and onto the disk"
         args:
-            - hash:
+            - obj-spec:
                 required: true
                 index: 1
             - filepath:

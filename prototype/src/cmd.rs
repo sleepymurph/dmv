@@ -10,6 +10,7 @@ use error::*;
 use fs_transfer::ObjectFsTransfer;
 use humanreadable::human_bytes;
 use objectstore::ObjectStore;
+use objectstore::RevSpec;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -37,33 +38,32 @@ fn hash_object_inner(fs_transfer: &mut ObjectFsTransfer,
     fs_transfer.hash_object(&path, status)
 }
 
-pub fn show_object(repo_path: PathBuf, hash: &ObjectKey) -> Result<()> {
+pub fn show_object(repo_path: PathBuf, obj_spec: &RevSpec) -> Result<()> {
 
     let object_store = try!(ObjectStore::open(repo_path));
 
-    if !object_store.has_object(&hash) {
-        println!("No such object");
-    } else {
-        let handle = try!(object_store.open_object(&hash));
-        match handle {
-            ObjectHandle::Blob(blobhandle) => {
-                println!("{}", blobhandle.header());
-            }
-            _ => {
-                let object = try!(handle.read_content());
-                println!("{}", object.pretty_print());
-            }
+    let hash = object_store.find_object(obj_spec)?;
+
+    let handle = try!(object_store.open_object(&hash));
+    match handle {
+        ObjectHandle::Blob(blobhandle) => {
+            println!("{}", blobhandle.header());
+        }
+        _ => {
+            let object = try!(handle.read_content());
+            println!("{}", object.pretty_print());
         }
     }
     Ok(())
 }
 
 pub fn extract_object(repo_path: PathBuf,
-                      hash: &ObjectKey,
+                      obj_spec: &RevSpec,
                       file_path: &Path)
                       -> Result<()> {
 
     let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)?;
+    let hash = fs_transfer.object_store.find_object(obj_spec)?;
     fs_transfer.extract_object(&hash, &file_path)
 }
 
