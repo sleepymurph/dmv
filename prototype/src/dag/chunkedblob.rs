@@ -91,7 +91,7 @@ Total file size:        {:>10}
 
         for chunk in &self.chunks {
             write!(&mut output,
-                   "{:>010x}  {:>10}  {}\n",
+                   "{:>010x}  {:>10}  {:x}\n",
                    chunk.offset,
                    humanreadable::human_bytes(chunk.size),
                    chunk.hash)

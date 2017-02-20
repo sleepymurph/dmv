@@ -42,18 +42,23 @@ impl ObjectCommon for Commit {
     fn pretty_print(&self) -> String {
         use std::fmt::Write;
         let mut output = String::new();
+        let parents_join = self.parents
+            .iter()
+            .map(|h| h.to_hex())
+            .collect::<Vec<String>>()
+            .join(",");
         write!(&mut output,
                "Commit
 
 Object content size:    {:>10}
-Tree:       {}
+Tree:       {:x}
 Parents:    {}
 
 {}
 ",
                humanreadable::human_bytes(self.content_size()),
                self.tree,
-               self.parents.to_strings().join(","),
+               parents_join,
                self.message)
             .unwrap();
 

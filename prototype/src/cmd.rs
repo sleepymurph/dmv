@@ -5,7 +5,6 @@ use dag::Commit;
 use dag::ObjectCommon;
 use dag::ObjectHandle;
 use dag::ObjectKey;
-use dag::ObjectKeyVecExt;
 use error::*;
 use fs_transfer::ObjectFsTransfer;
 use humanreadable::human_bytes;
@@ -85,9 +84,10 @@ pub fn commit(repo_path: PathBuf,
         Err(Error(ErrorKind::RefNotFound(_), _)) => vec![],
         Err(e) => return Err(e),
     };
-    debug!("Current branch: {}, {}",
+    debug!("Current branch: {}. Parents: {}",
            branch,
-           parents.to_strings().join(","));
+           parents.iter().map(|h| h.to_short())
+                .collect::<Vec<String>>().join(","));
     let tree_hash = hash_object_inner(&mut fs_transfer, &path)?;
     let commit = Commit {
         tree: tree_hash,

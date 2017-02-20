@@ -68,7 +68,10 @@ Object content size:    {:>10}
             .unwrap();
 
         for entry in &self.entries {
-            write!(&mut output, "{} {}\n", entry.1, entry.0.to_str().unwrap())
+            write!(&mut output,
+                   "{:x} {}\n",
+                   entry.1,
+                   entry.0.to_str().unwrap())
                 .unwrap();
         }
         output

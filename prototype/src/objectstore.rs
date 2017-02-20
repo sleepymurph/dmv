@@ -51,7 +51,7 @@ impl ObjectStore {
             .err_into()
             .map(|p| p.to_str().expect("should be ascii"))
             .map(|s| s.replace("/", ""))
-            .and_then(|s| ObjectKey::from_hex(&s))
+            .and_then(|s| ObjectKey::parse(&s))
     }
 
     fn ref_path(&self, name: &RefNameBorrow) -> PathBuf {
@@ -165,7 +165,7 @@ impl ObjectStore {
                     .truncate(true)
                     .open(&ref_path)
             })
-            .and_then(|mut file| write!(file, "{}", hash))
+            .and_then(|mut file| write!(file, "{:x}", hash))
             .chain_err(|| {
                 format!("Could not write ref path: {}", ref_path.display())
             })
@@ -183,7 +183,7 @@ impl ObjectStore {
                 file.read_to_string(&mut ref_str).map(|_| ref_str)
             })
             .err_into()
-            .and_then(|s| ObjectKey::from_hex(&s))
+            .and_then(|s| ObjectKey::parse(&s))
             .chain_err(|| {
                 format!("Could not read ref path: {}", ref_path.display())
             })
@@ -206,7 +206,7 @@ impl FromStr for RevSpec {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
         if OBJECT_KEY_PAT.is_match(s) {
-            ObjectKey::from_hex(s).map(|h| RevSpec::Hash(h))
+            ObjectKey::parse(s).map(|h| RevSpec::Hash(h))
         } else if SHORT_OBJECT_KEY_PAT.is_match(s) {
             Ok(RevSpec::ShortHash(s.to_owned()))
         } else {
@@ -290,9 +290,9 @@ pub mod test {
 
     #[test]
     fn test_rev_spec() {
-        let hash =
-            ObjectKey::from_hex("da39a3ee5e6b4b0d3255bfef95601890afd80709")
-                .unwrap();
+        let hash = ObjectKey::parse("da39a3ee5e6b4b0d3255bfef95601890afd80709")
+            .unwrap();
+
         let rev = RevSpec::from_str("da39a3ee5e6b4b0d3255bfef95601890afd80709");
         assert_match!(rev, Ok(RevSpec::Hash(ref h)) if h==&hash);
 

@@ -11,6 +11,7 @@ use rustc_serialize::Encoder;
 use std::convert;
 use std::fmt;
 use std::io;
+use std::str::FromStr;
 
 /// Hash type
 pub type Hasher = Sha1;
@@ -34,6 +35,28 @@ lazy_static!{
 type ObjectKeyByteArray = [u8; KEY_SIZE_BYTES];
 
 /// Hash key for an object
+///
+/// On formatting:
+///
+/// - Display ({}) gives a short hash (this is a lossy operation)
+/// - Hex ({:x}) gives the full hash
+/// - The conversion From<ObjectKey> for String also gives the full hash
+///
+/// ```
+/// use prototype::dag::ObjectKey;
+///
+/// let id = ObjectKey::parse("da39a3ee5e6b4b0d3255bfef95601890afd80709")
+///             .unwrap();
+///
+/// assert_eq!(format!("{}", id), "da39a3ee");
+///
+/// assert_eq!(format!("{:x}", id),
+///             "da39a3ee5e6b4b0d3255bfef95601890afd80709");
+///
+/// assert_eq!(String::from(id),
+///             "da39a3ee5e6b4b0d3255bfef95601890afd80709");
+/// ```
+///
 #[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash)]
 pub struct ObjectKey(ObjectKeyByteArray);
 
@@ -41,7 +64,7 @@ impl ObjectKey {
     /// Creates a new all-zero key
     pub fn zero() -> Self { ObjectKey([0; KEY_SIZE_BYTES]) }
 
-    pub fn from_hex(hexstr: &str) -> Result<Self> {
+    pub fn parse(hexstr: &str) -> Result<Self> {
         if !OBJECT_KEY_PAT.is_match(hexstr) {
             bail!(ErrorKind::ParseKey(hexstr.to_owned()));
         }
@@ -68,6 +91,7 @@ impl ObjectKey {
         Ok(ObjectKey(buf))
     }
 
+    /// Give full hex string for this ObjectKey
     pub fn to_hex(&self) -> String {
         let mut hex = String::with_capacity(KEY_SIZE_HEX_DIGITS);
         for byte in &self.0 {
@@ -104,11 +128,16 @@ impl From<ObjectKeyByteArray> for ObjectKey {
     fn from(arr: ObjectKeyByteArray) -> Self { ObjectKey(arr) }
 }
 
+impl FromStr for ObjectKey {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> { ObjectKey::parse(s) }
+}
+
 /// Convenience function to parse and unwrap a hex hash
 ///
 /// Not for use in production code.
 #[cfg(test)]
-pub fn parse_hash(s: &str) -> ObjectKey { ObjectKey::from_hex(s).unwrap() }
+pub fn parse_hash(s: &str) -> ObjectKey { ObjectKey::parse(s).unwrap() }
 
 impl fmt::LowerHex for ObjectKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -130,8 +159,7 @@ impl fmt::UpperHex for ObjectKey {
 
 impl fmt::Display for ObjectKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Delegate to LowerHex
-        <Self as fmt::LowerHex>::fmt(self, f)
+        write!(f, "{}", self.to_short())
     }
 }
 
@@ -144,7 +172,7 @@ impl fmt::Debug for ObjectKey {
 }
 
 impl convert::From<ObjectKey> for String {
-    fn from(key: ObjectKey) -> String { format!("{}", key) }
+    fn from(key: ObjectKey) -> String { format!("{:x}", key) }
 }
 
 impl AsRef<[u8]> for ObjectKey {
@@ -162,17 +190,7 @@ impl Encodable for ObjectKey {
 impl Decodable for ObjectKey {
     fn decode<D: Decoder>(d: &mut D) -> ::std::result::Result<Self, D::Error> {
         let hex = try!(<String>::decode(d));
-        ObjectKey::from_hex(&hex).map_err(|_e| unimplemented!())
-    }
-}
-
-pub trait ObjectKeyVecExt {
-    fn to_strings(&self) -> Vec<String>;
-}
-
-impl ObjectKeyVecExt for Vec<ObjectKey> {
-    fn to_strings(&self) -> Vec<String> {
-        self.iter().map(|h| h.to_string()).collect::<Vec<String>>()
+        ObjectKey::parse(&hex).map_err(|_e| unimplemented!())
     }
 }
 
@@ -219,9 +237,10 @@ mod test {
         let upperhex = hex.to_uppercase();
         let key = parse_hash(hex);
         let upperkey = parse_hash(&upperhex);
+        let short = key.to_short();
 
         assert_eq!(upperkey, key, "Parse upper hex vs lower hex");
-        assert_eq!(format!("{}", key), hex, "Display mismatch");
+        assert_eq!(format!("{}", key), short, "Display mismatch");
         assert_eq!(format!("{:x}", key), hex, "LowerHex mismatch");
         assert_eq!(format!("{:X}", key), upperhex, "UpperHex mismatch");
 
@@ -240,7 +259,7 @@ mod test {
              ("too long", "da39a3ee5e6b4b0d3255bfef95601890afd807090000")];
 
         for &(desc, bad) in bad_inputs.into_iter() {
-            match ObjectKey::from_hex(&bad) {
+            match ObjectKey::parse(&bad) {
                 Err(Error(ErrorKind::ParseKey(ref bad_key), _)) if bad_key ==
                                                                    bad => (),
                 other => {
