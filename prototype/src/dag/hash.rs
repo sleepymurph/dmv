@@ -3,6 +3,7 @@
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
 use error::*;
+use regex::Regex;
 use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
@@ -20,6 +21,16 @@ const KEY_SIZE_BITS: usize = 160;
 /// Object key size in bytes
 pub const KEY_SIZE_BYTES: usize = KEY_SIZE_BITS / 8;
 
+/// Number of hex digits required to represent an object key
+pub const KEY_SIZE_HEX_DIGITS: usize = KEY_SIZE_BITS / 4;
+
+pub const KEY_SHORT_LEN: usize = 8;
+
+lazy_static!{
+    pub static ref OBJECT_KEY_PAT:Regex = Regex::new(
+            &format!("^[[:xdigit:]]{{ {} }}$",KEY_SIZE_HEX_DIGITS)).unwrap();
+}
+
 type ObjectKeyByteArray = [u8; KEY_SIZE_BYTES];
 
 /// Hash key for an object
@@ -31,7 +42,7 @@ impl ObjectKey {
     pub fn zero() -> Self { ObjectKey([0; KEY_SIZE_BYTES]) }
 
     pub fn from_hex(hexstr: &str) -> Result<Self> {
-        if hexstr.len() != KEY_SIZE_BYTES * 2 {
+        if !OBJECT_KEY_PAT.is_match(hexstr) {
             bail!(ErrorKind::ParseKey(hexstr.to_owned()));
         }
         let mut buf = [0u8; KEY_SIZE_BYTES];
@@ -58,11 +69,16 @@ impl ObjectKey {
     }
 
     pub fn to_hex(&self) -> String {
-        let mut hex = String::with_capacity(2 * KEY_SIZE_BYTES);
+        let mut hex = String::with_capacity(KEY_SIZE_HEX_DIGITS);
         for byte in &self.0 {
             hex.push_str(&format!("{:02x}", byte));
         }
         hex
+    }
+
+    /// Give a shortened hex string for this ObjectKey
+    pub fn to_short(&self) -> String {
+        self.to_hex()[..KEY_SHORT_LEN].to_owned()
     }
 
     /// Creates an array from a byte slice (copy)

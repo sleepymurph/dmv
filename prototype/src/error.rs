@@ -13,6 +13,10 @@ error_chain!{
             #[doc = "Error converting bytes to a String"];
     }
     errors {
+        BadRevSpec(bad: String) {
+            description("could not parse revision")
+            display("could not parse revision: '{}'", bad)
+        }
         ParseKey(bad_key: String) {
             description("could not parse hash key")
             display("could not parse hash key: '{}'", bad_key)
@@ -51,9 +55,14 @@ error_chain!{
             display("object not found in object store: {}", h)
         }
 
+        RevNotFound(r: $crate::objectstore::RevSpec) {
+            description("revision not found in object store")
+            display("revision not found in object store: {}", r)
+        }
+
         RefNotFound(r: $crate::objectstore::RefName) {
-            description("Ref not found in repository")
-            display("Ref not found in repository: {}", r)
+            description("ref not found in repository")
+            display("ref not found in repository: {}", r)
         }
     }
 }
