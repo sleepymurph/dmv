@@ -78,13 +78,26 @@ pub fn commit(repo_path: PathBuf,
               path: PathBuf)
               -> Result<()> {
     let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)?;
+    let branch = "master";
+    let parents = match fs_transfer.object_store.read_ref(branch) {
+        Ok(hash) => {
+            debug!("Current branch: {}, {}", branch, hash);
+            vec![hash]
+        }
+        Err(Error(ErrorKind::RefNotFound(_), _)) => {
+            debug!("New branch: {}", branch);
+            vec![]
+        }
+        Err(e) => return Err(e),
+    };
     let tree_hash = hash_object_inner(&mut fs_transfer, &path)?;
     let commit = Commit {
         tree: tree_hash,
-        parents: Vec::new(),
+        parents: parents,
         message: message,
     };
     let commit_hash = fs_transfer.object_store.store_object(&commit)?;
-    println!("{} {}", commit_hash, path.display());
+    fs_transfer.object_store.update_ref(branch, &commit_hash)?;
+    println!("{} is now {}", branch, commit_hash);
     Ok(())
 }
