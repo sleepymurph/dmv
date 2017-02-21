@@ -8,10 +8,8 @@ extern crate env_logger;
 extern crate prototype;
 
 use prototype::cmd;
-use prototype::constants;
 use prototype::error::*;
 use prototype::objectstore::RevSpec;
-use std::env;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -48,45 +46,37 @@ fn run() -> Result<()> {
 fn cmd_init(_argmatch: &clap::ArgMatches,
             _submatch: &clap::ArgMatches)
             -> Result<()> {
-    let repo_path = repo_path();
-
-    cmd::init(repo_path)
+    cmd::init()
 }
 
 fn cmd_hash_object(_argmatch: &clap::ArgMatches,
                    submatch: &clap::ArgMatches)
                    -> Result<()> {
-    let repo_path = repo_path();
-
     let file_path = submatch.value_of("filepath").expect("required");
     let file_path = PathBuf::from(file_path);
 
-    cmd::hash_object(repo_path, file_path)
+    cmd::hash_object(file_path)
 }
 
 fn cmd_show_object(_argmatch: &clap::ArgMatches,
                    submatch: &clap::ArgMatches)
                    -> Result<()> {
-    let repo_path = repo_path();
-
     let obj_spec = submatch.value_of("obj-spec").expect("required");
     let obj_spec = try!(RevSpec::from_str(obj_spec));
 
-    cmd::show_object(repo_path, &obj_spec)
+    cmd::show_object(&obj_spec)
 }
 
 fn cmd_extract_object(_argmatch: &clap::ArgMatches,
                       submatch: &clap::ArgMatches)
                       -> Result<()> {
-    let repo_path = repo_path();
-
     let obj_spec = submatch.value_of("obj-spec").expect("required");
     let obj_spec = try!(RevSpec::from_str(obj_spec));
 
     let file_path = submatch.value_of("filepath").expect("required");
     let file_path = PathBuf::from(file_path);
 
-    cmd::extract_object(repo_path, &obj_spec, &file_path)
+    cmd::extract_object(&obj_spec, &file_path)
 }
 
 fn cmd_cache_status(_argmatch: &clap::ArgMatches,
@@ -101,21 +91,12 @@ fn cmd_cache_status(_argmatch: &clap::ArgMatches,
 fn cmd_commit(_argmatch: &clap::ArgMatches,
               submatch: &clap::ArgMatches)
               -> Result<()> {
-
-    let repo_path = repo_path();
     let message = submatch.value_of("message").expect("required").to_owned();
-    let path = env::current_dir().expect("current dir");
-    cmd::commit(repo_path, message, path)
+    cmd::commit(message)
 }
 
 fn cmd_log(_argmatch: &clap::ArgMatches,
            _submatch: &clap::ArgMatches)
            -> Result<()> {
-
-    let repo_path = repo_path();
-    cmd::log(repo_path)
-}
-
-fn repo_path() -> PathBuf {
-    env::current_dir().expect("current dir").join(constants::HIDDEN_DIR_NAME)
+    cmd::log()
 }

@@ -88,4 +88,6 @@ pub mod objectstore;
 pub mod cache;
 pub mod ignore;
 pub mod fs_transfer;
+pub mod work_dir;
+pub mod find_repo;
 pub mod cmd;
