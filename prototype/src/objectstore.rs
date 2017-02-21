@@ -63,40 +63,50 @@ impl ObjectStore {
     }
 
     pub fn find_object(&self, rev: &RevSpec) -> Result<ObjectKey> {
+        match self.try_find_object(rev) {
+            Ok(Some(hash)) => Ok(hash),
+            Ok(None) => bail!(ErrorKind::RevNotFound(rev.to_owned())),
+            Err(e) => bail!(e),
+        }
+    }
+
+    pub fn try_find_object(&self, rev: &RevSpec) -> Result<Option<ObjectKey>> {
+        match *rev {
+            RevSpec::Hash(ref hash) => {
+                match self.has_object(hash) {
+                    true => Ok(Some(hash.to_owned())),
+                    false => Ok(None),
+                }
+            }
+            RevSpec::ShortHash(ref s) => self.try_find_short_ref(s),
+        }
+    }
+
+    fn try_find_short_ref(&self, s: &str) -> Result<Option<ObjectKey>> {
         fn get_fn_str(path: &Path) -> &str {
             path.file_name()
                 .expect("should have a file_name")
                 .to_str()
                 .expect("should be ascii")
         }
-        match *rev {
-            RevSpec::Hash(ref hash) => {
-                if self.has_object(hash) {
-                    Ok(hash.to_owned())
-                } else {
-                    bail!(ErrorKind::RevNotFound(rev.to_owned()))
-                }
-            }
-            RevSpec::ShortHash(ref s) => {
-                let path = self.object_path_sloppy(s);
-                let dir = path.parent_or_err()?;
-                let short_name = get_fn_str(&path);
 
-                if !dir.exists() {
-                    bail!(ErrorKind::RevNotFound(rev.to_owned()))
-                } else {
-                    for entry in dir.read_dir()? {
-                        let entry = entry?.path();
-                        debug!("Looking for '{}', checking: {}",
-                               rev,
-                               entry.strip_prefix(&self.path)?.display());
-                        if get_fn_str(&entry).starts_with(&short_name) {
-                            return self.object_from_path(&entry);
-                        }
-                    }
-                    bail!(ErrorKind::RevNotFound(rev.to_owned()))
+        let path = self.object_path_sloppy(s);
+        let dir = path.parent_or_err()?;
+        let short_name = get_fn_str(&path);
+
+        if !dir.exists() {
+            return Ok(None);
+        } else {
+            for entry in dir.read_dir()? {
+                let entry = entry?.path();
+                debug!("Looking for '{}', checking: {}",
+                       s,
+                       entry.strip_prefix(&self.path)?.display());
+                if get_fn_str(&entry).starts_with(&short_name) {
+                    return Ok(Some(self.object_from_path(&entry)?));
                 }
             }
+            return Ok(None);
         }
     }
 
