@@ -67,16 +67,6 @@ error_chain!{
     }
 }
 
-pub trait ResultInto<T, E> {
-    fn err_into(self) -> Result<T>;
-}
-
-impl<T, E> ResultInto<T, E> for ::std::result::Result<T, E>
-    where E: Into<Error>
-{
-    fn err_into(self) -> Result<T> { self.map_err(|e| e.into()) }
-}
-
 
 type StdResult<T, E> = ::std::result::Result<T, E>;
 

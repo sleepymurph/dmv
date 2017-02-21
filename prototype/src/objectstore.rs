@@ -43,12 +43,12 @@ impl ObjectStore {
     }
 
     fn object_from_path(&self, path: &Path) -> Result<ObjectKey> {
-        path.strip_prefix(&self.path)
-            .and_then(|p| p.strip_prefix("objects"))
-            .err_into()
-            .map(|p| p.to_str().expect("should be ascii"))
-            .map(|s| s.replace("/", ""))
-            .and_then(|s| ObjectKey::parse(&s))
+        let key_path = path.strip_prefix(&self.path)
+            .and_then(|p| p.strip_prefix("objects"))?;
+        let key_str = key_path.to_str()
+            .expect("should be ascii")
+            .replace("/", "");
+        ObjectKey::parse(&key_str)
     }
 
     fn ref_path(&self, name: &str) -> PathBuf {
@@ -118,7 +118,7 @@ impl ObjectStore {
             bail!(ErrorKind::ObjectNotFound(key.to_owned()))
         }
 
-        let file = try!(fs::File::open(self.object_path(key)).err_into());
+        let file = fs::File::open(self.object_path(key))?;
         Ok(io::BufReader::new(file))
     }
 
@@ -189,7 +189,7 @@ impl ObjectStore {
                 let mut ref_str = String::new();
                 file.read_to_string(&mut ref_str).map(|_| ref_str)
             })
-            .err_into()
+            .map_err(|e| e.into())
             .and_then(|s| ObjectKey::parse(&s))
             .map(|h| Some(h))
             .chain_err(|| {
