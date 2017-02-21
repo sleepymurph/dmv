@@ -12,6 +12,7 @@ use objectstore::ObjectStore;
 use objectstore::RevSpec;
 use std::path::Path;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 pub fn init(repo_path: PathBuf) -> Result<()> {
     try!(ObjectStore::init(repo_path));
@@ -73,6 +74,8 @@ pub fn cache_status(file_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
+const HARDCODED_BRANCH: &'static str = "master";
+
 pub fn commit(repo_path: PathBuf,
               message: String,
               path: PathBuf)
@@ -99,5 +102,32 @@ pub fn commit(repo_path: PathBuf,
     let commit_hash = fs_transfer.object_store.store_object(&commit)?;
     fs_transfer.object_store.update_ref(branch, &commit_hash)?;
     println!("{} is now {}", branch, commit_hash);
+    Ok(())
+}
+
+pub fn log(repo_path: PathBuf) -> Result<()> {
+    let object_store = ObjectStore::open(repo_path)?;
+    let branch = RevSpec::from_str(HARDCODED_BRANCH)?;
+    let hash = object_store.find_object(&branch)?;
+    let mut next = Some(hash);
+    while let Some(hash) = next {
+        let handle = object_store.open_object(&hash)?;
+        match handle {
+            ObjectHandle::Commit(commit) => {
+                let commit = commit.read_content()?;
+                println!("{} {}", hash, commit.message);
+                next = match commit.parents.len() {
+                    0 => None,
+                    1 => Some(commit.parents[0]),
+                    _ => unimplemented!(),
+                }
+            }
+            other => {
+                bail!("{} is a {:?}. Expected a commit.",
+                      hash,
+                      other.header().object_type)
+            }
+        }
+    }
     Ok(())
 }

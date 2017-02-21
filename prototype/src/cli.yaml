@@ -43,4 +43,6 @@ subcommands:
                 takes_value: true
                 required: true
 
+    - log:
+
 # vim: set sts=4 sw=4 et:

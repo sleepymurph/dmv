@@ -34,6 +34,7 @@ fn run() -> Result<()> {
                 "extract-object" => cmd_extract_object,
                 "cache-status" => cmd_cache_status,
                 "commit" => cmd_commit,
+                "log" => cmd_log,
                 _ => unimplemented!(),
             };
             let submatch = argmatch.subcommand_matches(name)
@@ -105,6 +106,14 @@ fn cmd_commit(_argmatch: &clap::ArgMatches,
     let message = submatch.value_of("message").expect("required").to_owned();
     let path = env::current_dir().expect("current dir");
     cmd::commit(repo_path, message, path)
+}
+
+fn cmd_log(_argmatch: &clap::ArgMatches,
+           _submatch: &clap::ArgMatches)
+           -> Result<()> {
+
+    let repo_path = repo_path();
+    cmd::log(repo_path)
 }
 
 fn repo_path() -> PathBuf {
