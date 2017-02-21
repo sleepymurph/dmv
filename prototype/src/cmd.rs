@@ -86,8 +86,10 @@ pub fn commit(repo_path: PathBuf,
     };
     debug!("Current branch: {}. Parents: {}",
            branch,
-           parents.iter().map(|h| h.to_short())
-                .collect::<Vec<String>>().join(","));
+           parents.iter()
+               .map(|h| h.to_short())
+               .collect::<Vec<String>>()
+               .join(","));
     let tree_hash = hash_object_inner(&mut fs_transfer, &path)?;
     let commit = Commit {
         tree: tree_hash,
