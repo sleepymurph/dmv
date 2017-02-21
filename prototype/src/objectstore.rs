@@ -75,11 +75,17 @@ impl ObjectStore {
                     false => Ok(None),
                 }
             }
-            RevSpec::ShortHash(ref s) => self.try_find_short_ref(s),
+            RevSpec::ShortHash(ref s) => {
+                match self.try_find_short_hash(s) {
+                    Ok(None) => self.try_find_ref(s),
+                    other => other,
+                }
+            }
+            RevSpec::Ref(ref s) => self.try_find_ref(s),
         }
     }
 
-    fn try_find_short_ref(&self, s: &str) -> Result<Option<ObjectKey>> {
+    fn try_find_short_hash(&self, s: &str) -> Result<Option<ObjectKey>> {
         fn get_fn_str(path: &Path) -> &str {
             path.file_name()
                 .expect("should have a file_name")
@@ -175,7 +181,7 @@ impl ObjectStore {
             })
     }
 
-    pub fn try_find_ref(&mut self, name: &str) -> Result<Option<ObjectKey>> {
+    pub fn try_find_ref(&self, name: &str) -> Result<Option<ObjectKey>> {
         use std::io::Read;
         let ref_path = self.ref_path(name);
         if !ref_path.exists() {
@@ -199,21 +205,30 @@ lazy_static!{
     pub static ref SHORT_OBJECT_KEY_PAT:Regex = Regex::new(
         &format!("[[:xdigit:]]{{ {},{} }}",
                     KEY_SHORT_LEN, KEY_SIZE_HEX_DIGITS-1)).unwrap();
+
+    pub static ref REF_NAME_PAT:Regex = Regex::new("[[:word:]/-]+").unwrap();
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum RevSpec {
     Hash(ObjectKey),
     ShortHash(String),
+    Ref(String),
 }
 
 impl FromStr for RevSpec {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
+
         if OBJECT_KEY_PAT.is_match(s) {
             ObjectKey::parse(s).map(|h| RevSpec::Hash(h))
+
         } else if SHORT_OBJECT_KEY_PAT.is_match(s) {
             Ok(RevSpec::ShortHash(s.to_owned()))
+
+        } else if REF_NAME_PAT.is_match(s) {
+            Ok(RevSpec::Ref(s.to_owned()))
+
         } else {
             bail!(ErrorKind::BadRevSpec(s.to_owned()))
         }
@@ -229,6 +244,7 @@ impl fmt::Display for RevSpec {
         match *self {
             RevSpec::Hash(ref hash) => write!(f, "{:x}", hash),
             RevSpec::ShortHash(ref short) => write!(f, "{}", short),
+            RevSpec::Ref(ref refname) => write!(f, "{}", refname),
         }
     }
 }
@@ -301,6 +317,9 @@ pub mod test {
 
         let rev = RevSpec::from_str(&hash.to_short());
         assert_match!(rev, Ok(RevSpec::ShortHash(ref s)) if s=="da39a3ee");
+
+        let rev = RevSpec::from_str("master");
+        assert_match!(rev, Ok(RevSpec::Ref(ref s)) if s=="master");
     }
 
 
@@ -315,6 +334,17 @@ pub mod test {
         assert_match!(result, Ok(found) if found==hash);
 
         let rev = RevSpec::from_str(&hash.to_short()).unwrap();
+        let result = store.find_object(&rev);
+        assert_match!(result, Ok(found) if found==hash);
+
+        store.update_ref("master", &hash).unwrap();
+        let rev = RevSpec::from_str("master").unwrap();
+        let result = store.find_object(&rev);
+        assert_match!(result, Ok(found) if found==hash);
+
+        // Mistaken identity: ref that could be a short hash
+        store.update_ref("abad1dea", &hash).unwrap();
+        let rev = RevSpec::from_str("abad1dea").unwrap();
         let result = store.find_object(&rev);
         assert_match!(result, Ok(found) if found==hash);
     }
