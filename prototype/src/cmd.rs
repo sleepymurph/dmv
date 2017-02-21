@@ -79,10 +79,10 @@ pub fn commit(repo_path: PathBuf,
               -> Result<()> {
     let mut fs_transfer = ObjectFsTransfer::with_repo_path(repo_path)?;
     let branch = "master";
-    let parents = match fs_transfer.object_store.read_ref(branch) {
-        Ok(hash) => vec![hash],
-        Err(Error(ErrorKind::RefNotFound(_), _)) => vec![],
-        Err(e) => return Err(e),
+    let parents = match fs_transfer.object_store.try_find_ref(branch) {
+        Ok(Some(hash)) => vec![hash],
+        Ok(None) => vec![],
+        Err(e) => bail!(e),
     };
     debug!("Current branch: {}. Parents: {}",
            branch,

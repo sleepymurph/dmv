@@ -60,7 +60,7 @@ error_chain!{
             display("revision not found in object store: {}", r)
         }
 
-        RefNotFound(r: $crate::objectstore::RefName) {
+        RefNotFound(r: String) {
             description("ref not found in repository")
             display("ref not found in repository: {}", r)
         }

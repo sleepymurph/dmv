@@ -14,9 +14,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-pub type RefName = String;
-type RefNameBorrow = str;
-
 pub struct ObjectStore {
     path: PathBuf,
 }
@@ -54,7 +51,7 @@ impl ObjectStore {
             .and_then(|s| ObjectKey::parse(&s))
     }
 
-    fn ref_path(&self, name: &RefNameBorrow) -> PathBuf {
+    fn ref_path(&self, name: &str) -> PathBuf {
         self.path.join("refs").join(name)
     }
 
@@ -161,10 +158,7 @@ impl ObjectStore {
     }
 
 
-    pub fn update_ref(&mut self,
-                      name: &RefNameBorrow,
-                      hash: &ObjectKey)
-                      -> Result<()> {
+    pub fn update_ref(&mut self, name: &str, hash: &ObjectKey) -> Result<()> {
         use std::io::Write;
         let ref_path = self.ref_path(name);
         fsutil::create_parents(&ref_path)
@@ -181,11 +175,11 @@ impl ObjectStore {
             })
     }
 
-    pub fn read_ref(&mut self, name: &RefNameBorrow) -> Result<ObjectKey> {
+    pub fn try_find_ref(&mut self, name: &str) -> Result<Option<ObjectKey>> {
         use std::io::Read;
         let ref_path = self.ref_path(name);
         if !ref_path.exists() {
-            return Err(ErrorKind::RefNotFound(name.to_owned()).into());
+            return Ok(None);
         }
         fs::File::open(&ref_path)
             .and_then(|mut file| {
@@ -194,6 +188,7 @@ impl ObjectStore {
             })
             .err_into()
             .and_then(|s| ObjectKey::parse(&s))
+            .map(|h| Some(h))
             .chain_err(|| {
                 format!("Could not read ref path: {}", ref_path.display())
             })
@@ -285,16 +280,14 @@ pub mod test {
         let (_tempdir, mut store) = create_temp_repository().unwrap();
         let hash = Blob::from("Hello!").to_hashed().hash().to_owned();
 
-        let result = store.read_ref("master");
-        assert_match!(result,
-                    Err(Error(ErrorKind::RefNotFound(ref name), _))
-                        if name=="master");
+        let result = store.try_find_ref("master");
+        assert_match!(result, Ok(None));
 
         let result = store.update_ref("master", &hash);
         assert_match!(result, Ok(()));
 
-        let result = store.read_ref("master");
-        assert_match!(result, Ok(x) if x==hash);
+        let result = store.try_find_ref("master");
+        assert_match!(result, Ok(Some(x)) if x==hash);
     }
 
 
