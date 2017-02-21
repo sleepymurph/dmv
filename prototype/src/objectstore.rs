@@ -60,8 +60,11 @@ impl ObjectStore {
     }
 
     pub fn find_object(&self, rev: &RevSpec) -> Result<ObjectKey> {
-        self.try_find_object(rev)
-            .err_if_none(|| ErrorKind::RevNotFound(rev.to_owned()))
+        match self.try_find_object(rev) {
+            Ok(Some(x)) => Ok(x),
+            Ok(None) => bail!(ErrorKind::RevNotFound(rev.to_owned())),
+            Err(e) => bail!(e),
+        }
     }
 
     pub fn try_find_object(&self, rev: &RevSpec) -> Result<Option<ObjectKey>> {

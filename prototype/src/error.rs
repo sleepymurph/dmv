@@ -68,35 +68,6 @@ error_chain!{
 }
 
 
-type StdResult<T, E> = ::std::result::Result<T, E>;
-
-/// Additional methods for working with a Result<Option<T>,E>
-pub trait ResultOptionExt<T, E> {
-    /// Simplifies a Result+Option to a Result by turning None into an error
-    ///
-    /// ```ignore
-    /// Ok(Some(x)) => Ok(x),
-    /// Ok(None) => Err(gen_err().into()),
-    /// Err(e) => Err(e),
-    /// ```
-    fn err_if_none<O, F>(self, gen_err: O) -> StdResult<T, E>
-        where O: FnOnce() -> F,
-              F: Into<E>;
-}
-
-impl<T, E> ResultOptionExt<T, E> for StdResult<Option<T>, E> {
-    fn err_if_none<O, F>(self, gen_err: O) -> StdResult<T, E>
-        where O: FnOnce() -> F,
-              F: Into<E>
-    {
-        match self {
-            Ok(Some(x)) => Ok(x),
-            Ok(None) => Err(gen_err().into()),
-            Err(e) => Err(e),
-        }
-    }
-}
-
 /// Extensions for Paths that work with these custom errors
 pub trait PathExt {
     /// Like `parent()`, but return a Result instead of an Option
