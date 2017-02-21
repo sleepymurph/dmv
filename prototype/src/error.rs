@@ -31,14 +31,6 @@ error_chain!{
             display("could not object header: {}", msg)
         }
 
-        PathWithNoParent(p: ::std::path::PathBuf) {
-            description("path has no parent")
-            display("path has no parent: '{}'", p.display())
-        }
-        PathWithNoFileName(p: ::std::path::PathBuf) {
-            description("path has no file name component")
-            display("path has no file name component: '{}'", p.display())
-        }
         NotADirectory(p: ::std::path::PathBuf) {
             description("path is not a directory")
             display("path is not a directory: '{}'", p.display())
@@ -79,12 +71,15 @@ pub trait PathExt {
 impl PathExt for ::std::path::Path {
     fn parent_or_err(&self) -> Result<&::std::path::Path> {
         self.parent()
-            .ok_or_else(|| ErrorKind::PathWithNoParent(self.to_owned()).into())
+            .ok_or_else(|| {
+                format!("path has no parent: \"{}\"", self.display()).into()
+            })
     }
     fn file_name_or_err(&self) -> Result<&::std::ffi::OsStr> {
         self.file_name()
             .ok_or_else(|| {
-                ErrorKind::PathWithNoFileName(self.to_owned()).into()
+                format!("path has no file_name part: \"{}\"", self.display())
+                    .into()
             })
     }
 }
