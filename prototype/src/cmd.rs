@@ -1,27 +1,27 @@
 //! High-level commands
 
 use cache::AllCaches;
-use constants::HIDDEN_DIR_NAME;
 use dag::Commit;
 use dag::ObjectCommon;
 use dag::ObjectHandle;
 use dag::ObjectKey;
 use error::*;
+use find_repo::RepoLayout;
 use find_repo::find_fs_transfer;
 use find_repo::find_object_store;
 use find_repo::find_work_dir;
 use fs_transfer::ObjectFsTransfer;
 use humanreadable::human_bytes;
-use objectstore::ObjectStore;
 use objectstore::RevSpec;
 use std::env::current_dir;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
+use work_dir::WorkDir;
 
 pub fn init() -> Result<()> {
-    let path = current_dir()?.join(HIDDEN_DIR_NAME);
-    ObjectStore::init(path)?;
+    let layout = RepoLayout::in_work_dir(current_dir()?);
+    WorkDir::init(layout)?;
     Ok(())
 }
 

@@ -1,7 +1,7 @@
 //! Working Directory: Files checked out from an ObjectStore
 
-use constants::HIDDEN_DIR_NAME;
 use error::*;
+use find_repo::RepoLayout;
 use fs_transfer::ObjectFsTransfer;
 use objectstore::ObjectStore;
 use std::path::Path;
@@ -13,11 +13,17 @@ pub struct WorkDir {
 }
 
 impl WorkDir {
-    pub fn open(wd: PathBuf) -> Result<Self> {
-        let osd = wd.join(HIDDEN_DIR_NAME);
+    pub fn init(layout: RepoLayout) -> Result<Self> {
+        let os = ObjectStore::init(layout.osd)?;
         Ok(WorkDir {
-            fs_transfer: ObjectFsTransfer::with_repo_path(osd)?,
-            path: wd,
+            fs_transfer: ObjectFsTransfer::with_object_store(os),
+            path: layout.wd,
+        })
+    }
+    pub fn open(layout: RepoLayout) -> Result<Self> {
+        Ok(WorkDir {
+            fs_transfer: ObjectFsTransfer::with_repo_path(layout.osd)?,
+            path: layout.wd,
         })
     }
 
