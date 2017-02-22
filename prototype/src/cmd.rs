@@ -4,14 +4,11 @@ use cache::AllCaches;
 use dag::Commit;
 use dag::ObjectCommon;
 use dag::ObjectHandle;
-use dag::ObjectKey;
 use error::*;
 use find_repo::RepoLayout;
 use find_repo::find_fs_transfer;
 use find_repo::find_object_store;
 use find_repo::find_work_dir;
-use fs_transfer::ObjectFsTransfer;
-use humanreadable::human_bytes;
 use objectstore::RevSpec;
 use std::env::current_dir;
 use std::path::Path;
@@ -28,20 +25,9 @@ pub fn init() -> Result<()> {
 pub fn hash_object(path: PathBuf) -> Result<()> {
 
     let mut fs_transfer = find_fs_transfer()?;
-    let hash = hash_object_inner(&mut fs_transfer, &path)?;
+    let hash = fs_transfer.hash_path(&path)?;
     println!("{} {}", hash, path.display());
     Ok(())
-}
-
-fn hash_object_inner(fs_transfer: &mut ObjectFsTransfer,
-                     path: &Path)
-                     -> Result<ObjectKey> {
-    let status = fs_transfer.check_status(&path)?;
-    if status.unhashed_size() > 0 {
-        println!("{} to hash. Hashing...",
-                 human_bytes(status.unhashed_size()));
-    }
-    fs_transfer.hash_object(&path, status)
 }
 
 pub fn show_object(obj_spec: &RevSpec) -> Result<()> {
@@ -94,7 +80,7 @@ pub fn commit(message: String) -> Result<()> {
                .collect::<Vec<String>>()
                .join(","));
     let path = work_dir.path().to_owned();
-    let tree_hash = hash_object_inner(work_dir.fs_transfer(), &path)?;
+    let tree_hash = work_dir.fs_transfer().hash_path(&path)?;
     let commit = Commit {
         tree: tree_hash,
         parents: parents,

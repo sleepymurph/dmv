@@ -27,6 +27,16 @@ extern crate testutil;
 extern crate hamcrest;
 
 
+/// Write to stderr
+macro_rules! stderrln {
+    ( $($arg:expr),* ) => {{
+        use ::std::io::Write;
+        writeln!(::std::io::stderr(), $($arg),*)
+            .expect("could not write to stderr")
+    }};
+}
+
+
 /// Create and populate a map (or any struct with an insert method)
 ///
 /// Creates the struct using the given `$map_new` expression, then populates it
@@ -63,13 +73,11 @@ extern crate hamcrest;
 /// ```
 #[macro_export]
 macro_rules! map {
-    ( $map_new:expr, $( $k:expr => $v:expr,)* ) => {
-        {
+    ( $map_new:expr, $( $k:expr => $v:expr,)* ) => {{
             let mut map = $map_new;
             $( map.insert($k,$v); )*
             map
-        }
-    };
+    }};
 }
 
 // Low-level code that isn't specific to the project.

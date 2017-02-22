@@ -9,6 +9,7 @@ use dag::PartialTree;
 use dag::Tree;
 use dag::UnhashedPath;
 use error::*;
+use humanreadable::human_bytes;
 use ignore::IgnoreList;
 use objectstore::ObjectStore;
 use rollinghash::read_file_objects;
@@ -46,6 +47,15 @@ impl ObjectFsTransfer {
         Ok(ObjectFsTransfer::with_object_store(ObjectStore::open(repo_path)?))
     }
 
+    /// Check, hash, and store a file or directory
+    pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
+        let status = self.check_status(&path)?;
+        if status.unhashed_size() > 0 {
+            stderrln!("{} to hash. Hashing...",
+                      human_bytes(status.unhashed_size()));
+        }
+        self.hash_object(&path, status)
+    }
 
     pub fn check_status(&mut self, path: &Path) -> Result<HashedOrNot> {
 
@@ -277,8 +287,7 @@ mod test {
         testutil::write_file(&filepath, in_file).unwrap();
 
         // Hash input file
-        let status = fs_transfer.check_status(&filepath).unwrap();
-        let hash = fs_transfer.hash_object(&filepath, status).unwrap();
+        let hash = fs_transfer.hash_path(&filepath).unwrap();
 
         // Check the object type
         let obj = fs_transfer.object_store.open_object(&hash).unwrap();
@@ -616,8 +625,7 @@ mod test {
                 "file2" => "dir/file2 content",
         };
 
-        let status = fs_transfer.check_status(&source).unwrap();
-        let hash = fs_transfer.hash_object(&source, status).unwrap();
+        let hash = fs_transfer.hash_path(&source).unwrap();
 
         // Dir vs cached file
         let target = wd_path.join("cached_file");
