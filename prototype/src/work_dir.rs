@@ -1,5 +1,7 @@
 //! Working Directory: Files checked out from an ObjectStore
 
+use dag::Commit;
+use dag::ObjectKey;
 use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::ObjectFsTransfer;
@@ -34,4 +36,29 @@ impl WorkDir {
         &mut self.fs_transfer.object_store
     }
     pub fn path(&self) -> &Path { &self.path }
+
+    pub fn commit(&mut self, message: String) -> Result<(&str, ObjectKey)> {
+        static BRANCH: &'static str = "master";
+        let parents = match self.object_store().try_find_ref(BRANCH) {
+            Ok(Some(hash)) => vec![hash],
+            Ok(None) => vec![],
+            Err(e) => bail!(e),
+        };
+        debug!("Current BRANCH: {}. Parents: {}",
+               BRANCH,
+               parents.iter()
+                   .map(|h| h.to_short())
+                   .collect::<Vec<String>>()
+                   .join(","));
+
+        let path = self.path().to_owned();
+        let tree_hash = self.fs_transfer().hash_path(&path)?;
+        let commit = Commit {
+            tree: tree_hash,
+            parents: parents,
+            message: message,
+        };
+        let hash = self.object_store().store_object(&commit)?;
+        Ok((BRANCH, hash))
+    }
 }

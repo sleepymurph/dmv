@@ -1,7 +1,6 @@
 //! High-level commands
 
 use cache::AllCaches;
-use dag::Commit;
 use dag::ObjectCommon;
 use dag::ObjectHandle;
 use error::*;
@@ -67,28 +66,8 @@ const HARDCODED_BRANCH: &'static str = "master";
 
 pub fn commit(message: String) -> Result<()> {
     let mut work_dir = find_work_dir()?;
-    let branch = "master";
-    let parents = match work_dir.object_store().try_find_ref(branch) {
-        Ok(Some(hash)) => vec![hash],
-        Ok(None) => vec![],
-        Err(e) => bail!(e),
-    };
-    debug!("Current branch: {}. Parents: {}",
-           branch,
-           parents.iter()
-               .map(|h| h.to_short())
-               .collect::<Vec<String>>()
-               .join(","));
-    let path = work_dir.path().to_owned();
-    let tree_hash = work_dir.fs_transfer().hash_path(&path)?;
-    let commit = Commit {
-        tree: tree_hash,
-        parents: parents,
-        message: message,
-    };
-    let commit_hash = work_dir.object_store().store_object(&commit)?;
-    work_dir.object_store().update_ref(branch, &commit_hash)?;
-    println!("{} is now {}", branch, commit_hash);
+    let (branch, hash) = work_dir.commit(message)?;
+    println!("{} is now {}", branch, hash);
     Ok(())
 }
 
