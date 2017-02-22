@@ -1,6 +1,7 @@
 //! High-level commands
 
 use cache::AllCaches;
+use constants::HARDCODED_BRANCH;
 use dag::ObjectCommon;
 use dag::ObjectHandle;
 use error::*;
@@ -61,8 +62,6 @@ pub fn cache_status(file_path: PathBuf) -> Result<()> {
     println!("{:?}", cache_status);
     Ok(())
 }
-
-const HARDCODED_BRANCH: &'static str = "master";
 
 pub fn commit(message: String) -> Result<()> {
     let mut work_dir = find_work_dir()?;
