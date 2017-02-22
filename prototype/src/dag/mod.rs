@@ -8,7 +8,9 @@ use error::*;
 use humanreadable;
 use std::fmt;
 use std::io;
-use std::ops::Deref;
+
+mod object_key;
+pub use self::object_key::*;
 
 mod hash;
 pub use self::hash::*;
@@ -260,67 +262,4 @@ impl ObjectCommon for Object {
     fn pretty_print(&self) -> String {
         for_all_object_types!(*self, ref o, o.pretty_print())
     }
-}
-
-
-/// An object and its corresponding known hash
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
-pub struct HashedObject {
-    hash: ObjectKey,
-    object: Object,
-}
-
-impl_deref!(HashedObject => Object, object);
-
-impl<O: Into<Object>> From<O> for HashedObject {
-    fn from(obj: O) -> Self {
-        let obj = obj.into();
-        HashedObject {
-            hash: obj.calculate_hash(),
-            object: obj,
-        }
-    }
-}
-
-/// An object that can be hashed to yield a HashedObject
-///
-/// From is already implemented for the different object types, but this trait
-/// provides a convenient `to_hashed` chain method.
-///
-/// ```
-/// use prototype::dag;
-/// use prototype::dag::ToHashed;
-///
-/// let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
-///
-/// let hashed_by_from = dag::HashedObject::from(blob.clone());
-/// let hashed_by_chain = blob.clone().to_hashed();
-///
-/// assert_eq!(hashed_by_from, hashed_by_chain);
-/// ```
-pub trait ToHashed {
-    fn to_hashed(self) -> HashedObject;
-}
-
-impl<O: Into<Object>> ToHashed for O {
-    fn to_hashed(self) -> HashedObject { HashedObject::from(self.into()) }
-}
-
-impl HashedObject {
-    /// Get the object's hash
-    pub fn hash(&self) -> &ObjectKey { &self.hash }
-    /// Get the object itself. Also available via Deref
-    pub fn object(&self) -> &Object { &self.object }
-    /// Unwrap and return as (key,object) tuple
-    pub fn to_kv(self) -> (ObjectKey, Object) { (self.hash, self.object) }
-}
-
-impl ObjectCommon for HashedObject {
-    fn object_type(&self) -> ObjectType { self.deref().object_type() }
-    fn content_size(&self) -> ObjectSize { self.deref().content_size() }
-    fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
-        self.deref().write_content(writer)
-    }
-    fn calculate_hash(&self) -> ObjectKey { self.hash().to_owned() }
-    fn pretty_print(&self) -> String { self.deref().pretty_print() }
 }
