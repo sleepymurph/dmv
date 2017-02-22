@@ -95,26 +95,9 @@ pub fn commit(message: String) -> Result<()> {
 pub fn log() -> Result<()> {
     let object_store = find_object_store()?;
     let branch = RevSpec::from_str(HARDCODED_BRANCH)?;
-    let hash = object_store.find_object(&branch)?;
-    let mut next = Some(hash);
-    while let Some(hash) = next {
-        let handle = object_store.open_object(&hash)?;
-        match handle {
-            ObjectHandle::Commit(commit) => {
-                let commit = commit.read_content()?;
-                println!("{} {}", hash, commit.message);
-                next = match commit.parents.len() {
-                    0 => None,
-                    1 => Some(commit.parents[0]),
-                    _ => unimplemented!(),
-                }
-            }
-            other => {
-                bail!("{} is a {:?}. Expected a commit.",
-                      hash,
-                      other.header().object_type)
-            }
-        }
+    for commit in object_store.log(&branch)? {
+        let (hash, commit) = commit?;
+        println!("{} {}", hash, commit.message);
     }
     Ok(())
 }

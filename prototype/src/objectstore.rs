@@ -1,3 +1,4 @@
+use dag::Commit;
 use dag::KEY_SHORT_LEN;
 use dag::KEY_SIZE_HEX_DIGITS;
 use dag::OBJECT_KEY_PAT;
@@ -10,6 +11,7 @@ use regex::Regex;
 use std::fmt;
 use std::fs;
 use std::io;
+use std::iter::Iterator;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -130,6 +132,18 @@ impl ObjectStore {
         ObjectHandle::read_header(Box::new(file))
     }
 
+    pub fn open_commit(&self, key: &ObjectKey) -> Result<Commit> {
+        match self.open_object(key) {
+            Ok(ObjectHandle::Commit(raw)) => raw.read_content(),
+            Ok(other) => {
+                bail!("{} is a {:?}. Expected a commit.",
+                      key,
+                      other.header().object_type)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     /// Writes a single object into the object store
     ///
     /// Returns the hash key of the object
@@ -199,6 +213,13 @@ impl ObjectStore {
                 format!("Could not read ref path: {}", ref_path.display())
             })
     }
+
+    pub fn log(&self, start: &RevSpec) -> Result<Commits> {
+        Ok(Commits {
+            object_store: &self,
+            next: self.try_find_object(start)?,
+        })
+    }
 }
 
 lazy_static!{
@@ -246,6 +267,30 @@ impl fmt::Display for RevSpec {
             RevSpec::ShortHash(ref short) => write!(f, "{}", short),
             RevSpec::Ref(ref refname) => write!(f, "{}", refname),
         }
+    }
+}
+
+
+/// Iterator over commits
+pub struct Commits<'a> {
+    object_store: &'a ObjectStore,
+    next: Option<ObjectKey>,
+}
+
+impl<'a> Iterator for Commits<'a> {
+    type Item = Result<(ObjectKey, Commit)>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next.map(|hash| {
+            let result = self.object_store.open_commit(&hash);
+            if let &Ok(ref commit) = &result {
+                self.next = match commit.parents.len() {
+                    0 => None,
+                    1 => Some(commit.parents[0]),
+                    _ => unimplemented!(),
+                }
+            }
+            result.map(|commit| (hash, commit))
+        })
     }
 }
 
