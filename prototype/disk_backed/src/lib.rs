@@ -2,6 +2,9 @@
 extern crate log;
 extern crate rustc_serialize;
 
+#[cfg(test)]
+extern crate tempdir;
+
 use rustc_serialize::Decodable;
 use rustc_serialize::Encodable;
 use rustc_serialize::json;
@@ -190,6 +193,49 @@ impl<T> DerefMut for DiskBacked<T>
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use tempdir::TempDir;
+
     #[test]
-    fn it_works() {}
+    fn test_error_display() {
+        let e = DiskBackError::new(Op::Read,
+                                   "my cache",
+                                   &PathBuf::from("/tmp/some_cache_file"),
+                                   "(some cause)");
+        let display = format!("{}", e);
+        assert_eq!(display,
+                   "Error while reading my cache (/tmp/some_cache_file): \
+                    (some cause)");
+    }
+
+    #[derive(RustcEncodable, RustcDecodable, Hash, Default)]
+    struct DummyStruct(String);
+
+    #[test]
+    fn test_backed() {
+        let temp = TempDir::new("test_disk_backed").unwrap();
+        let path = temp.path().join("backing_file");
+
+        {
+            let _db = DiskBacked::<DummyStruct>::new("string".to_owned(),
+                                                     path.to_owned());
+            assert!(!path.exists(), "should not write immediately");
+        }
+        assert!(!path.exists(), "should not write if not changed");
+
+        {
+            let mut db = DiskBacked::<DummyStruct>::new("string".to_owned(),
+                                                        path.to_owned());
+            db.0 = "new string!".to_owned();
+        }
+        assert!(path.is_file(), "should auto-write after change and drop");
+
+        {
+            let db = DiskBacked::<DummyStruct>::read("string".to_owned(),
+                                                     path.to_owned());
+            assert_eq!(db.unwrap().0,
+                       "new string!",
+                       "should read previously written value");
+        }
+    }
 }
