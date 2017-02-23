@@ -168,10 +168,7 @@ impl<T> Drop for DiskBacked<T>
 {
     fn drop(&mut self) {
         self.flush().unwrap_or_else(|e| {
-            error!("Could not flush {} on drop ({}). Error: {:?}",
-                   self.desc,
-                   self.path.display(),
-                   e)
+            error!("Could not flush {} on drop: {}", self.desc, e)
         })
     }
 }
