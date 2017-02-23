@@ -271,7 +271,7 @@ impl HashCacheFile {
             .create(true)
             .truncate(true)
             .open(&self.cache_file_path));
-        try!(write!(cache_file, "{}", json::as_pretty_json(&self.cache.0)));
+        writeln!(cache_file, "{}", json::as_pretty_json(&self.cache.0))?;
         self.on_disk_state = cur_state;
         Ok(())
     }

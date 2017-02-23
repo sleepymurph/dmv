@@ -11,6 +11,8 @@ error_chain!{
             #[doc = "An error during path manipulation"];
         FromUtf8Error(::std::string::FromUtf8Error)
             #[doc = "Error converting bytes to a String"];
+        JsonDecodeError(::rustc_serialize::json::DecoderError)
+            #[doc = "Error while decoding json"];
     }
     errors {
         BadRevSpec(bad: String) {
