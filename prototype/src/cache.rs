@@ -97,13 +97,11 @@ pub struct FileStats {
     mtime: encodable::SystemTime,
 }
 
-/// A file-backed cache that saves updates on drop
-pub struct HashCacheFile(DiskBacked<HashCache>);
-
 /// Cache of caches
 pub struct AllCaches {
     // TODO: Use an actual cache that can purge entries
-    directory_caches: collections::HashMap<path::PathBuf, HashCacheFile>,
+    directory_caches: collections::HashMap<path::PathBuf,
+                                           DiskBacked<HashCache>>,
 }
 
 // HashCache
@@ -199,44 +197,6 @@ impl From<fs::Metadata> for FileStats {
     }
 }
 
-// HashCacheFile
-
-impl_deref_mut!(HashCacheFile => HashCache, 0);
-
-impl HashCacheFile {
-    /// Create/open a cache file at a specific location
-    pub fn open(cache_file_path: path::PathBuf) -> Result<Self> {
-        DiskBacked::read_or_default("cache", cache_file_path)
-            .map(|db| HashCacheFile(db))
-            .map_err(|e| e.into())
-    }
-
-    /// Create/open a cache file in the given directory
-    ///
-    /// The file will be named according to `constants::CACHE_FILE_NAME`.
-    pub fn open_in_dir(dir_path: &path::Path) -> Result<Self> {
-        Self::open(dir_path.join(constants::CACHE_FILE_NAME))
-    }
-
-    /// Create/open a cache file in the parent directory of the given file
-    ///
-    /// For this app, cache files for files in a directory are stored in that
-    /// directory. This is a convenience method to find/create the cache file
-    /// responsible for the given file.
-    pub fn open_in_parent_dir(child_path: &path::Path) -> Result<Self> {
-        let dir_path = try!(child_path.parent_or_err());
-        Self::open_in_dir(dir_path)
-    }
-
-    pub fn flush(&mut self) -> Result<()> {
-        self.0.flush().map_err(|e| e.into())
-    }
-}
-
-impl ops::Drop for HashCacheFile {
-    fn drop(&mut self) { self.flush().expect("Could not flush hash file") }
-}
-
 // AllCaches
 
 impl AllCaches {
@@ -246,9 +206,10 @@ impl AllCaches {
 
     fn cache_for_dir(&mut self,
                      dir_path: &path::Path)
-                     -> Result<&mut HashCacheFile> {
+                     -> Result<&mut DiskBacked<HashCache>> {
         if self.directory_caches.get(dir_path).is_none() {
-            let cache_file = try!(HashCacheFile::open_in_dir(dir_path));
+            let cache_path = dir_path.join(constants::CACHE_FILE_NAME);
+            let cache_file = DiskBacked::read_or_default("cache", cache_path)?;
             self.directory_caches.insert(dir_path.into(), cache_file);
         }
         Ok(self.directory_caches.get_mut(dir_path).expect("just inserted"))
@@ -309,71 +270,5 @@ mod test {
         let encoded = json::encode(&obj).unwrap();
         let decoded: HashCache = json::decode(&encoded).unwrap();
         assert_eq!(decoded, obj);
-    }
-
-    #[test]
-    fn test_hash_cache_file() {
-        // Define some test values to use later
-        let path0 = path::PathBuf::from("patha/x");
-        let stats0 = FileStats {
-            mtime: encodable::SystemTime::unix_epoch_plus(120, 55),
-            size: 12345,
-        };
-        let hash0 = parse_hash("d3486ae9136e7856bc42212385ea797094475802");
-
-        let path1 = path::PathBuf::from("pathb/y");
-        let stats1 = FileStats {
-            mtime: encodable::SystemTime::unix_epoch_plus(60, 22),
-            size: 54321,
-        };
-        let hash1 = parse_hash("e030a4b3fdc15cdcbf9026d83b84c2b4b93309af");
-
-        // Create temporary directory
-
-        let tempdir = testutil::in_mem_tempdir("cache_test").unwrap();
-        let cache_file_path = tempdir.path().join("cache");
-
-        {
-            // Open nonexistent cache file
-            let mut cache_file = HashCacheFile::open(cache_file_path.clone())
-                .expect("Open non-existent cache file");
-            assert!(cache_file.is_empty(), "New cache should be empty");
-
-            // Insert a value and let the destructor flush the file
-            cache_file
-                .insert_entry(path0.clone(), stats0.clone(), hash0.clone());
-        }
-
-        assert!(cache_file_path.is_file(), "New cache should be saved");
-
-        {
-            // Open the existing cache file
-            let mut cache_file = HashCacheFile::open(cache_file_path.clone())
-                .expect("Re-open cache file for firts time");
-            assert!(!cache_file.is_empty(), "Read cache should not be empty");
-            {
-                let entry = cache_file.get(&path0).unwrap();
-
-                assert_eq!(entry.filestats, stats0);
-                assert_eq!(entry.hash, hash0);
-            }
-
-            // Insert another value and let the destructor flush the file
-            cache_file
-                .insert_entry(path1.clone(), stats1.clone(), hash1.clone());
-        }
-
-        {
-            // Re-open the existing cache file
-            let cache_file = HashCacheFile::open(cache_file_path.clone())
-                .expect("Re-open cache file for second time");
-            {
-                let entry = cache_file.get(&path1).unwrap();
-
-                assert_eq!(entry.filestats, stats1);
-                assert_eq!(entry.hash, hash1);
-            }
-        }
-
     }
 }
