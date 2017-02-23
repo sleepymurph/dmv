@@ -16,21 +16,6 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 
-#[derive(Debug,Clone)]
-pub struct MetaData {
-    desc: String,
-    path: PathBuf,
-}
-
-impl MetaData {
-    fn new(desc: String, path: PathBuf) -> Self {
-        MetaData {
-            desc: desc,
-            path: path,
-        }
-    }
-}
-
 #[derive(Debug,Clone,Copy)]
 pub enum Op {
     Read,
@@ -47,7 +32,7 @@ pub struct DiskBackError {
 }
 
 impl DiskBackError {
-    fn new<E>(during: Op, data_desc: &String, path: &Path, cause: E) -> Self
+    fn new<E>(during: Op, data_desc: &str, path: &Path, cause: E) -> Self
         where E: Into<Box<Error>>
     {
         DiskBackError {
@@ -81,34 +66,33 @@ impl Error for DiskBackError {
 
 type Result<T> = ::std::result::Result<T, DiskBackError>;
 
-fn write<T>(meta: &MetaData, data: &T) -> Result<()>
+fn write<T>(desc: &str, path: &Path, data: &T) -> Result<()>
     where T: Encodable
 {
     OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
-        .open(&meta.path)
+        .open(path)
         .and_then(|mut file| writeln!(file, "{}", json::as_pretty_json(data)))
-        .map_err(|e| DiskBackError::new(Op::Write, &meta.desc, &meta.path, e))
+        .map_err(|e| DiskBackError::new(Op::Write, desc, path, e))
 }
 
-fn read<T>(meta: &MetaData) -> Result<T>
+fn read<T>(desc: &str, path: &Path) -> Result<T>
     where T: Decodable
 {
     OpenOptions::new()
         .read(true)
-        .open(&meta.path)
+        .open(path)
         .and_then(|mut file| {
             let mut json = String::new();
             file.read_to_string(&mut json)
                 .and(Ok(json))
         })
-        .map_err(|e| DiskBackError::new(Op::Read, &meta.desc, &meta.path, e))
+        .map_err(|e| DiskBackError::new(Op::Read, desc, path, e))
         .and_then(|json| {
-            json::decode::<T>(&json).map_err(|e| {
-                DiskBackError::new(Op::Read, &meta.desc, &meta.path, e)
-            })
+            json::decode::<T>(&json)
+                .map_err(|e| DiskBackError::new(Op::Read, desc, path, e))
         })
 }
 
@@ -123,7 +107,8 @@ fn hash<T>(data: &T) -> u64
 pub struct DiskBacked<T>
     where T: Encodable + Decodable + Hash
 {
-    meta: MetaData,
+    desc: String,
+    path: PathBuf,
     data: T,
     disk_state: u64,
 }
@@ -132,39 +117,37 @@ impl<T> DiskBacked<T>
     where T: Encodable + Decodable + Hash + Default
 {
     pub fn new(desc: String, path: PathBuf) -> Self {
-        let meta = MetaData::new(desc, path);
         let data = T::default();
-        DiskBacked::construct(meta, data)
+        DiskBacked::construct(desc, path, data)
     }
 }
 
 impl<T> DiskBacked<T>
     where T: Encodable + Decodable + Hash
 {
-    fn construct(meta: MetaData, data: T) -> Self {
+    fn construct(desc: String, path: PathBuf, data: T) -> Self {
         DiskBacked {
-            meta: meta,
+            desc: desc,
+            path: path,
             disk_state: hash(&data),
             data: data,
         }
     }
 
     pub fn init(desc: String, path: PathBuf, data: T) -> Self {
-        let meta = MetaData::new(desc, path);
-        DiskBacked::construct(meta, data)
+        DiskBacked::construct(desc, path, data)
     }
 
     pub fn read(desc: String, path: PathBuf) -> Result<Self> {
         debug!("Reading {}: {}", desc, path.display());
-        let meta = MetaData::new(desc, path);
-        let data: T = read(&meta)?;
-        Ok(DiskBacked::construct(meta, data))
+        let data: T = read(&desc, &path)?;
+        Ok(DiskBacked::construct(desc, path, data))
     }
 
     pub fn write(&mut self) -> Result<()> {
         let new_hash = hash(&self.data);
-        debug!("Writing {}: {}", self.meta.desc, self.meta.path.display());
-        write(&self.meta, &self.data)?;
+        debug!("Writing {}: {}", self.desc, self.path.display());
+        write(&self.desc, &self.path, &self.data)?;
         self.disk_state = new_hash;
         Ok(())
     }
@@ -172,13 +155,11 @@ impl<T> DiskBacked<T>
     pub fn flush(&mut self) -> Result<()> {
         let new_hash = hash(&self.data);
         if new_hash != self.disk_state {
-            debug!("Flushing {}: {}", self.meta.desc, self.meta.path.display());
-            write(&self.meta, &self.data)?;
+            debug!("Flushing {}: {}", self.desc, self.path.display());
+            write(&self.desc, &self.path, &self.data)?;
             self.disk_state = new_hash;
         } else {
-            debug!("{} unchanged: {}",
-                   self.meta.desc,
-                   self.meta.path.display());
+            debug!("{} unchanged: {}", self.desc, self.path.display());
         }
         Ok(())
     }
@@ -190,8 +171,8 @@ impl<T> Drop for DiskBacked<T>
     fn drop(&mut self) {
         self.flush().unwrap_or_else(|e| {
             error!("Could not flush {} on drop ({}). Error: {:?}",
-                   self.meta.desc,
-                   self.meta.path.display(),
+                   self.desc,
+                   self.path.display(),
                    e)
         })
     }
