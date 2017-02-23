@@ -13,6 +13,8 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::io::Read;
 use std::io::Write;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -171,6 +173,19 @@ impl<T> Drop for DiskBacked<T>
             error!("Could not flush {} on drop: {}", self.desc, e)
         })
     }
+}
+
+impl<T> Deref for DiskBacked<T>
+    where T: Encodable + Decodable + Hash
+{
+    type Target = T;
+    fn deref(&self) -> &T { &self.data }
+}
+
+impl<T> DerefMut for DiskBacked<T>
+    where T: Encodable + Decodable + Hash
+{
+    fn deref_mut(&mut self) -> &mut T { &mut self.data }
 }
 
 #[cfg(test)]
