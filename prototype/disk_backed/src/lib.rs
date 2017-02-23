@@ -4,26 +4,27 @@
 //! from disk on initialization and flushed on drop.
 //!
 //! ```
-//! extern crate tempdir;
-//! extern crate disk_backed;
+//! # extern crate tempdir;
+//! # extern crate disk_backed;
+//! # use disk_backed::DiskBacked;
+//! # fn main() {
+//! let temp = tempdir::TempDir::new("test_disk_backed").unwrap();
+//! let path = temp.path().join("backing_file");
 //!
-//! fn main() {
-//!     let temp = tempdir::TempDir::new("test_disk_backed").unwrap();
-//!     let path = temp.path().join("backing_file");
-//!
-//!     {
-//!         let backed_str = disk_backed::DiskBacked::init(
-//!                             "backed string", path.to_owned(),
-//!                             "hello world!".to_owned());
-//!     }
-//!     assert!(path.is_file(), "will write backing file on drop");
-//!     {
-//!         let backed_str = disk_backed::DiskBacked::<String>::read(
-//!                             "backed string", path.to_owned());
-//!         assert_eq!(backed_str.unwrap(), "hello world!",
-//!             "will read on initialization");
-//!     }
+//! {
+//!     let backed_str = DiskBacked::init("backed string",
+//!                                       path.to_owned(),
+//!                                       "hello world!".to_owned());
 //! }
+//! assert!(path.is_file(), "will write backing file on drop");
+//! {
+//!     let backed_str = DiskBacked::<String>::read("backed string",
+//!                                                 path.to_owned());
+//!     assert_eq!(backed_str.unwrap(),
+//!                "hello world!",
+//!                "will read on initialization");
+//! }
+//! # }
 //! ```
 //!
 
