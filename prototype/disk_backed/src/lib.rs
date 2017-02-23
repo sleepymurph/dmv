@@ -1,6 +1,4 @@
 #[macro_use]
-extern crate error_chain;
-#[macro_use]
 extern crate log;
 extern crate rustc_serialize;
 
@@ -8,11 +6,14 @@ use rustc_serialize::Decodable;
 use rustc_serialize::Encodable;
 use rustc_serialize::json;
 use std::collections::hash_map::DefaultHasher;
+use std::error::Error;
+use std::fmt;
 use std::fs::OpenOptions;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::io::Read;
 use std::io::Write;
+use std::path::Path;
 use std::path::PathBuf;
 
 #[derive(Debug,Clone)]
@@ -30,26 +31,55 @@ impl MetaData {
     }
 }
 
-error_chain!{
-    foreign_links {
-        IoError(::std::io::Error)
-            #[doc = "Error caused by an underlying IO error"];
-        JsonDecodeError(::rustc_serialize::json::DecoderError)
-            #[doc = "Error while decoding json"];
-    }
-    errors {
-        /// Error while reading data from disk
-        ReadError(m: MetaData) {
-            description("could not read data file")
-            display("could not read {}: {}", m.desc, m.path.display())
-        }
-        /// Error while writing data to disk
-        WriteError(m: MetaData) {
-            description("could not write data file")
-            display("could not write {}: {}", m.desc, m.path.display())
+#[derive(Debug,Clone,Copy)]
+pub enum Op {
+    Read,
+    Write,
+    Flush,
+}
+
+#[derive(Debug)]
+pub struct DiskBackError {
+    during: Op,
+    data_desc: String,
+    path: PathBuf,
+    cause: Box<Error>,
+}
+
+impl DiskBackError {
+    fn new<E>(during: Op, data_desc: &String, path: &Path, cause: E) -> Self
+        where E: Into<Box<Error>>
+    {
+        DiskBackError {
+            during: during,
+            data_desc: data_desc.to_owned(),
+            path: path.to_owned(),
+            cause: cause.into(),
         }
     }
 }
+
+impl fmt::Display for DiskBackError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,
+               "Error while {} {} ({}): {}",
+               match self.during {
+                   Op::Read => "reading",
+                   Op::Write => "writing",
+                   Op::Flush => "flushing",
+               },
+               self.data_desc,
+               self.path.display(),
+               self.cause)
+    }
+}
+
+impl Error for DiskBackError {
+    fn description(&self) -> &str { "error read/writing DiskBacked data" }
+    fn cause(&self) -> Option<&Error> { Some(&*self.cause) }
+}
+
+type Result<T> = ::std::result::Result<T, DiskBackError>;
 
 fn write<T>(meta: &MetaData, data: &T) -> Result<()>
     where T: Encodable
@@ -60,7 +90,7 @@ fn write<T>(meta: &MetaData, data: &T) -> Result<()>
         .truncate(true)
         .open(&meta.path)
         .and_then(|mut file| writeln!(file, "{}", json::as_pretty_json(data)))
-        .chain_err(|| ErrorKind::WriteError(meta.to_owned()))
+        .map_err(|e| DiskBackError::new(Op::Write, &meta.desc, &meta.path, e))
 }
 
 fn read<T>(meta: &MetaData) -> Result<T>
@@ -69,15 +99,17 @@ fn read<T>(meta: &MetaData) -> Result<T>
     OpenOptions::new()
         .read(true)
         .open(&meta.path)
-        .map_err(|e| Error::from(e))
         .and_then(|mut file| {
             let mut json = String::new();
             file.read_to_string(&mut json)
                 .and(Ok(json))
-                .map_err(|e| e.into())
         })
-        .and_then(|json| json::decode::<T>(&json).map_err(|e| e.into()))
-        .chain_err(|| ErrorKind::ReadError(meta.to_owned()))
+        .map_err(|e| DiskBackError::new(Op::Read, &meta.desc, &meta.path, e))
+        .and_then(|json| {
+            json::decode::<T>(&json).map_err(|e| {
+                DiskBackError::new(Op::Read, &meta.desc, &meta.path, e)
+            })
+        })
 }
 
 fn hash<T>(data: &T) -> u64
