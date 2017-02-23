@@ -64,12 +64,12 @@ pub struct DiskBackError {
     during: Op,
     data_desc: String,
     path: PathBuf,
-    cause: Box<Error>,
+    cause: Box<Error + Send + Sync>,
 }
 
 impl DiskBackError {
     fn new<E>(during: Op, data_desc: &str, path: &Path, cause: E) -> Self
-        where E: Into<Box<Error>>
+        where E: Into<Box<Error + Send + Sync>>
     {
         DiskBackError {
             during: during,

@@ -6,6 +6,7 @@
 // Dependencies
 extern crate byteorder;
 extern crate crypto;
+extern crate disk_backed;
 #[macro_use]
 extern crate error_chain;
 extern crate humanreadable;

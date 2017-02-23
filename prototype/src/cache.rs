@@ -1,5 +1,6 @@
 use constants;
 use dag;
+use disk_backed::DiskBacked;
 use encodable;
 use error::*;
 use rustc_serialize;
@@ -78,7 +79,7 @@ type CacheMap = collections::HashMap<encodable::PathBuf, CacheEntry>;
 
 wrapper_struct!{
 /// A cache of known file hashes
-#[derive(Clone,Eq,PartialEq,Debug)]
+#[derive(Clone,Eq,PartialEq,Debug,Default)]
 pub struct HashCache(CacheMap);
 }
 
@@ -97,14 +98,7 @@ pub struct FileStats {
 }
 
 /// A file-backed cache that saves updates on drop
-pub struct HashCacheFile {
-    /// Path to the file that backs this cache
-    cache_file_path: path::PathBuf,
-    /// The cache map itself
-    cache: HashCache,
-    /// A hash of the cache's state on disk, to prevent unnecessary writes
-    on_disk_state: u64,
-}
+pub struct HashCacheFile(DiskBacked<HashCache>);
 
 /// Cache of caches
 pub struct AllCaches {
@@ -207,39 +201,14 @@ impl From<fs::Metadata> for FileStats {
 
 // HashCacheFile
 
-impl_deref_mut!(HashCacheFile => HashCache, cache);
+impl_deref_mut!(HashCacheFile => HashCache, 0);
 
 impl HashCacheFile {
     /// Create/open a cache file at a specific location
     pub fn open(cache_file_path: path::PathBuf) -> Result<Self> {
-        let cache_file_exists = cache_file_path.exists();
-
-        let cache_map = if cache_file_exists {
-            debug!("Opening cache: {} (existing)", cache_file_path.display());
-            let mut cache_file = try!(fs::OpenOptions::new()
-                .read(true)
-                .open(&cache_file_path));
-
-            let mut json_str = String::new();
-            try!(cache_file.read_to_string(&mut json_str));
-            try!(json::decode(&json_str).map_err(|e| {
-                ErrorKind::CorruptCacheFile {
-                    cache_file: cache_file_path.to_owned(),
-                    cause: e,
-                    bad_json: json_str,
-                }
-            }))
-        } else {
-            debug!("Opening cache: {} (new)", cache_file_path.display());
-            CacheMap::new()
-        };
-        let cache_map = HashCache(cache_map);
-
-        Ok(HashCacheFile {
-            cache_file_path: cache_file_path,
-            on_disk_state: cache_map.calculate_hash(),
-            cache: cache_map,
-        })
+        DiskBacked::read_or_default("cache", cache_file_path)
+            .map(|db| HashCacheFile(db))
+            .map_err(|e| e.into())
     }
 
     /// Create/open a cache file in the given directory
@@ -260,20 +229,7 @@ impl HashCacheFile {
     }
 
     pub fn flush(&mut self) -> Result<()> {
-        let cur_state = self.cache.calculate_hash();
-        if cur_state == self.on_disk_state {
-            debug!("Cache unchanged: {}", self.cache_file_path.display());
-            return Ok(());
-        }
-        debug!("Writing cache: {}", self.cache_file_path.display());
-        let mut cache_file = try!(fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&self.cache_file_path));
-        writeln!(cache_file, "{}", json::as_pretty_json(&self.cache.0))?;
-        self.on_disk_state = cur_state;
-        Ok(())
+        self.0.flush().map_err(|e| e.into())
     }
 }
 

@@ -23,6 +23,7 @@ regex = "0.2"
 rust-crypto = "0.2"
 rustc-serialize = "0.3"
 
+disk_backed = { path = "disk_backed" }
 humanreadable = { path = "humanreadable" }
 wrapperstruct = { path = "wrapperstruct" }
 
