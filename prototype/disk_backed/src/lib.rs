@@ -1,3 +1,32 @@
+//! A container for data that is backed by file on disk
+//!
+//! This crate provides the DiskBacked type, a container for data that is read
+//! from disk on initialization and flushed on drop.
+//!
+//! ```
+//! extern crate tempdir;
+//! extern crate disk_backed;
+//!
+//! fn main() {
+//!     let temp = tempdir::TempDir::new("test_disk_backed").unwrap();
+//!     let path = temp.path().join("backing_file");
+//!
+//!     {
+//!         let backed_str = disk_backed::DiskBacked::init(
+//!                             "backed string", path.to_owned(),
+//!                             "hello world!".to_owned());
+//!     }
+//!     assert!(path.is_file(), "will write backing file on drop");
+//!     {
+//!         let backed_str = disk_backed::DiskBacked::<String>::read(
+//!                             "backed string", path.to_owned());
+//!         assert_eq!(backed_str.unwrap(), "hello world!",
+//!             "will read on initialization");
+//!     }
+//! }
+//! ```
+//!
+
 #[macro_use]
 extern crate log;
 extern crate rustc_serialize;
@@ -119,7 +148,7 @@ pub struct DiskBacked<T>
 impl<T> DiskBacked<T>
     where T: Encodable + Decodable + Hash + Default
 {
-    pub fn new(desc: String, path: PathBuf) -> Self {
+    pub fn new(desc: &str, path: PathBuf) -> Self {
         let data = T::default();
         DiskBacked::construct(desc, path, data)
     }
@@ -128,20 +157,25 @@ impl<T> DiskBacked<T>
 impl<T> DiskBacked<T>
     where T: Encodable + Decodable + Hash
 {
-    fn construct(desc: String, path: PathBuf, data: T) -> Self {
+    fn construct(desc: &str, path: PathBuf, data: T) -> Self {
         DiskBacked {
-            desc: desc,
+            desc: desc.to_owned(),
             path: path,
             disk_state: hash(&data),
             data: data,
         }
     }
 
-    pub fn init(desc: String, path: PathBuf, data: T) -> Self {
-        DiskBacked::construct(desc, path, data)
+    pub fn init(desc: &str, path: PathBuf, data: T) -> Self {
+        DiskBacked {
+            desc: desc.to_owned(),
+            path: path,
+            disk_state: hash(&data) + 1, // Ensure dirty state
+            data: data,
+        }
     }
 
-    pub fn read(desc: String, path: PathBuf) -> Result<Self> {
+    pub fn read(desc: &str, path: PathBuf) -> Result<Self> {
         debug!("Reading {}: {}", desc, path.display());
         let data: T = read(&desc, &path)?;
         Ok(DiskBacked::construct(desc, path, data))
@@ -191,6 +225,25 @@ impl<T> DerefMut for DiskBacked<T>
     fn deref_mut(&mut self) -> &mut T { &mut self.data }
 }
 
+impl<T, U> PartialEq<U> for DiskBacked<T>
+    where T: Encodable + Decodable + Hash + PartialEq<U>
+{
+    fn eq(&self, other: &U) -> bool { self.data.eq(other) }
+}
+
+impl<T> fmt::Debug for DiskBacked<T>
+    where T: Encodable + Decodable + Hash + fmt::Debug
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("DiskBacked")
+            .field("desc", &self.desc)
+            .field("path", &self.path)
+            .field("data", &self.data)
+            .finish()
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,33 +261,52 @@ mod tests {
                     (some cause)");
     }
 
-    #[derive(RustcEncodable, RustcDecodable, Hash, Default)]
-    struct DummyStruct(String);
-
     #[test]
-    fn test_backed() {
+    fn test_backed_default() {
         let temp = TempDir::new("test_disk_backed").unwrap();
         let path = temp.path().join("backing_file");
 
         {
-            let _db = DiskBacked::<DummyStruct>::new("string".to_owned(),
-                                                     path.to_owned());
+            let _db = DiskBacked::<String>::new("string", path.to_owned());
             assert!(!path.exists(), "should not write immediately");
         }
-        assert!(!path.exists(), "should not write if not changed");
+
+        assert!(!path.exists(),
+                "should not write if initialized with default");
 
         {
-            let mut db = DiskBacked::<DummyStruct>::new("string".to_owned(),
-                                                        path.to_owned());
-            db.0 = "new string!".to_owned();
+            let mut db = DiskBacked::<String>::new("string", path.to_owned());
+            db.push_str("hello world!");
         }
+
         assert!(path.is_file(), "should auto-write after change and drop");
 
         {
-            let db = DiskBacked::<DummyStruct>::read("string".to_owned(),
-                                                     path.to_owned());
-            assert_eq!(db.unwrap().0,
-                       "new string!",
+            let db = DiskBacked::<String>::read("string", path.to_owned());
+            assert_eq!(db.unwrap(),
+                       "hello world!",
+                       "should read previously written value");
+        }
+    }
+
+    #[test]
+    fn test_backed_init() {
+        let temp = TempDir::new("test_disk_backed").unwrap();
+        let path = temp.path().join("backing_file");
+
+        {
+            let _db = DiskBacked::<String>::init("backed string",
+                                                 path.to_owned(),
+                                                 "hello world!".to_owned());
+            assert!(!path.exists(), "should not write immediately");
+        }
+
+        assert!(path.is_file(), "should write when explicitly initialized");
+
+        {
+            let db = DiskBacked::<String>::read("string", path.to_owned());
+            assert_eq!(db.unwrap(),
+                       "hello world!",
                        "should read previously written value");
         }
     }
