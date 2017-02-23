@@ -210,7 +210,7 @@ impl<T> DiskBacked<T>
 
     /// Initialize from disk, or return Err if the file does not exist
     pub fn read(desc: &str, path: PathBuf) -> Result<Self> {
-        debug!("Reading {}: {}", desc, path.display());
+        debug!("Reading   {}: {}", desc, path.display());
         let data: T = read(&desc, &path)?;
         Ok(DiskBacked::construct(desc, path, data))
     }
@@ -227,11 +227,11 @@ impl<T> DiskBacked<T>
     pub fn flush(&mut self) -> Result<()> {
         let new_hash = hash(&self.data);
         if new_hash != self.disk_hash {
-            debug!("Flushing {}: {}", self.desc, self.path.display());
+            debug!("Flushing  {}: {}", self.desc, self.path.display());
             write(&self.desc, &self.path, &self.data)?;
             self.disk_hash = new_hash;
         } else {
-            debug!("{} unchanged: {}", self.desc, self.path.display());
+            debug!("Unchanged {}: {}", self.desc, self.path.display());
         }
         Ok(())
     }
@@ -239,7 +239,7 @@ impl<T> DiskBacked<T>
     /// Write the data to disk, whether it has been updated or not
     pub fn write(&mut self) -> Result<()> {
         let new_hash = hash(&self.data);
-        debug!("Writing {}: {}", self.desc, self.path.display());
+        debug!("Writing   {}: {}", self.desc, self.path.display());
         write(&self.desc, &self.path, &self.data)?;
         self.disk_hash = new_hash;
         Ok(())
