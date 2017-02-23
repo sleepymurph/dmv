@@ -340,16 +340,6 @@ mod test {
     use super::*;
     use testutil;
 
-    /// PathBufs are serialized as byte arrays instead of strings. Booo.
-    #[test]
-    fn test_serialize_pathbuf() {
-        let obj = path::PathBuf::from("hello");
-        let encoded = json::encode(&obj).unwrap();
-        assert_eq!(encoded, "[104,101,108,108,111]");
-        let decoded: path::PathBuf = json::decode(&encoded).unwrap();
-        assert_eq!(decoded, obj);
-    }
-
     #[test]
     fn test_serialize_filecache() {
         let mut obj = HashCache::new();
