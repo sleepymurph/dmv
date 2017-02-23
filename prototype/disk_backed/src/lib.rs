@@ -435,4 +435,21 @@ mod tests {
                        "should use file value when file is present");
         }
     }
+
+    #[test]
+    fn test_bad_json_error() {
+        let temp = TempDir::new("test_disk_backed").unwrap();
+        let path = temp.path().join("backing_file");
+        {
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(&path)
+                .unwrap();
+            write!(file, "}} bad json! {{").unwrap();
+        }
+        let db = DiskBacked::<String>::read("string", path.to_owned());
+        assert!(db.is_err(), "should give error on read if corrupt file");
+        // panic!(format!("{}", db.err().unwrap()));
+    }
 }
