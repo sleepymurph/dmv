@@ -45,4 +45,12 @@ subcommands:
 
     - log:
 
+    - branch:
+        args:
+            - branch-name:
+                index: 1
+
+            - target-rev:
+                index: 2
+
 # vim: set sts=4 sw=4 et:

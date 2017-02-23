@@ -33,6 +33,7 @@ fn run() -> Result<()> {
                 "cache-status" => cmd_cache_status,
                 "commit" => cmd_commit,
                 "log" => cmd_log,
+                "branch" => cmd_branch,
                 _ => unimplemented!(),
             };
             let submatch = argmatch.subcommand_matches(name)
@@ -99,4 +100,20 @@ fn cmd_log(_argmatch: &clap::ArgMatches,
            _submatch: &clap::ArgMatches)
            -> Result<()> {
     cmd::log()
+}
+
+fn cmd_branch(_argmatch: &clap::ArgMatches,
+              submatch: &clap::ArgMatches)
+              -> Result<()> {
+    let branch_name = submatch.value_of("branch-name");
+    let target_rev = submatch.value_of("target-rev");
+    match (branch_name, target_rev) {
+        (None, None) => cmd::branch_list(),
+        (Some(branch_name), None) => cmd::branch_set_to_head(branch_name),
+        (Some(branch_name), Some(target)) => {
+            let target = RevSpec::from_str(target)?;
+            cmd::branch_set(branch_name, target)
+        }
+        (None, Some(_)) => unreachable!(),
+    }
 }

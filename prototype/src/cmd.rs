@@ -79,3 +79,21 @@ pub fn log() -> Result<()> {
     }
     Ok(())
 }
+
+pub fn branch_list() -> Result<()> {
+    let mut work_dir = find_work_dir()?;
+    // TODO: List branches
+    Ok(())
+}
+
+pub fn branch_set(branch_name: &str, target: RevSpec) -> Result<()> {
+    let mut work_dir = find_work_dir()?;
+    // TODO: Create branch at specified target
+    Ok(())
+}
+
+pub fn branch_set_to_head(branch_name: &str) -> Result<()> {
+    let mut work_dir = find_work_dir()?;
+    // TODO: Create branch at current head
+    Ok(())
+}
