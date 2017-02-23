@@ -17,10 +17,9 @@ use std::path::Path;
 use std::path::PathBuf;
 
 #[derive(Debug,Clone,Copy)]
-pub enum Op {
+enum Op {
     Read,
     Write,
-    Flush,
 }
 
 #[derive(Debug)]
@@ -51,7 +50,6 @@ impl fmt::Display for DiskBackError {
                match self.during {
                    Op::Read => "reading",
                    Op::Write => "writing",
-                   Op::Flush => "flushing",
                },
                self.data_desc,
                self.path.display(),
