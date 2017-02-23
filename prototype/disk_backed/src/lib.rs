@@ -142,7 +142,7 @@ pub struct DiskBacked<T>
     desc: String,
     path: PathBuf,
     data: T,
-    disk_state: u64,
+    disk_hash: u64,
 }
 
 impl<T> DiskBacked<T>
@@ -161,7 +161,7 @@ impl<T> DiskBacked<T>
         DiskBacked {
             desc: desc.to_owned(),
             path: path,
-            disk_state: hash(&data),
+            disk_hash: hash(&data),
             data: data,
         }
     }
@@ -170,7 +170,7 @@ impl<T> DiskBacked<T>
         DiskBacked {
             desc: desc.to_owned(),
             path: path,
-            disk_state: hash(&data) + 1, // Ensure dirty state
+            disk_hash: hash(&data) + 1, // Ensure dirty state
             data: data,
         }
     }
@@ -185,16 +185,16 @@ impl<T> DiskBacked<T>
         let new_hash = hash(&self.data);
         debug!("Writing {}: {}", self.desc, self.path.display());
         write(&self.desc, &self.path, &self.data)?;
-        self.disk_state = new_hash;
+        self.disk_hash = new_hash;
         Ok(())
     }
 
     pub fn flush(&mut self) -> Result<()> {
         let new_hash = hash(&self.data);
-        if new_hash != self.disk_state {
+        if new_hash != self.disk_hash {
             debug!("Flushing {}: {}", self.desc, self.path.display());
             write(&self.desc, &self.path, &self.data)?;
-            self.disk_state = new_hash;
+            self.disk_hash = new_hash;
         } else {
             debug!("{} unchanged: {}", self.desc, self.path.display());
         }
@@ -238,6 +238,8 @@ impl<T> fmt::Debug for DiskBacked<T>
         f.debug_struct("DiskBacked")
             .field("desc", &self.desc)
             .field("path", &self.path)
+            .field("disk_hash", &self.disk_hash)
+            .field("current_hash", &hash(&self.data))
             .field("data", &self.data)
             .finish()
     }
