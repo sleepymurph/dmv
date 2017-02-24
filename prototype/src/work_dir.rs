@@ -65,9 +65,8 @@ impl WorkDir {
     pub fn commit(&mut self, message: String) -> Result<(&str, ObjectKey)> {
         let parents = match self.object_store()
             .try_find_ref(HARDCODED_BRANCH) {
-            Ok(Some(hash)) => vec![hash],
-            Ok(None) => vec![],
-            Err(e) => bail!(e),
+            Some(hash) => vec![hash],
+            None => vec![],
         };
         debug!("Current branch: {}. Parents: {}",
                HARDCODED_BRANCH,

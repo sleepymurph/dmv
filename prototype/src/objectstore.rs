@@ -5,6 +5,7 @@ use dag::OBJECT_KEY_PAT;
 use dag::ObjectCommon;
 use dag::ObjectHandle;
 use dag::ObjectKey;
+use disk_backed::DiskBacked;
 use error::*;
 use fsutil;
 use regex::Regex;
@@ -17,8 +18,11 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+type RefMap = BTreeMap<String, ObjectKey>;
+
 pub struct ObjectStore {
     path: PathBuf,
+    refs: DiskBacked<RefMap>,
 }
 
 impl ObjectStore {
@@ -28,7 +32,10 @@ impl ObjectStore {
     }
 
     pub fn open(path: PathBuf) -> Result<Self> {
-        Ok(ObjectStore { path: path })
+        Ok(ObjectStore {
+            refs: DiskBacked::read_or_default("refs", path.join("refs"))?,
+            path: path,
+        })
     }
 
     pub fn path(&self) -> &Path { &self.path }
@@ -76,11 +83,11 @@ impl ObjectStore {
             }
             RevSpec::ShortHash(ref s) => {
                 match self.try_find_short_hash(s) {
-                    Ok(None) => self.try_find_ref(s),
+                    Ok(None) => Ok(self.try_find_ref(s)),
                     other => other,
                 }
             }
-            RevSpec::Ref(ref s) => self.try_find_ref(s),
+            RevSpec::Ref(ref s) => Ok(self.try_find_ref(s)),
         }
     }
 
@@ -175,71 +182,19 @@ impl ObjectStore {
     }
 
 
-    /// Directory where refs are stored as files
-    fn refs_dir(&self) -> PathBuf { self.path.join("refs") }
-
-    /// Path to a specific ref file
-    fn ref_path(&self, name: &str) -> PathBuf { self.refs_dir().join(name) }
-
     /// Get all refs
-    fn all_refs(&self) -> Result<BTreeMap<String, ObjectKey>> {
-        let mut refs_map = BTreeMap::new();
-        let refs_dir = self.refs_dir();
-        let dir_err =
-            || format!("Error reading refs directory: {}", refs_dir.display());
-        let dir_iter = refs_dir.read_dir().chain_err(&dir_err);
-        for entry in dir_iter? {
-            let entry = entry.chain_err(&dir_err)?;
-            let name = entry.file_name()
-                .into_string()
-                .map_err(|os_str| {
-                    ErrorKind::from(format!("Bad UTF in ref name: {:?}",
-                                            os_str))
-                })?;
-            let hash = self.read_ref_path(&entry.path())?;
-            refs_map.insert(name, hash);
-        }
-        Ok(refs_map)
+    fn all_refs(&self) -> &RefMap { &self.refs }
+
+    pub fn update_ref<S, O>(&mut self, name: S, hash: O) -> Result<()>
+        where S: Into<String>,
+              O: Into<ObjectKey>
+    {
+        self.refs.insert(name.into(), hash.into());
+        self.refs.flush().map_err(|e| e.into())
     }
 
-    pub fn update_ref(&mut self, name: &str, hash: &ObjectKey) -> Result<()> {
-        use std::io::Write;
-        let ref_path = self.ref_path(name);
-        fsutil::create_parents(&ref_path)
-            .and_then(|_| {
-                fs::OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(true)
-                    .open(&ref_path)
-            })
-            .and_then(|mut file| write!(file, "{:x}", hash))
-            .chain_err(|| {
-                format!("Could not write ref path: {}", ref_path.display())
-            })
-    }
-
-    pub fn try_find_ref(&self, name: &str) -> Result<Option<ObjectKey>> {
-        let ref_path = self.ref_path(name);
-        if ref_path.exists() {
-            self.read_ref_path(&ref_path).map(|h| Some(h))
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn read_ref_path(&self, ref_path: &Path) -> Result<ObjectKey> {
-        use std::io::Read;
-        fs::File::open(&ref_path)
-            .and_then(|mut file| {
-                let mut ref_str = String::new();
-                file.read_to_string(&mut ref_str).map(|_| ref_str)
-            })
-            .map_err(|e| e.into())
-            .and_then(|s| ObjectKey::parse(&s))
-            .chain_err(|| {
-                format!("Could not read ref path: {}", ref_path.display())
-            })
+    pub fn try_find_ref(&self, name: &str) -> Option<ObjectKey> {
+        self.refs.get(name).cloned()
     }
 
     pub fn log(&self, start: &RevSpec) -> Result<Commits> {
