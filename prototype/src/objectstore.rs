@@ -183,7 +183,7 @@ impl ObjectStore {
 
 
     /// Get all refs
-    fn all_refs(&self) -> &RefMap { &self.refs }
+    pub fn refs(&self) -> &RefMap { &self.refs }
 
     pub fn update_ref<S, O>(&mut self, name: S, hash: O) -> Result<()>
         where S: Into<String>,
@@ -325,13 +325,13 @@ pub mod test {
         let hash = Blob::from("Hello!").to_hashed().hash().to_owned();
 
         let result = store.try_find_ref("master");
-        assert_match!(result, Ok(None));
+        assert_match!(result, None);
 
         let result = store.update_ref("master", &hash);
         assert_match!(result, Ok(()));
 
         let result = store.try_find_ref("master");
-        assert_match!(result, Ok(Some(x)) if x==hash);
+        assert_match!(result, Some(x) if x==hash);
     }
 
 

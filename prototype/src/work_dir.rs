@@ -1,6 +1,6 @@
 //! Working Directory: Files checked out from an ObjectStore
 
-use constants::HARDCODED_BRANCH;
+use constants::DEFAULT_BRANCH_NAME;
 use constants::HIDDEN_DIR_NAME;
 use dag::Commit;
 use dag::ObjectKey;
@@ -16,10 +16,19 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 
-#[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable,Default)]
+#[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
 pub struct WorkDirState {
     parents: Vec<ObjectKey>,
     branch: Option<String>,
+}
+
+impl Default for WorkDirState {
+    fn default() -> Self {
+        WorkDirState {
+            parents: Vec::new(),
+            branch: Some(DEFAULT_BRANCH_NAME.to_owned()),
+        }
+    }
 }
 
 pub struct WorkDir {
@@ -62,15 +71,19 @@ impl WorkDir {
     }
     pub fn path(&self) -> &Path { &self.path }
 
-    pub fn commit(&mut self, message: String) -> Result<(&str, ObjectKey)> {
-        let parents = match self.object_store()
-            .try_find_ref(HARDCODED_BRANCH) {
-            Some(hash) => vec![hash],
-            None => vec![],
-        };
+    pub fn branch(&self) -> Option<&str> {
+        self.state.branch.as_ref().map(|s| s.as_str())
+    }
+
+    pub fn commit(&mut self,
+                  message: String)
+                  -> Result<(Option<&str>, ObjectKey)> {
         debug!("Current branch: {}. Parents: {}",
-               HARDCODED_BRANCH,
-               parents.iter()
+               self.branch()
+                   .unwrap_or("<detached head>"),
+               self.state
+                   .parents
+                   .iter()
                    .map(|h| h.to_short())
                    .collect::<Vec<String>>()
                    .join(","));
@@ -79,11 +92,16 @@ impl WorkDir {
         let tree_hash = self.fs_transfer().hash_path(&path)?;
         let commit = Commit {
             tree: tree_hash,
-            parents: parents,
+            parents: self.state.parents.to_owned(),
             message: message,
         };
         let hash = self.object_store().store_object(&commit)?;
-        Ok((HARDCODED_BRANCH, hash))
+        self.state.parents = vec![hash];
+        if let Some(branch) = self.state.branch.clone() {
+            self.object_store().update_ref(branch, hash)?;
+        }
+        self.state.flush()?;
+        Ok((self.branch(), hash))
     }
 }
 

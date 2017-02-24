@@ -66,7 +66,7 @@ pub fn cache_status(file_path: PathBuf) -> Result<()> {
 pub fn commit(message: String) -> Result<()> {
     let mut work_dir = find_work_dir()?;
     let (branch, hash) = work_dir.commit(message)?;
-    println!("{} is now {}", branch, hash);
+    println!("{} is now {}", branch.unwrap_or("<detached head>"), hash);
     Ok(())
 }
 
@@ -82,7 +82,9 @@ pub fn log() -> Result<()> {
 
 pub fn branch_list() -> Result<()> {
     let mut work_dir = find_work_dir()?;
-    // TODO: List branches
+    for (name, _) in work_dir.object_store().refs() {
+        println!("{}", name)
+    }
     Ok(())
 }
 

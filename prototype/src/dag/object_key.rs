@@ -120,6 +120,10 @@ impl ObjectKey {
     }
 }
 
+impl<'a> From<&'a ObjectKey> for ObjectKey {
+    fn from(hash: &'a ObjectKey) -> Self { hash.to_owned() }
+}
+
 impl From<ObjectKeyByteArray> for ObjectKey {
     fn from(arr: ObjectKeyByteArray) -> Self { ObjectKey(arr) }
 }
