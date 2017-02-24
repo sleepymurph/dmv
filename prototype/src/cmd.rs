@@ -94,9 +94,9 @@ pub fn branch_list() -> Result<()> {
 }
 
 pub fn branch_set(branch_name: &str, target: RevSpec) -> Result<()> {
-    let mut work_dir = find_work_dir()?;
-    // TODO: Create branch at specified target
-    Ok(())
+    let mut object_store = find_object_store()?;
+    let hash = object_store.find_object(&target)?;
+    object_store.update_ref(branch_name, hash)
 }
 
 pub fn branch_set_to_head(branch_name: &str) -> Result<()> {
