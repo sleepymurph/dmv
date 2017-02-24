@@ -231,7 +231,7 @@ impl<T> DiskBacked<T>
             write(&self.desc, &self.path, &self.data)?;
             self.disk_hash = new_hash;
         } else {
-            debug!("Unchanged {}: {}", self.desc, self.path.display());
+            trace!("Unchanged {}: {}", self.desc, self.path.display());
         }
         Ok(())
     }

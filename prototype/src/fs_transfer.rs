@@ -113,7 +113,7 @@ impl ObjectFsTransfer {
         let file = BufReader::new(file);
 
         return_if_cached!(self.cache, &file_path, &file_stats);
-        info!("Hashing {}", file_path.display());
+        debug!("Hashing {}", file_path.display());
 
         let mut last_hash = ObjectKey::zero();
         for object in read_file_objects(file) {
@@ -231,7 +231,7 @@ impl ObjectFsTransfer {
                               -> Result<()> {
         match handle {
             ObjectHandle::Blob(blob) => {
-                debug!("Extracting blob {}", hash);
+                trace!("Extracting blob {}", hash);
                 blob.copy_content(writer)?;
             }
             ObjectHandle::ChunkedBlob(index) => {

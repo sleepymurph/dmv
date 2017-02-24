@@ -108,7 +108,7 @@ impl ObjectStore {
         } else {
             for entry in dir.read_dir()? {
                 let entry = entry?.path();
-                debug!("Looking for '{}', checking: {}",
+                trace!("Looking for '{}', checking: {}",
                        s,
                        entry.strip_prefix(&self.path)?.display());
                 if get_fn_str(&entry).starts_with(&short_name) {
