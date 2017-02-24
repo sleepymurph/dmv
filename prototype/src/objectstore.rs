@@ -8,6 +8,7 @@ use dag::ObjectKey;
 use error::*;
 use fsutil;
 use regex::Regex;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
 use std::io;
@@ -51,10 +52,6 @@ impl ObjectStore {
             .expect("should be ascii")
             .replace("/", "");
         ObjectKey::parse(&key_str)
-    }
-
-    fn ref_path(&self, name: &str) -> PathBuf {
-        self.path.join("refs").join(name)
     }
 
     pub fn has_object(&self, key: &ObjectKey) -> bool {
@@ -178,6 +175,33 @@ impl ObjectStore {
     }
 
 
+    /// Directory where refs are stored as files
+    fn refs_dir(&self) -> PathBuf { self.path.join("refs") }
+
+    /// Path to a specific ref file
+    fn ref_path(&self, name: &str) -> PathBuf { self.refs_dir().join(name) }
+
+    /// Get all refs
+    fn all_refs(&self) -> Result<BTreeMap<String, ObjectKey>> {
+        let mut refs_map = BTreeMap::new();
+        let refs_dir = self.refs_dir();
+        let dir_err =
+            || format!("Error reading refs directory: {}", refs_dir.display());
+        let dir_iter = refs_dir.read_dir().chain_err(&dir_err);
+        for entry in dir_iter? {
+            let entry = entry.chain_err(&dir_err)?;
+            let name = entry.file_name()
+                .into_string()
+                .map_err(|os_str| {
+                    ErrorKind::from(format!("Bad UTF in ref name: {:?}",
+                                            os_str))
+                })?;
+            let hash = self.read_ref_path(&entry.path())?;
+            refs_map.insert(name, hash);
+        }
+        Ok(refs_map)
+    }
+
     pub fn update_ref(&mut self, name: &str, hash: &ObjectKey) -> Result<()> {
         use std::io::Write;
         let ref_path = self.ref_path(name);
@@ -196,11 +220,16 @@ impl ObjectStore {
     }
 
     pub fn try_find_ref(&self, name: &str) -> Result<Option<ObjectKey>> {
-        use std::io::Read;
         let ref_path = self.ref_path(name);
-        if !ref_path.exists() {
-            return Ok(None);
+        if ref_path.exists() {
+            self.read_ref_path(&ref_path).map(|h| Some(h))
+        } else {
+            Ok(None)
         }
+    }
+
+    fn read_ref_path(&self, ref_path: &Path) -> Result<ObjectKey> {
+        use std::io::Read;
         fs::File::open(&ref_path)
             .and_then(|mut file| {
                 let mut ref_str = String::new();
@@ -208,7 +237,6 @@ impl ObjectStore {
             })
             .map_err(|e| e.into())
             .and_then(|s| ObjectKey::parse(&s))
-            .map(|h| Some(h))
             .chain_err(|| {
                 format!("Could not read ref path: {}", ref_path.display())
             })
