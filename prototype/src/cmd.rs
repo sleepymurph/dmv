@@ -82,7 +82,12 @@ pub fn log() -> Result<()> {
 
 pub fn branch_list() -> Result<()> {
     let mut work_dir = find_work_dir()?;
-    for (name, _) in work_dir.object_store().refs() {
+    for (name, _) in work_dir.refs() {
+        if work_dir.branch() == Some(name.as_str()) {
+            print!("* ");
+        } else {
+            print!("  ");
+        }
         println!("{}", name)
     }
     Ok(())
