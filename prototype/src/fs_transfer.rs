@@ -117,7 +117,7 @@ impl ObjectFsTransfer {
 
         let mut last_hash = ObjectKey::zero();
         for object in read_file_objects(file) {
-            last_hash = try!(self.object_store.store_object(&object?));
+            last_hash = try!(self.store_object(&object?));
         }
 
         try!(self.cache.insert(file_path, file_stats, last_hash.clone()));
@@ -147,7 +147,7 @@ impl ObjectFsTransfer {
         }
 
         assert!(partial.is_complete());
-        self.object_store.store_object(partial.tree())
+        self.store_object(partial.tree())
     }
 
 
@@ -156,8 +156,7 @@ impl ObjectFsTransfer {
                           path: &Path)
                           -> Result<()> {
 
-        self.object_store
-            .open_object(hash)
+        self.open_object(hash)
             .and_then(|handle| self.extract_object_open(handle, hash, path))
             .chain_err(|| {
                 format!("Could not extract {} to {}", hash, path.display())
@@ -240,8 +239,7 @@ impl ObjectFsTransfer {
                 let index = index.read_content()?;
                 for offset in index.chunks {
                     debug!("{}", offset);
-                    let ch_handle = self.object_store
-                        .open_object(&offset.hash)?;
+                    let ch_handle = self.open_object(&offset.hash)?;
                     self.copy_blob_content_open(ch_handle,
                                                 &offset.hash,
                                                 writer)?;
@@ -253,6 +251,7 @@ impl ObjectFsTransfer {
     }
 }
 
+impl_deref_mut!(ObjectFsTransfer => ObjectStore, object_store);
 
 
 #[cfg(test)]
@@ -290,7 +289,7 @@ mod test {
         let hash = fs_transfer.hash_path(&filepath).unwrap();
 
         // Check the object type
-        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
+        let obj = fs_transfer.open_object(&hash).unwrap();
         assert_eq!(obj.header().object_type, expected_object_type);
 
         // Extract the object
@@ -359,7 +358,7 @@ mod test {
 
         let hash = fs_transfer.hash_object(&wd_path, partial).unwrap();
 
-        let obj = fs_transfer.object_store.open_object(&hash).unwrap();
+        let obj = fs_transfer.open_object(&hash).unwrap();
         let obj = obj.read_content().unwrap();
 
         assert_eq!(obj, Object::Tree(expected_tree.clone()));

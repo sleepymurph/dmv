@@ -63,12 +63,6 @@ impl WorkDir {
         })
     }
 
-    pub fn fs_transfer(&mut self) -> &mut ObjectFsTransfer {
-        &mut self.fs_transfer
-    }
-    pub fn object_store(&mut self) -> &mut ObjectStore {
-        &mut self.fs_transfer.object_store
-    }
     pub fn path(&self) -> &Path { &self.path }
 
     pub fn branch(&self) -> Option<&str> {
@@ -89,21 +83,23 @@ impl WorkDir {
                    .join(","));
 
         let path = self.path().to_owned();
-        let tree_hash = self.fs_transfer().hash_path(&path)?;
+        let tree_hash = self.hash_path(&path)?;
         let commit = Commit {
             tree: tree_hash,
             parents: self.state.parents.to_owned(),
             message: message,
         };
-        let hash = self.object_store().store_object(&commit)?;
+        let hash = self.store_object(&commit)?;
         self.state.parents = vec![hash];
         if let Some(branch) = self.state.branch.clone() {
-            self.object_store().update_ref(branch, hash)?;
+            self.update_ref(branch, hash)?;
         }
         self.state.flush()?;
         Ok((self.branch(), hash))
     }
 }
+
+impl_deref_mut!(WorkDir => ObjectFsTransfer, fs_transfer);
 
 mod test {
     use rustc_serialize::json;
