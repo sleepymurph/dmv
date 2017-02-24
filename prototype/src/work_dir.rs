@@ -65,6 +65,13 @@ impl WorkDir {
         self.state.branch.as_ref().map(|s| s.as_str())
     }
 
+    pub fn head(&self) -> Option<ObjectKey> {
+        match self.parents().len() {
+            0 => None,
+            _ => Some(self.parents()[0].to_owned()),
+        }
+    }
+
     pub fn parents(&self) -> &Vec<ObjectKey> { &self.state.parents }
 
     fn parents_short_hashes(&self) -> Vec<String> {
@@ -99,22 +106,15 @@ impl WorkDir {
     }
 
     pub fn update_ref_to_head(&mut self, ref_name: &str) -> Result<ObjectKey> {
-        match self.parents().len() {
-            0 => {
-                bail!("Asked to set ref {} to head, but no current head \
-                       (no initial commit)",
-                      ref_name)
-            }
-            1 => {
-                let head = self.parents()[0].to_owned();
+        match self.head() {
+            Some(head) => {
                 self.update_ref(ref_name, head)?;
                 Ok(head)
             }
-            _ => {
-                bail!("Asked to set ref {} to head, but too many parents \
-                      (mid-merge). Please select a parent: {}",
-                      ref_name,
-                      self.parents_short_hashes().join(","))
+            None => {
+                bail!("Asked to set ref '{}' to head, but no \
+                                     current head (no initial commit)",
+                      ref_name)
             }
         }
     }
