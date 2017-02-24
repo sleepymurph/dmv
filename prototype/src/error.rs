@@ -13,6 +13,8 @@ error_chain!{
             #[doc = "Error converting bytes to a String"];
         JsonDecodeError(::rustc_serialize::json::DecoderError)
             #[doc = "Error while decoding json"];
+        DiskBackError(::disk_backed::DiskBackError)
+            #[doc = "Error from disk-backed data"];
     }
     errors {
         BadRevSpec(bad: String) {
@@ -36,12 +38,6 @@ error_chain!{
         NotADirectory(p: ::std::path::PathBuf) {
             description("path is not a directory")
             display("path is not a directory: '{}'", p.display())
-        }
-
-        CorruptCacheFile{
-            cache_file: ::std::path::PathBuf,
-            cause: ::rustc_serialize::json::DecoderError,
-            bad_json: String,
         }
 
         ObjectNotFound(h: $crate::dag::ObjectKey) {

@@ -1,0 +1,11 @@
+[package]
+name = "disk_backed"
+version = "0.1.0"
+authors = ["Mike Murphy <codermurph@sleepymurph.com>"]
+
+[dependencies]
+log = "0.3"
+rustc-serialize = "0.3"
+
+[dev-dependencies]
+tempdir = "0.3"
