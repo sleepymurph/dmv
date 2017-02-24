@@ -101,6 +101,6 @@ pub fn branch_set(branch_name: &str, target: RevSpec) -> Result<()> {
 
 pub fn branch_set_to_head(branch_name: &str) -> Result<()> {
     let mut work_dir = find_work_dir()?;
-    // TODO: Create branch at current head
+    work_dir.update_ref_to_head(branch_name)?;
     Ok(())
 }

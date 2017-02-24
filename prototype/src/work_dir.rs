@@ -69,24 +69,28 @@ impl WorkDir {
         self.state.branch.as_ref().map(|s| s.as_str())
     }
 
+    pub fn parents(&self) -> &Vec<ObjectKey> { &self.state.parents }
+
+    fn parents_short_hashes(&self) -> Vec<String> {
+        self.state
+            .parents
+            .iter()
+            .map(|h| h.to_short())
+            .collect::<Vec<String>>()
+    }
+
     pub fn commit(&mut self,
                   message: String)
                   -> Result<(Option<&str>, ObjectKey)> {
         debug!("Current branch: {}. Parents: {}",
-               self.branch()
-                   .unwrap_or("<detached head>"),
-               self.state
-                   .parents
-                   .iter()
-                   .map(|h| h.to_short())
-                   .collect::<Vec<String>>()
-                   .join(","));
+               self.branch().unwrap_or("<detached head>"),
+               self.parents_short_hashes().join(","));
 
         let path = self.path().to_owned();
         let tree_hash = self.hash_path(&path)?;
         let commit = Commit {
             tree: tree_hash,
-            parents: self.state.parents.to_owned(),
+            parents: self.parents().to_owned(),
             message: message,
         };
         let hash = self.store_object(&commit)?;
@@ -96,6 +100,25 @@ impl WorkDir {
         }
         self.state.flush()?;
         Ok((self.branch(), hash))
+    }
+
+    pub fn update_ref_to_head(&mut self, ref_name: &str) -> Result<ObjectKey> {
+        match self.parents().len() {
+            0 => {
+                bail!("Asked to set ref {} to head, but no current head \
+                       (no initial commit)", ref_name)
+            }
+            1 => {
+                let head = self.parents()[0].to_owned();
+                self.update_ref(ref_name, head)?;
+                Ok(head)
+            }
+            _ => {
+                bail!("Asked to set ref {} to head, but too many parents \
+                      (mid-merge). Please select a parent: {}",
+                      ref_name, self.parents_short_hashes().join(","))
+            }
+        }
     }
 }
 
