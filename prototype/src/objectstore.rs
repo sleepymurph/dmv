@@ -185,6 +185,14 @@ impl ObjectStore {
     /// Get all refs
     pub fn refs(&self) -> &RefMap { &self.refs }
 
+    pub fn refs_for(&self, hash: &ObjectKey) -> Vec<&str> {
+        self.refs
+            .iter()
+            .filter(|&(_, v)| v == hash)
+            .map(|(k, _)| k.as_str())
+            .collect::<Vec<&str>>()
+    }
+
     pub fn update_ref<S, O>(&mut self, name: S, hash: O) -> Result<()>
         where S: Into<String>,
               O: Into<ObjectKey>
@@ -261,7 +269,7 @@ pub struct Commits<'a> {
 }
 
 impl<'a> Iterator for Commits<'a> {
-    type Item = Result<(ObjectKey, Commit)>;
+    type Item = Result<(ObjectKey, Commit, Vec<&'a str>)>;
     fn next(&mut self) -> Option<Self::Item> {
         self.next.map(|hash| {
             let result = self.object_store.open_commit(&hash);
@@ -272,7 +280,9 @@ impl<'a> Iterator for Commits<'a> {
                     _ => unimplemented!(),
                 }
             }
-            result.map(|commit| (hash, commit))
+            result.map(|commit| {
+                (hash, commit, self.object_store.refs_for(&hash))
+            })
         })
     }
 }

@@ -74,8 +74,11 @@ pub fn log() -> Result<()> {
     let object_store = find_object_store()?;
     let branch = RevSpec::from_str(HARDCODED_BRANCH)?;
     for commit in object_store.log(&branch)? {
-        let (hash, commit) = commit?;
-        println!("{} {}", hash, commit.message);
+        let (hash, commit, refs) = commit?;
+        match refs.len() {
+            0 => println!("{} {}", hash, commit.message),
+            _ => println!("{} ({}) {}", hash, refs.join(", "), commit.message),
+        }
     }
     Ok(())
 }
