@@ -31,14 +31,16 @@ impl RepoLayout {
 fn find_repo(start_path: &Path) -> Result<RepoLayout> {
     for path in up_from(&start_path) {
         let hidden_path = path.join(HIDDEN_DIR_NAME);
-        if hidden_path.metadata()?.is_dir() {
+        trace!("Looking for repo: {} ?", hidden_path.display());
+        if hidden_path.is_dir() {
+            debug!("Found repo: {}", hidden_path.display());
             return Ok(RepoLayout {
                 osd: hidden_path,
                 wd: path.to_owned(),
             });
         }
     }
-    bail!("Could not find repository directory, in \"{}\" or its parents",
+    bail!("Could not find repository directory in \"{}\" or its parents",
           start_path.display())
 }
 
