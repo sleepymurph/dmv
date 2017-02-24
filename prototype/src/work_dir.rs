@@ -9,10 +9,6 @@ use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::ObjectFsTransfer;
 use objectstore::ObjectStore;
-use rustc_serialize::json;
-use std::fs::OpenOptions;
-use std::io::Read;
-use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -106,7 +102,8 @@ impl WorkDir {
         match self.parents().len() {
             0 => {
                 bail!("Asked to set ref {} to head, but no current head \
-                       (no initial commit)", ref_name)
+                       (no initial commit)",
+                      ref_name)
             }
             1 => {
                 let head = self.parents()[0].to_owned();
@@ -116,7 +113,8 @@ impl WorkDir {
             _ => {
                 bail!("Asked to set ref {} to head, but too many parents \
                       (mid-merge). Please select a parent: {}",
-                      ref_name, self.parents_short_hashes().join(","))
+                      ref_name,
+                      self.parents_short_hashes().join(","))
             }
         }
     }
@@ -124,13 +122,14 @@ impl WorkDir {
 
 impl_deref_mut!(WorkDir => ObjectFsTransfer, fs_transfer);
 
+#[cfg(test)]
 mod test {
     use rustc_serialize::json;
     use super::*;
 
     #[test]
     fn test_serialize_work_dir_state() {
-        let mut obj = WorkDirState::default();
+        let obj = WorkDirState::default();
 
         let encoded = json::encode(&obj).unwrap();
         // assert_eq!(encoded, "see encoded");

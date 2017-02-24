@@ -4,16 +4,11 @@ use disk_backed::DiskBacked;
 use encodable;
 use error::*;
 use rustc_serialize;
-use rustc_serialize::json;
 use std::collections;
-use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::io;
-use std::io::Read;
-use std::io::Write;
-use std::ops;
 use std::path;
 
 
@@ -143,12 +138,6 @@ impl HashCache {
             None => CacheStatus::NotCached { size: file_stats.size },
         }
     }
-
-    fn calculate_hash(&self) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        self.hash(&mut hasher);
-        hasher.finish()
-    }
 }
 
 impl rustc_serialize::Encodable for HashCache {
@@ -253,9 +242,7 @@ mod test {
     use dag::parse_hash;
     use encodable;
     use rustc_serialize::json;
-    use std::path;
     use super::*;
-    use testutil;
 
     #[test]
     fn test_serialize_filecache() {
