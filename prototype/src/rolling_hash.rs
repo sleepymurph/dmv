@@ -470,14 +470,14 @@ mod test {
     fn dump_into_store<R: io::BufRead>(object_read: &mut ObjectReader<R>,
                                        object_store: &mut ObjectStore)
                                        -> dag::ObjectKey {
-        let mut last_key = dag::ObjectKey::zero();
+        let mut last_key = None;
         for obj in object_read {
             let obj = obj.unwrap();
             let (k, v) = obj.to_kv();
             object_store.insert(k, v);
-            last_key = k;
+            last_key = Some(k);
         }
-        last_key
+        last_key.expect("No objects returned from ObjectReader")
     }
 
     /// Reconstruct file from ChunkedBlob object key

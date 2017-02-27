@@ -9,16 +9,6 @@ pub struct Commit {
     pub message: String,
 }
 
-impl Commit {
-    pub fn new() -> Self {
-        Commit {
-            tree: ObjectKey::zero(),
-            parents: Vec::new(),
-            message: String::new(),
-        }
-    }
-}
-
 impl ObjectCommon for Commit {
     fn object_type(&self) -> ObjectType { ObjectType::Commit }
     fn content_size(&self) -> ObjectSize {
@@ -106,12 +96,11 @@ mod test {
         // Construct object
         let mut rng = testutil::TestRand::default();
 
-        let mut object = Commit::new();
-        object.tree = rng.gen();
-        object.parents.push(rng.gen());
-        object.parents.push(rng.gen());
-        object.parents.push(rng.gen());
-        object.message = String::from("Test Commit");
+        let object = Commit {
+            tree: rng.gen(),
+            parents: vec![rng.gen(), rng.gen(), rng.gen()],
+            message: "Test Commit".to_owned(),
+        };
 
         // Write out
         let mut output: Vec<u8> = Vec::new();

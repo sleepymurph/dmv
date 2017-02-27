@@ -1,5 +1,4 @@
 use crypto::sha1::Sha1;
-use error::*;
 use regex::Regex;
 use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
@@ -9,6 +8,7 @@ use std::convert;
 use std::fmt;
 use std::io::Read;
 use std::str::FromStr;
+use super::*;
 #[cfg(test)]
 use testutil::rand;
 
@@ -58,9 +58,6 @@ lazy_static!{
 pub struct ObjectKey([u8; KEY_SIZE_BYTES]);
 
 impl ObjectKey {
-    /// Creates a new all-zero key
-    pub fn zero() -> Self { ObjectKey([0; KEY_SIZE_BYTES]) }
-
     pub fn parse(hexstr: &str) -> Result<Self> {
         if !OBJECT_KEY_PAT.is_match(hexstr) {
             bail!(ErrorKind::BadObjectKey(hexstr.to_owned()));

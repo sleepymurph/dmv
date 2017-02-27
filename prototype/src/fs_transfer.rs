@@ -108,19 +108,22 @@ impl FsTransfer {
     }
 
     fn hash_file(&mut self, file_path: PathBuf) -> Result<ObjectKey> {
-        let file = try!(File::open(&file_path));
+        let file = File::open(&file_path)?;
         let file_stats = FileStats::from(file.metadata()?);
         let file = BufReader::new(file);
 
         return_if_cached!(self.cache, &file_path, &file_stats);
         debug!("Hashing {}", file_path.display());
 
-        let mut last_hash = ObjectKey::zero();
+        let mut last_hash = None;
         for object in read_file_objects(file) {
-            last_hash = try!(self.store_object(&object?));
+            let object = object?;
+            self.store_object(&object)?;
+            last_hash = Some(object.hash().to_owned());
         }
+        let last_hash = last_hash.expect("Iterator always emits objects");
 
-        try!(self.cache.insert(file_path, file_stats, last_hash.clone()));
+        self.cache.insert(file_path, file_stats, last_hash.to_owned())?;
 
         Ok(last_hash)
     }
