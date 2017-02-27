@@ -239,7 +239,7 @@ impl AllCaches {
 
 #[cfg(test)]
 mod test {
-    use dag::parse_hash;
+    use dag::ObjectKey;
     use encodable;
     use rustc_serialize::json;
     use super::*;
@@ -252,7 +252,7 @@ mod test {
                 mtime: encodable::SystemTime::unix_epoch_plus(120, 55),
                 size: 12345,
             },
-            hash: parse_hash("d3486ae9136e7856bc42212385ea797094475802"),
+            hash: ObjectKey::from("d3486ae9136e7856bc42212385ea797094475802"),
         });
         let encoded = json::encode(&obj).unwrap();
         let decoded: HashCache = json::decode(&encoded).unwrap();

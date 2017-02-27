@@ -284,11 +284,7 @@ mod test {
     use std::path::PathBuf;
     use super::super::*;
     use testutil;
-
-    fn random_hash(rng: &mut testutil::TestRand) -> ObjectKey {
-        let rand_bytes = rng.gen_byte_vec(KEY_SIZE_BYTES);
-        ObjectKey::from_bytes(rand_bytes.as_slice()).unwrap()
-    }
+    use testutil::rand::Rng;
 
     #[test]
     fn test_write_tree() {
@@ -296,9 +292,9 @@ mod test {
         let mut rng = testutil::TestRand::default();
 
         let object = tree_object!{
-            "foo" => random_hash(&mut rng),
-            "bar" => random_hash(&mut rng),
-            "baz" => random_hash(&mut rng),
+            "foo" => rng.gen::<ObjectKey>(),
+            "bar" => rng.gen::<ObjectKey>(),
+            "baz" => rng.gen::<ObjectKey>(),
         };
 
         // Write out
@@ -319,18 +315,12 @@ mod test {
         assert_eq!(readobject, object);
     }
 
-    fn shortkey(num: u8) -> ObjectKey {
-        let mut vec = [0u8; KEY_SIZE_BYTES];
-        vec[KEY_SIZE_BYTES - 1] = num;
-        ObjectKey::from_bytes(&vec).unwrap()
-    }
-
     #[test]
     fn test_tree_sort_by_name() {
         let tree = tree_object!{
-            "foo" => shortkey(0),
-            "bar" => shortkey(2),
-            "baz" => shortkey(1),
+            "foo" => object_key(0),
+            "bar" => object_key(2),
+            "baz" => object_key(1),
         };
 
         let names: Vec<String> = tree.iter()
@@ -345,9 +335,9 @@ mod test {
         // Create partial tree
 
         let mut partial = partial_tree!{
-                "foo" => shortkey(0),
-                "bar" => shortkey(2),
-                "baz" => shortkey(1),
+                "foo" => object_key(0),
+                "bar" => object_key(2),
+                "baz" => object_key(1),
                 "fizz" => UnhashedPath::File(1024),
                 "buzz" => partial_tree!{
                     "strange" => UnhashedPath::File(2048),
@@ -361,22 +351,22 @@ mod test {
 
         assert_eq!(partial.tree(),
                    &tree_object!{
-                        "foo" => shortkey(0),
-                        "bar" => shortkey(2),
-                        "baz" => shortkey(1),
+                        "foo" => object_key(0),
+                        "bar" => object_key(2),
+                        "baz" => object_key(1),
         });
 
         assert!(!partial.is_complete());
 
         // Begin adding hashes for incomplete objects
 
-        partial.insert("buzz", shortkey(3));
+        partial.insert("buzz", object_key(3));
         assert_eq!(partial.unhashed().get(&PathBuf::from("buzz")),
                    None,
                    "After setting hash, path should be removed from unhashed");
         assert_eq!(partial.unhashed_size(), 1024);
 
-        partial.insert("fizz", shortkey(4));
+        partial.insert("fizz", object_key(4));
 
         // Should be complete now
 
@@ -386,20 +376,20 @@ mod test {
 
         assert_eq!(partial.tree(),
                    &tree_object!{
-                        "foo" => shortkey(0),
-                        "bar" => shortkey(2),
-                        "baz" => shortkey(1),
-                        "fizz" => shortkey(4),
-                        "buzz" => shortkey(3),
+                        "foo" => object_key(0),
+                        "bar" => object_key(2),
+                        "baz" => object_key(1),
+                        "fizz" => object_key(4),
+                        "buzz" => object_key(3),
         });
     }
 
     #[test]
     fn test_partial_tree_with_zero_unhashed() {
         let partial = partial_tree!{
-                "foo" => shortkey(0),
+                "foo" => object_key(0),
                 "bar" => partial_tree!{
-                    "baz" => shortkey(1),
+                    "baz" => object_key(1),
                 },
         };
 
@@ -408,14 +398,14 @@ mod test {
 
         assert_eq!(partial.tree(),
                    &tree_object!{
-                        "foo" => shortkey(0),
+                        "foo" => object_key(0),
                    },
                    "not safe to take the tree value: it is missing the \
                     subtree");
 
         assert_eq!(partial.unhashed().get(&PathBuf::from("bar")),
                    Some(&UnhashedPath::Dir(partial_tree!{
-                        "baz" => shortkey(1),
+                        "baz" => object_key(1),
                    })),
                    "the nested PartialTree still holds information that \
                     would be lost if we replaced it with just a hash");

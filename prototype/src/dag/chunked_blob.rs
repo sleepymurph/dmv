@@ -112,13 +112,13 @@ impl ReadObjectContent for ChunkedBlob {
             let bytes_read = try!(reader.read(&mut chunk_record_buf));
             match bytes_read {
                 0 => break,
-                _ if bytes_read == CHUNK_RECORD_SIZE => {
+                CHUNK_RECORD_SIZE => {
                     let chunk_offset =
                         object_size_from_bytes(&chunk_record_buf[0..8]);
                     let chunk_size =
                         object_size_from_bytes(&chunk_record_buf[8..16]);
                     let chunk_hash =
-                        ObjectKey::from_bytes(&chunk_record_buf[16..])?;
+                        ObjectKey::from_bytes(&chunk_record_buf[16..]);
 
                     chunks.push(ChunkOffset {
                         offset: chunk_offset,

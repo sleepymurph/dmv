@@ -7,7 +7,10 @@ use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
 use std::convert;
 use std::fmt;
+use std::io::Read;
 use std::str::FromStr;
+#[cfg(test)]
+use testutil::rand;
 
 /// Hash type
 pub type Hasher = Sha1;
@@ -27,8 +30,6 @@ lazy_static!{
     pub static ref OBJECT_KEY_PAT:Regex = Regex::new(
             &format!("^[[:xdigit:]]{{ {} }}$",KEY_SIZE_HEX_DIGITS)).unwrap();
 }
-
-type ObjectKeyByteArray = [u8; KEY_SIZE_BYTES];
 
 /// Hash key for an object
 ///
@@ -54,7 +55,7 @@ type ObjectKeyByteArray = [u8; KEY_SIZE_BYTES];
 /// ```
 ///
 #[derive(Copy,Clone,Eq,PartialEq,Ord,PartialOrd,Hash)]
-pub struct ObjectKey(ObjectKeyByteArray);
+pub struct ObjectKey([u8; KEY_SIZE_BYTES]);
 
 impl ObjectKey {
     /// Creates a new all-zero key
@@ -103,20 +104,25 @@ impl ObjectKey {
 
     /// Creates an array from a byte slice (copy)
     ///
-    /// Can fail if the byte slice is the wrong length.
+    /// Will panic if the slice is the wrong length.
     ///
     /// If the input is a byte array of the correct length (`[u8;
     /// KEY_SIZE_BYTES]`), you can use From<[u8; KEY_SIZE_BYTES]> instead. That
     /// conversion is guaranteed to succeed, and it consumes and uses the array,
     /// rather than performing another allocation.
     ///
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != KEY_SIZE_BYTES {
-            bail!(ErrorKind::BadObjectKeyLength(bytes.to_vec()));
-        }
+    pub fn from_bytes(bytes: &[u8]) -> Self {
         let mut key = [0; KEY_SIZE_BYTES];
         key.copy_from_slice(bytes);
-        Ok(ObjectKey(key))
+        ObjectKey(key)
+    }
+
+    /// Read the next bytes as an ObjectKey
+    pub fn read_from<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut hash_buf = [0u8; KEY_SIZE_BYTES];
+        reader.read_exact(&mut hash_buf)
+            .chain_err(|| "Error reading ObjectKey")?;
+        Ok(ObjectKey::from(hash_buf))
     }
 }
 
@@ -124,8 +130,8 @@ impl<'a> From<&'a ObjectKey> for ObjectKey {
     fn from(hash: &'a ObjectKey) -> Self { hash.to_owned() }
 }
 
-impl From<ObjectKeyByteArray> for ObjectKey {
-    fn from(arr: ObjectKeyByteArray) -> Self { ObjectKey(arr) }
+impl From<[u8; KEY_SIZE_BYTES]> for ObjectKey {
+    fn from(arr: [u8; KEY_SIZE_BYTES]) -> Self { ObjectKey(arr) }
 }
 
 impl FromStr for ObjectKey {
@@ -133,11 +139,28 @@ impl FromStr for ObjectKey {
     fn from_str(s: &str) -> Result<Self> { ObjectKey::parse(s) }
 }
 
-/// Convenience function to parse and unwrap a hex hash
-///
-/// Not for use in production code.
+/// Create an ObjectKey with a recognizable pattern
 #[cfg(test)]
-pub fn parse_hash(s: &str) -> ObjectKey { ObjectKey::parse(s).unwrap() }
+pub fn object_key(num: u8) -> ObjectKey {
+    ObjectKey::from([num; KEY_SIZE_BYTES])
+}
+
+// In test, a shortcut to parse a String literal and unwrap it
+#[cfg(test)]
+impl From<&'static str> for ObjectKey {
+    fn from(s: &'static str) -> Self {
+        Self::parse(s).expect("String literal is not a valid ObjectKey")
+    }
+}
+
+#[cfg(test)]
+impl rand::Rand for ObjectKey {
+    fn rand<R: rand::Rng>(rng: &mut R) -> Self {
+        let mut buf = [0u8; KEY_SIZE_BYTES];
+        rng.fill_bytes(&mut buf);
+        ObjectKey::from(buf)
+    }
+}
 
 impl fmt::LowerHex for ObjectKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -204,9 +227,9 @@ mod test {
     #[test]
     fn test_key_hex_conversions() {
         let hex = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
-        let upperhex = hex.to_uppercase();
-        let key = parse_hash(hex);
-        let upperkey = parse_hash(&upperhex);
+        let upperhex = "DA39A3EE5E6B4B0D3255BFEF95601890AFD80709";
+        let key = ObjectKey::from(hex);
+        let upperkey = ObjectKey::from(upperhex);
         let short = key.to_short();
 
         assert_eq!(upperkey, key, "Parse upper hex vs lower hex");
@@ -243,7 +266,7 @@ mod test {
 
     #[test]
     fn test_serialize_objectkey() {
-        let obj = parse_hash("d3486ae9136e7856bc42212385ea797094475802");
+        let obj = ObjectKey::from("d3486ae9136e7856bc42212385ea797094475802");
         let encoded = json::encode(&obj).unwrap();
         assert_eq!(encoded, "\"d3486ae9136e7856bc42212385ea797094475802\"");
         let decoded: ObjectKey = json::decode(&encoded).unwrap();

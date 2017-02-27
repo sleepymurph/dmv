@@ -25,11 +25,6 @@ error_chain!{
             description("could not parse hash key")
             display("could not parse hash key: '{}'", bad_key)
         }
-        BadObjectKeyLength(bad_key: Vec<u8>) {
-            description("hash key has wrong length")
-            display("hash key has wrong length ({} bytes, expected {}): '{:?}'",
-                        bad_key.len(), ::dag::KEY_SIZE_BYTES, bad_key)
-        }
         BadObjectHeader(msg: String) {
             description("bad object header")
             display("could not parse object header: {}", msg)

@@ -68,9 +68,7 @@ Parents:    {}
 
 impl ReadObjectContent for Commit {
     fn read_content<R: io::BufRead>(reader: &mut R) -> Result<Self> {
-        let mut hash_buf = [0u8; KEY_SIZE_BYTES];
-        try!(reader.read_exact(&mut hash_buf));
-        let tree = ObjectKey::from_bytes(&hash_buf).unwrap();
+        let tree = ObjectKey::read_from(reader)?;
 
         let mut num_parents_buf = [0u8; 1];
         try!(reader.read_exact(&mut num_parents_buf));
@@ -79,8 +77,7 @@ impl ReadObjectContent for Commit {
             Vec::with_capacity(num_parents as usize);
 
         for _ in 0..num_parents {
-            try!(reader.read_exact(&mut hash_buf));
-            let parent = ObjectKey::from_bytes(&hash_buf).unwrap();
+            let parent = ObjectKey::read_from(reader)?;
             parents.push(parent);
         }
 
@@ -102,11 +99,7 @@ mod test {
     use std::io;
     use super::super::*;
     use testutil;
-
-    fn random_hash(rng: &mut testutil::TestRand) -> ObjectKey {
-        let rand_bytes = rng.gen_byte_vec(KEY_SIZE_BYTES);
-        ObjectKey::from_bytes(rand_bytes.as_slice()).unwrap()
-    }
+    use testutil::rand::Rng;
 
     #[test]
     fn test_write_tree() {
@@ -114,10 +107,10 @@ mod test {
         let mut rng = testutil::TestRand::default();
 
         let mut object = Commit::new();
-        object.tree = random_hash(&mut rng);
-        object.parents.push(random_hash(&mut rng));
-        object.parents.push(random_hash(&mut rng));
-        object.parents.push(random_hash(&mut rng));
+        object.tree = rng.gen();
+        object.parents.push(rng.gen());
+        object.parents.push(rng.gen());
+        object.parents.push(rng.gen());
         object.message = String::from("Test Commit");
 
         // Write out
