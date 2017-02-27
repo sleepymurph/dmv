@@ -56,7 +56,7 @@ Parents:    {}
 
 {}
 ",
-               humanreadable::human_bytes(self.content_size()),
+               human_readable::human_bytes(self.content_size()),
                self.tree,
                parents_join,
                self.message)

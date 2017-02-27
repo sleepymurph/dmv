@@ -3,7 +3,7 @@
 pub extern crate rand;
 pub extern crate tempdir;
 #[macro_use]
-extern crate wrapperstruct;
+extern crate wrapper_struct;
 
 use rand::{Rng, SeedableRng, XorShiftRng};
 use std::fs;

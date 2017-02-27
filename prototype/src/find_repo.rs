@@ -4,7 +4,7 @@ use constants::HIDDEN_DIR_NAME;
 use error::*;
 use fs_transfer::FsTransfer;
 use fsutil::up_from;
-use objectstore::ObjectStore;
+use object_store::ObjectStore;
 use std::env::current_dir;
 use std::path::Path;
 use std::path::PathBuf;

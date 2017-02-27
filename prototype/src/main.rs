@@ -9,7 +9,7 @@ extern crate prototype;
 
 use prototype::cmd;
 use prototype::error::*;
-use prototype::objectstore::RevSpec;
+use prototype::object_store::RevSpec;
 use std::path::PathBuf;
 use std::str::FromStr;
 

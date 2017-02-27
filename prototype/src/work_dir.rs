@@ -8,7 +8,7 @@ use disk_backed::DiskBacked;
 use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::FsTransfer;
-use objectstore::ObjectStore;
+use object_store::ObjectStore;
 use std::path::Path;
 use std::path::PathBuf;
 

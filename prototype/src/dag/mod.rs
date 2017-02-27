@@ -5,7 +5,7 @@ use byteorder::ByteOrder;
 use byteorder::ReadBytesExt;
 use byteorder::WriteBytesExt;
 use error::*;
-use humanreadable;
+use human_readable;
 use std::fmt;
 use std::io;
 
@@ -18,8 +18,8 @@ pub use self::hash::*;
 mod blob;
 pub use self::blob::*;
 
-mod chunkedblob;
-pub use self::chunkedblob::*;
+mod chunked_blob;
+pub use self::chunked_blob::*;
 
 #[macro_use]
 mod tree;
@@ -28,8 +28,8 @@ pub use self::tree::*;
 mod commit;
 pub use self::commit::*;
 
-mod objecthandle;
-pub use self::objecthandle::*;
+mod object_handle;
+pub use self::object_handle::*;
 
 
 /// Type used for sizing and seeking in objects
@@ -141,7 +141,7 @@ impl fmt::Display for ObjectHeader {
         write!(f,
                "{}, size: {}",
                self.object_type,
-               humanreadable::human_bytes(self.content_size))
+               human_readable::human_bytes(self.content_size))
     }
 }
 

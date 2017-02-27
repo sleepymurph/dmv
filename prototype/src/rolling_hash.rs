@@ -186,7 +186,7 @@ impl<R: BufRead> Iterator for ChunkReader<R> {
 /// final ChunkedBlob.
 ///
 /// ```
-/// use prototype::rollinghash::read_file_objects;
+/// use prototype::rolling_hash::read_file_objects;
 /// use prototype::dag::HashedObject;
 /// use std::io::BufReader;
 ///

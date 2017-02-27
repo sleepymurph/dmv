@@ -1,4 +1,4 @@
-use humanreadable;
+use human_readable;
 use std::fmt;
 use std::io;
 use super::*;
@@ -82,8 +82,8 @@ Object content size:    {:>10}
 Total file size:        {:>10}
 
 ",
-               humanreadable::human_bytes(self.content_size()),
-               humanreadable::human_bytes(self.total_size))
+               human_readable::human_bytes(self.content_size()),
+               human_readable::human_bytes(self.total_size))
             .unwrap();
 
         write!(&mut output, "{:10}  {:10}  {}\n", "offset", "size", "hash")
@@ -93,7 +93,7 @@ Total file size:        {:>10}
             write!(&mut output,
                    "{:>010x}  {:>10}  {:x}\n",
                    chunk.offset,
-                   humanreadable::human_bytes(chunk.size),
+                   human_readable::human_bytes(chunk.size),
                    chunk.hash)
                 .unwrap();
         }
@@ -143,13 +143,13 @@ impl fmt::Display for ChunkOffset {
                "ChunkOffset( {} at {:#010x}, {} )",
                self.hash,
                self.offset,
-               humanreadable::human_bytes(self.size))
+               human_readable::human_bytes(self.size))
     }
 }
 
 #[cfg(test)]
 mod test {
-    use rollinghash;
+    use rolling_hash;
     use std::collections;
 
     use std::io;
@@ -163,39 +163,39 @@ mod test {
     {
         // Set up a "file" of random bytes
         let mut rng = testutil::TestRand::default();
-        let rand_bytes = rng.gen_byte_vec(10 * rollinghash::CHUNK_TARGET_SIZE);
+        let rand_bytes = rng.gen_byte_vec(10 * rolling_hash::CHUNK_TARGET_SIZE);
 
         // Break into chunks, indexed by ChunkedBlob
-        let mut chunkedblob = ChunkedBlob::new();
+        let mut chunked_blob = ChunkedBlob::new();
         let mut chunk_store: collections::HashMap<ObjectKey, Blob> =
             collections::HashMap::new();
 
         {
             let mut chunk_read =
-                rollinghash::ChunkReader::wrap(rand_bytes.as_slice());
+                rolling_hash::ChunkReader::wrap(rand_bytes.as_slice());
             for chunk in &mut chunk_read {
                 let blob = Blob::from(chunk.expect("chunk"));
                 let hash = blob.write_to(&mut io::sink()).expect("write chunk");
-                chunkedblob.add_chunk(blob.content_size(), hash);
+                chunked_blob.add_chunk(blob.content_size(), hash);
                 chunk_store.insert(hash, blob);
             }
         }
 
-        (rand_bytes, chunk_store, chunkedblob)
+        (rand_bytes, chunk_store, chunked_blob)
     }
 
     #[test]
     fn test_chunk_and_reconstruct() {
-        let (rand_bytes, chunk_store, chunkedblob) =
+        let (rand_bytes, chunk_store, chunked_blob) =
             create_random_chunkedblob();
 
-        assert_eq!(chunkedblob.total_size,
+        assert_eq!(chunked_blob.total_size,
                    rand_bytes.len() as ObjectSize,
                    "Cumulative size");
 
         // Reconstruct original large "file"
         let mut reconstructed: Vec<u8> = Vec::new();
-        for chunk_offset in &chunkedblob.chunks {
+        for chunk_offset in &chunked_blob.chunks {
             let blob = chunk_store.get(&chunk_offset.hash).unwrap();
             reconstructed.write_all(blob.content()).expect("reconstruct chunk");
         }
@@ -206,11 +206,11 @@ mod test {
     #[test]
     fn test_write_chunkedblob() {
         // Construct object
-        let (_, _, chunkedblob) = create_random_chunkedblob();
+        let (_, _, chunked_blob) = create_random_chunkedblob();
 
         // Write out
         let mut output: Vec<u8> = Vec::new();
-        chunkedblob.write_to(&mut output).expect("write out chunked blob");
+        chunked_blob.write_to(&mut output).expect("write out chunked blob");
 
         // Read in header
         let mut reader = io::BufReader::new(output.as_slice());
@@ -223,6 +223,6 @@ mod test {
         let readobject = ChunkedBlob::read_content(&mut reader)
             .expect("read object content");
 
-        assert_eq!(readobject, chunkedblob);
+        assert_eq!(readobject, chunked_blob);
     }
 }

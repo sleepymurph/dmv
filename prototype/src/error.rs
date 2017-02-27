@@ -45,7 +45,7 @@ error_chain!{
             display("object not found in object store: {}", h)
         }
 
-        RevNotFound(r: $crate::objectstore::RevSpec) {
+        RevNotFound(r: $crate::object_store::RevSpec) {
             description("revision not found in object store")
             display("revision not found in object store: {}", r)
         }

@@ -1,5 +1,5 @@
 use cache::CacheStatus;
-use humanreadable;
+use human_readable;
 use std::collections;
 use std::io;
 use std::path::PathBuf;
@@ -64,7 +64,7 @@ impl ObjectCommon for Tree {
 Object content size:    {:>10}
 
 ",
-               humanreadable::human_bytes(self.content_size()))
+               human_readable::human_bytes(self.content_size()))
             .unwrap();
 
         for entry in &self.entries {

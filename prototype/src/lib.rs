@@ -9,7 +9,7 @@ extern crate crypto;
 extern crate disk_backed;
 #[macro_use]
 extern crate error_chain;
-extern crate humanreadable;
+extern crate human_readable;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -17,7 +17,7 @@ extern crate log;
 extern crate regex;
 extern crate rustc_serialize;
 #[macro_use]
-extern crate wrapperstruct;
+extern crate wrapper_struct;
 
 // Test-only dependencies
 #[cfg(test)]
@@ -91,8 +91,8 @@ pub mod error;
 pub mod constants;
 #[macro_use]
 pub mod dag;
-pub mod rollinghash;
-pub mod objectstore;
+pub mod rolling_hash;
+pub mod object_store;
 #[macro_use]
 pub mod cache;
 pub mod ignore;

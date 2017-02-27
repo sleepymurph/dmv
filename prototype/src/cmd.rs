@@ -9,7 +9,7 @@ use find_repo::RepoLayout;
 use find_repo::find_fs_transfer;
 use find_repo::find_object_store;
 use find_repo::find_work_dir;
-use objectstore::RevSpec;
+use object_store::RevSpec;
 use std::env::current_dir;
 use std::path::Path;
 use std::path::PathBuf;

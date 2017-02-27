@@ -6,7 +6,7 @@
 ///
 /// ```
 /// #[macro_use]
-/// extern crate wrapperstruct;
+/// extern crate wrapper_struct;
 ///
 /// struct StringWrapTuple(String);
 /// impl_from!(String => StringWrapTuple);
@@ -56,7 +56,7 @@ macro_rules! impl_from {
 ///
 /// ```
 /// #[macro_use]
-/// extern crate wrapperstruct;
+/// extern crate wrapper_struct;
 ///
 /// struct StringWrapTuple(String);
 /// impl_deref!(StringWrapTuple => String);
@@ -101,7 +101,7 @@ macro_rules! impl_deref {
 ///
 /// ```
 /// #[macro_use]
-/// extern crate wrapperstruct;
+/// extern crate wrapper_struct;
 ///
 /// struct StringWrapTuple(String);
 /// impl_deref_mut!(StringWrapTuple => String);
@@ -150,7 +150,7 @@ macro_rules! impl_deref_mut {
 ///
 /// ```
 /// #[macro_use]
-/// extern crate wrapperstruct;
+/// extern crate wrapper_struct;
 ///
 /// wrapper_struct!{
 ///     /// Simple string wrapper (tuple struct)

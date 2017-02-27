@@ -24,8 +24,8 @@ rust-crypto = "0.2"
 rustc-serialize = "0.3"
 
 disk_backed = { path = "disk_backed" }
-humanreadable = { path = "humanreadable" }
-wrapperstruct = { path = "wrapperstruct" }
+human_readable = { path = "human_readable" }
+wrapper_struct = { path = "wrapper_struct" }
 
 [dev-dependencies]
 hamcrest = "0.1.3"

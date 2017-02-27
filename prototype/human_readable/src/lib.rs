@@ -7,7 +7,7 @@
 /// KiB, and 2049 bytes is rounded down.
 ///
 /// ```
-/// use humanreadable::human_bytes;
+/// use human_readable::human_bytes;
 ///
 /// // Bytes endings are right-padded for alignment
 /// assert_eq!(human_bytes(0_u8),                   "0 bytes");

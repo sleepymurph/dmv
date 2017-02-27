@@ -7,4 +7,4 @@ authors = ["Mike Murphy <codermurph@sleepymurph.com>"]
 rand = "0.3"
 tempdir = "0.3"
 
-wrapperstruct = { path = "../wrapperstruct" }
+wrapper_struct = { path = "../wrapper_struct" }
