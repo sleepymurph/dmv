@@ -64,6 +64,18 @@ pub enum ObjectType {
     Commit,
 }
 
+impl fmt::Display for ObjectType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let type_str = match self {
+            &ObjectType::Blob => "Blob",
+            &ObjectType::ChunkedBlob => "Chunked Blob Index",
+            &ObjectType::Tree => "Tree",
+            &ObjectType::Commit => "Commit",
+        };
+        write!(f, "{}", type_str)
+    }
+}
+
 /// Metadata common to all objects that is written to the header of object files
 #[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub struct ObjectHeader {
@@ -126,15 +138,9 @@ impl ObjectHeader {
 
 impl fmt::Display for ObjectHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let obj_desc = match self.object_type {
-            ObjectType::Blob => "Blob",
-            ObjectType::ChunkedBlob => "Chunked Blob Index",
-            ObjectType::Tree => "Tree",
-            ObjectType::Commit => "Commit",
-        };
         write!(f,
                "{}, size: {}",
-               obj_desc,
+               self.object_type,
                humanreadable::human_bytes(self.content_size))
     }
 }
