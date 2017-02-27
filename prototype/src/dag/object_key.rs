@@ -62,7 +62,7 @@ impl ObjectKey {
 
     pub fn parse(hexstr: &str) -> Result<Self> {
         if !OBJECT_KEY_PAT.is_match(hexstr) {
-            bail!(ErrorKind::ParseKey(hexstr.to_owned()));
+            bail!(ErrorKind::BadObjectKey(hexstr.to_owned()));
         }
         let mut buf = [0u8; KEY_SIZE_BYTES];
         let mut i = 0;
@@ -73,7 +73,7 @@ impl ObjectKey {
                 '0'...'9' => char as u8 - b'0',
                 'a'...'f' => char as u8 - b'a' + 10,
                 'A'...'F' => char as u8 - b'A' + 10,
-                _ => bail!(ErrorKind::ParseKey(hexstr.to_owned())),
+                _ => bail!(ErrorKind::BadObjectKey(hexstr.to_owned())),
             };
             if high {
                 nibble <<= 4;
@@ -112,7 +112,7 @@ impl ObjectKey {
     ///
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.len() != KEY_SIZE_BYTES {
-            bail!(ErrorKind::BadKeyLength(bytes.to_vec()));
+            bail!(ErrorKind::BadObjectKeyLength(bytes.to_vec()));
         }
         let mut key = [0; KEY_SIZE_BYTES];
         key.copy_from_slice(bytes);
@@ -230,13 +230,12 @@ mod test {
 
         for &(desc, bad) in bad_inputs.into_iter() {
             match ObjectKey::parse(&bad) {
-                Err(Error(ErrorKind::ParseKey(ref bad_key), _)) if bad_key ==
-                                                                   bad => (),
+                Err(Error(ErrorKind::BadObjectKey(ref bad_key), _))
+                    if bad_key == bad => (),
                 other => {
-                    panic!(format!("parsing \"{}\" input. Expected error. \
-                                    Got: {:?}",
-                                   desc,
-                                   other))
+                    panic!("parsing \"{}\" input. Expected error. Got: {:?}",
+                           desc,
+                           other)
                 }
             }
         }
