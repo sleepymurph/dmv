@@ -35,11 +35,6 @@ error_chain!{
             display("could not object header: {}", msg)
         }
 
-        NotADirectory(p: ::std::path::PathBuf) {
-            description("path is not a directory")
-            display("path is not a directory: '{}'", p.display())
-        }
-
         ObjectNotFound(h: $crate::dag::ObjectKey) {
             description("object not found in object store")
             display("object not found in object store: {}", h)
