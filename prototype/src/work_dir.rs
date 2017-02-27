@@ -7,7 +7,7 @@ use dag::ObjectKey;
 use disk_backed::DiskBacked;
 use error::*;
 use find_repo::RepoLayout;
-use fs_transfer::ObjectFsTransfer;
+use fs_transfer::FsTransfer;
 use objectstore::ObjectStore;
 use std::path::Path;
 use std::path::PathBuf;
@@ -28,7 +28,7 @@ impl Default for WorkDirState {
 }
 
 pub struct WorkDir {
-    fs_transfer: ObjectFsTransfer,
+    fs_transfer: FsTransfer,
     path: PathBuf,
     state: DiskBacked<WorkDirState>,
 }
@@ -44,14 +44,14 @@ impl WorkDir {
         let state = DiskBacked::new("work dir state",
                                     work_dir_state_path(&layout.wd));
         Ok(WorkDir {
-            fs_transfer: ObjectFsTransfer::with_object_store(os),
+            fs_transfer: FsTransfer::with_object_store(os),
             path: layout.wd,
             state: state,
         })
     }
     pub fn open(layout: RepoLayout) -> Result<Self> {
         Ok(WorkDir {
-            fs_transfer: ObjectFsTransfer::with_repo_path(layout.osd)?,
+            fs_transfer: FsTransfer::with_repo_path(layout.osd)?,
             state:
                 DiskBacked::read_or_default("work dir state",
                                             work_dir_state_path(&layout.wd))?,
@@ -120,7 +120,7 @@ impl WorkDir {
     }
 }
 
-impl_deref_mut!(WorkDir => ObjectFsTransfer, fs_transfer);
+impl_deref_mut!(WorkDir => FsTransfer, fs_transfer);
 
 #[cfg(test)]
 mod test {

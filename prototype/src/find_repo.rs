@@ -2,7 +2,7 @@
 
 use constants::HIDDEN_DIR_NAME;
 use error::*;
-use fs_transfer::ObjectFsTransfer;
+use fs_transfer::FsTransfer;
 use fsutil::up_from;
 use objectstore::ObjectStore;
 use std::env::current_dir;
@@ -50,9 +50,9 @@ pub fn find_object_store() -> Result<ObjectStore> {
     find_repo(&start_dir).and_then(|layout| ObjectStore::open(layout.osd))
 }
 
-/// Find ObjectStore and create an ObjectFsTransfer around it
-pub fn find_fs_transfer() -> Result<ObjectFsTransfer> {
-    find_object_store().map(|os| ObjectFsTransfer::with_object_store(os))
+/// Find ObjectStore and create an FsTransfer around it
+pub fn find_fs_transfer() -> Result<FsTransfer> {
+    find_object_store().map(|os| FsTransfer::with_object_store(os))
 }
 
 /// Find entire WorkDir

@@ -25,18 +25,18 @@ use std::path::Path;
 use std::path::PathBuf;
 
 
-pub struct ObjectFsTransfer {
+pub struct FsTransfer {
     pub object_store: ObjectStore,
     pub cache: AllCaches,
     pub ignored: IgnoreList,
 }
 
-impl ObjectFsTransfer {
+impl FsTransfer {
     pub fn with_object_store(object_store: ObjectStore) -> Self {
         let mut ignored = IgnoreList::default();
         ignored.insert(object_store.path());
 
-        ObjectFsTransfer {
+        FsTransfer {
             object_store: object_store,
             ignored: ignored,
             cache: AllCaches::new(),
@@ -44,7 +44,7 @@ impl ObjectFsTransfer {
     }
 
     pub fn with_repo_path(repo_path: PathBuf) -> Result<Self> {
-        Ok(ObjectFsTransfer::with_object_store(ObjectStore::open(repo_path)?))
+        Ok(FsTransfer::with_object_store(ObjectStore::open(repo_path)?))
     }
 
     /// Check, hash, and store a file or directory
@@ -251,7 +251,7 @@ impl ObjectFsTransfer {
     }
 }
 
-impl_deref_mut!(ObjectFsTransfer => ObjectStore, object_store);
+impl_deref_mut!(FsTransfer => ObjectStore, object_store);
 
 
 #[cfg(test)]
@@ -269,10 +269,10 @@ mod test {
     use testutil;
     use testutil::tempdir::TempDir;
 
-    fn create_temp_repo(dir_name: &str) -> (TempDir, ObjectFsTransfer) {
+    fn create_temp_repo(dir_name: &str) -> (TempDir, FsTransfer) {
         let temp = in_mem_tempdir!();
         let repo_path = temp.path().join(dir_name);
-        let fs_transfer = ObjectFsTransfer::with_repo_path(repo_path).unwrap();
+        let fs_transfer = FsTransfer::with_repo_path(repo_path).unwrap();
         (temp, fs_transfer)
     }
 
