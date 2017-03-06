@@ -70,6 +70,11 @@ pub fn status() -> Result<()> {
     Ok(())
 }
 
+pub fn add(path: PathBuf) -> Result<()> {
+    let mut work_dir = find_work_dir()?;
+    work_dir.mark_for_add(path)
+}
+
 pub fn commit(message: String) -> Result<()> {
     let mut work_dir = find_work_dir()?;
     let (branch, hash) = work_dir.commit(message)?;

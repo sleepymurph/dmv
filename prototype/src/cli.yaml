@@ -38,6 +38,12 @@ subcommands:
 
     - status:
 
+    - add:
+        args:
+            - path:
+                required: true
+                index: 1
+
     - commit:
         args:
             - message:

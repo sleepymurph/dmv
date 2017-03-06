@@ -204,6 +204,10 @@ impl WorkDir {
                 bail!("Path does not exist: {}", rel_path.display())
             }
             (None, true) => {
+                if self.state.marks.get(rel_path.into()) ==
+                   Some(&FileMark::Add) {
+                    return Ok(Leaf(Add));
+                }
                 if self.ignored.ignores(&rel_path) || is_empty_dir(&abs_path)? {
                     return Ok(Leaf(Ignored));
                 }
@@ -289,6 +293,15 @@ impl WorkDir {
                 .or_insert_with(|| Leaf(Offline));
         }
         Ok(status)
+    }
+
+    pub fn mark_for_add(&mut self, path: PathBuf) -> Result<()> {
+        if !path.exists() {
+            bail!("Path does not exist: {}", path.display());
+        }
+        self.state.marks.insert(path.into(), FileMark::Add);
+        self.state.flush()?;
+        Ok(())
     }
 
     pub fn commit(&mut self,
