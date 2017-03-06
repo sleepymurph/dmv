@@ -120,14 +120,14 @@ impl HashCache {
     pub fn get<'a, P: ?Sized + AsRef<path::Path>>(&self,
                                                   file_path: &'a P)
                                                   -> Option<&CacheEntry> {
-        self.0.get(&file_path.into())
+        self.0.get(file_path.as_ref())
     }
 
     pub fn check<'a, P: ?Sized + AsRef<path::Path>>(&self,
                                                     file_path: &'a P,
                                                     file_stats: &FileStats)
                                                     -> CacheStatus {
-        match self.0.get(&file_path.into()) {
+        match self.0.get(file_path.as_ref()) {
             Some(cache_entry) => {
                 if cache_entry.filestats == *file_stats {
                     CacheStatus::Cached { hash: cache_entry.hash }

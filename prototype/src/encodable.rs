@@ -4,6 +4,7 @@ use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
+use std::borrow::Borrow;
 use std::ffi;
 use std::hash::{Hash, Hasher};
 use std::path;
@@ -57,6 +58,18 @@ impl From<ffi::OsString> for PathBuf {
 impl<'a, P: ?Sized + AsRef<path::Path>> From<&'a P> for PathBuf {
     fn from(p: &'a P) -> Self { PathBuf(p.as_ref().to_path_buf()) }
 }
+
+impl Borrow<path::Path> for PathBuf {
+    fn borrow(&self) -> &path::Path { &self.0 }
+}
+
+// You may be tempted to implement Borrow<ffi::OsStr> for PathBuf. DO NOT DO IT.
+// OsStr and PathBuf can be equal and still have different hashes. So HashMaps
+// will not work properly.
+//
+// impl Borrow<ffi::OsStr> for PathBuf {
+//    fn borrow(&self) -> &ffi::OsStr { self.0.as_os_str() }
+// }
 
 impl Encodable for PathBuf {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
@@ -150,7 +163,10 @@ impl Hash for SystemTime {
 #[cfg(test)]
 mod test {
     use rustc_serialize::json;
+    use std::collections::hash_map::DefaultHasher;
     use std::ffi;
+    use std::hash::Hash;
+    use std::hash::Hasher;
     use super::*;
 
     #[test]
@@ -161,5 +177,26 @@ mod test {
         let obj = PathBuf::from(ffi::OsString::from_vec(vec![0xc3, 0x28]));
         let _ = json::encode(&obj);
         // Panics
+    }
+
+    fn hash<T: ?Sized + Hash>(t: &T) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        t.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    #[test]
+    fn test_path_buf_os_string() {
+        let pb = PathBuf::from("hello");
+
+        let as_path = path::PathBuf::from("hello");
+        let as_path = as_path.as_path();
+        assert_eq!(hash(&pb), hash(as_path));
+
+        let as_os_str = ffi::OsString::from("hello");
+        let as_os_str = as_os_str.as_os_str();
+        assert_eq!(as_path, as_os_str);
+        assert_ne!(hash(as_path), hash(as_os_str));
+        assert_ne!(hash(&pb), hash(as_os_str));
     }
 }
