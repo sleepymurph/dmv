@@ -6,26 +6,21 @@ use std::path::PathBuf;
 use super::*;
 
 type PathKeyMap = collections::BTreeMap<PathBuf, ObjectKey>;
-type PathKeyMapIter<'a> = collections::btree_map::Iter<'a, PathBuf, ObjectKey>;
 
-/// DAG Object representing a directory
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
-pub struct Tree {
-    entries: PathKeyMap,
+wrapper_struct!{
+    /// DAG Object representing a directory
+    #[derive(Clone,Eq,PartialEq,Hash,Debug)]
+    pub struct Tree(PathKeyMap);
 }
 
 impl Tree {
-    pub fn new() -> Self { Tree { entries: PathKeyMap::new() } }
+    pub fn new() -> Self { Tree(PathKeyMap::new()) }
 
     pub fn insert<P>(&mut self, name: P, hash: ObjectKey)
         where P: Into<PathBuf>
     {
-        self.entries.insert(name.into(), hash);
+        self.0.insert(name.into(), hash);
     }
-
-    pub fn iter(&self) -> PathKeyMapIter { self.entries.iter() }
-
-    pub fn len(&self) -> usize { self.entries.len() }
 }
 
 /// Create and populate a Tree object
@@ -41,13 +36,13 @@ const TREE_ENTRY_SEPARATOR: u8 = b'\n';
 impl ObjectCommon for Tree {
     fn object_type(&self) -> ObjectType { ObjectType::Tree }
     fn content_size(&self) -> ObjectSize {
-        self.entries.iter().fold(0, |acc, x| {
+        self.0.iter().fold(0, |acc, x| {
             acc + KEY_SIZE_BYTES + x.0.as_os_str().len() + 1
         }) as ObjectSize
     }
 
     fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
-        for entry in &self.entries {
+        for entry in &self.0 {
             try!(writer.write(entry.1.as_ref()));
             try!(writer.write(entry.0.to_str().unwrap().as_bytes()));
             try!(writer.write(&[TREE_ENTRY_SEPARATOR]));
@@ -67,7 +62,7 @@ Object content size:    {:>10}
                human_readable::human_bytes(self.content_size()))
             .unwrap();
 
-        for entry in &self.entries {
+        for entry in &self.0 {
             write!(&mut output,
                    "{:x} {}\n",
                    entry.1,
