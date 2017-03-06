@@ -5,6 +5,7 @@ use dag::OBJECT_KEY_PAT;
 use dag::ObjectCommon;
 use dag::ObjectHandle;
 use dag::ObjectKey;
+use dag::Tree;
 use disk_backed::DiskBacked;
 use error::*;
 use fsutil;
@@ -146,6 +147,66 @@ impl ObjectStore {
             }
             Err(e) => Err(e),
         }
+    }
+
+    pub fn open_tree(&self, key: &ObjectKey) -> Result<Tree> {
+        match self.open_object(key) {
+            Ok(ObjectHandle::Tree(raw)) => raw.read_content(),
+            Ok(ObjectHandle::Commit(raw)) => {
+                let commit = raw.read_content()?;
+                self.open_tree(&commit.tree)
+            }
+            Ok(other) => {
+                bail!("{} is a {:?}. Expected a tree.",
+                      key,
+                      other.header().object_type)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn try_find_tree_path(&self,
+                              key: &ObjectKey,
+                              path: &Path)
+                              -> Result<Option<ObjectKey>> {
+        use std::path::Component;
+
+        let mut next_key = key.to_owned();
+
+        if path == PathBuf::from("") {
+            match self.open_object(&next_key)? {
+                ObjectHandle::Commit(raw) => {
+                    return raw.read_content().map(|commit| Some(commit.tree));
+                }
+                _ => return Ok(Some(next_key)),
+            }
+        }
+
+        let mut path_so_far = PathBuf::new();
+        for component in path.components() {
+            let tree = self.open_tree(&next_key)
+                .chain_err(|| {
+                    format!("While trying to open {}/{}",
+                            key,
+                            path_so_far.display())
+                })?;
+            match component {
+                Component::Normal(osstr) => {
+                    let child_path = PathBuf::from(osstr);
+                    path_so_far.push(&child_path);
+                    match tree.get(&child_path) {
+                        Some(child_key) => next_key = child_key.to_owned(),
+                        None => return Ok(None),
+                    }
+                }
+                _ => {
+                    bail!("Unexpected path component type '{:?}' in path '{}'",
+                          component,
+                          path.display())
+                }
+            }
+        }
+        Ok(Some(next_key))
     }
 
     /// Writes a single object into the object store

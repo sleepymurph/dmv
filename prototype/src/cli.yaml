@@ -36,6 +36,8 @@ subcommands:
                 required: true
                 index: 1
 
+    - status:
+
     - commit:
         args:
             - message:

@@ -31,6 +31,7 @@ fn run() -> Result<()> {
                 "show-object" => cmd_show_object,
                 "extract-object" => cmd_extract_object,
                 "cache-status" => cmd_cache_status,
+                "status" => cmd_status,
                 "commit" => cmd_commit,
                 "log" => cmd_log,
                 "branch" => cmd_branch,
@@ -87,6 +88,12 @@ fn cmd_cache_status(_argmatch: &clap::ArgMatches,
     let file_path = PathBuf::from(file_path);
 
     cmd::cache_status(file_path)
+}
+
+fn cmd_status(_argmatch: &clap::ArgMatches,
+              _submatch: &clap::ArgMatches)
+              -> Result<()> {
+    cmd::status()
 }
 
 fn cmd_commit(_argmatch: &clap::ArgMatches,

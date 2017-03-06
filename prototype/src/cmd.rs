@@ -63,6 +63,13 @@ pub fn cache_status(file_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
+pub fn status() -> Result<()> {
+    let mut work_dir = find_work_dir()?;
+    let status = work_dir.check_status()?;
+    println!("{}", status);
+    Ok(())
+}
+
 pub fn commit(message: String) -> Result<()> {
     let mut work_dir = find_work_dir()?;
     let (branch, hash) = work_dir.commit(message)?;
