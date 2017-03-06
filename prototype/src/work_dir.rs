@@ -8,6 +8,7 @@ use dag::ObjectHandle;
 use dag::ObjectKey;
 use dag::Tree;
 use disk_backed::DiskBacked;
+use encodable;
 use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::FsTransfer;
@@ -100,7 +101,7 @@ pub enum FileMark {
     Delete,
 }
 
-type FileMarkMap = BTreeMap<PathBuf, FileMark>;
+type FileMarkMap = BTreeMap<encodable::PathBuf, FileMark>;
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
 pub struct WorkDirState {
