@@ -11,6 +11,7 @@ use disk_backed::DiskBacked;
 use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::FsTransfer;
+use fsutil::is_empty_dir;
 use object_store::ObjectStore;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -202,10 +203,10 @@ impl WorkDir {
                 bail!("Path does not exist: {}", rel_path.display())
             }
             (None, true) => {
-                match self.ignored.ignores(&rel_path) {
-                    false => Ok(Leaf(Untracked)),
-                    true => Ok(Leaf(Ignored)),
+                if self.ignored.ignores(&rel_path) || is_empty_dir(&abs_path)? {
+                    return Ok(Leaf(Ignored));
                 }
+                Ok(Leaf(Untracked))
             }
             (Some(_), false) => Ok(Leaf(Offline)),
             (Some(key), true) => self.compare_path(abs_path, rel_path, &key),

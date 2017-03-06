@@ -31,6 +31,17 @@ impl<'a> Iterator for Parents<'a> {
     }
 }
 
+pub fn is_empty_dir<P: AsRef<path::Path>>(path: &P) -> Result<bool, io::Error> {
+    let path = path.as_ref();
+    if !path.is_dir() {
+        return Ok(false);
+    }
+    for _ in path.read_dir()? {
+        return Ok(false);
+    }
+    Ok(true)
+}
+
 #[cfg(test)]
 mod test {
     use std::path;
