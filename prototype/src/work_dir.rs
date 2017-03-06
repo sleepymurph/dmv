@@ -22,6 +22,9 @@ pub enum LeafStatus {
     /// Path is new and untracked
     Untracked,
 
+    /// Path is untracked and ignored
+    Ignored,
+
     /// Path is new and marked for addition
     Add,
 
@@ -41,6 +44,21 @@ pub enum LeafStatus {
     MaybeModified,
 }
 
+impl LeafStatus {
+    fn code(&self) -> &'static str {
+        match self {
+            &LeafStatus::Untracked => "?",
+            &LeafStatus::Ignored => "i",
+            &LeafStatus::Add => "a",
+            &LeafStatus::Offline => "o",
+            &LeafStatus::Delete => "d",
+            &LeafStatus::Unchanged => " ",
+            &LeafStatus::Modified => "M",
+            &LeafStatus::MaybeModified => "m",
+        }
+    }
+}
+
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
 pub enum Status {
     Leaf(LeafStatus),
@@ -52,9 +70,10 @@ type StatusTree = BTreeMap<PathBuf, Status>;
 impl Status {
     fn write(&self, f: &mut fmt::Formatter, prefix: &PathBuf) -> fmt::Result {
         match self {
+            &Status::Leaf(LeafStatus::Ignored) => Ok(()),
             &Status::Leaf(LeafStatus::Unchanged) => Ok(()),
             &Status::Leaf(ref leaf) => {
-                write!(f, "{:-15?} {}\n", leaf, prefix.display())
+                write!(f, "{} {}\n", leaf.code(), prefix.display())
             }
             &Status::Tree(ref tree) => {
                 for (path, status) in tree {
@@ -182,7 +201,12 @@ impl WorkDir {
             (None, false) => {
                 bail!("Path does not exist: {}", rel_path.display())
             }
-            (None, true) => Ok(Leaf(Untracked)),
+            (None, true) => {
+                match self.ignored.ignores(&rel_path) {
+                    false => Ok(Leaf(Untracked)),
+                    true => Ok(Leaf(Ignored)),
+                }
+            }
             (Some(_), false) => Ok(Leaf(Offline)),
             (Some(key), true) => self.compare_path(abs_path, rel_path, &key),
         }
@@ -252,10 +276,9 @@ impl WorkDir {
             let ch_abs_path = entry.path();
             let ch_name = PathBuf::from(ch_abs_path.file_name_or_err()?);
             let ch_rel_path = rel_path.join(&ch_name);
-            let ch_status = match tree.get(&ch_name) {
-                None => Ok(Leaf(Untracked)),
-                Some(key) => self.compare_path(&ch_abs_path, &ch_rel_path, key),
-            }?;
+            let ch_key = tree.get(&ch_name).map(|k| k.to_owned());
+            let ch_status =
+                self.check_status_inner(&ch_abs_path, &ch_rel_path, ch_key)?;
             status.insert(ch_name, ch_status);
         }
         // Check missing files
