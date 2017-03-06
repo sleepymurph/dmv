@@ -177,12 +177,17 @@ impl FsTransfer {
                 debug!("Extracting file {} to {}", hash, path.display());
                 self.extract_file_open(handle, hash, path)
             }
-            ObjectHandle::Tree(tree) => {
+            ObjectHandle::Tree(raw) => {
                 debug!("Extracting tree {} to {}", hash, path.display());
-                let tree = tree.read_content()?;
+                let tree = raw.read_content()?;
                 self.extract_tree_open(tree, path)
             }
-            ObjectHandle::Commit(_) => unimplemented!(),
+            ObjectHandle::Commit(raw) => {
+                debug!("Extracting commit {} to {}", hash, path.display());
+                let tree = raw.read_content()
+                    .and_then(|commit| self.open_tree(&commit.tree))?;
+                self.extract_tree_open(tree, path)
+            }
         }
     }
 
