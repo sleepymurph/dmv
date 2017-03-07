@@ -1,5 +1,6 @@
 use constants;
-use dag;
+use dag::ObjectKey;
+use dag::ObjectSize;
 use disk_backed::DiskBacked;
 use encodable;
 use error::*;
@@ -16,11 +17,11 @@ use std::path;
 #[derive(Clone,Eq,PartialEq,Debug)]
 pub enum CacheStatus {
     /// File's hash is not cached
-    NotCached { size: dag::ObjectSize },
+    NotCached { size: ObjectSize },
     /// File's hash is cached, but it has been modified since
-    Modified { size: dag::ObjectSize },
+    Modified { size: ObjectSize },
     /// File's hash is cached
-    Cached { hash: dag::ObjectKey },
+    Cached { hash: ObjectKey },
 }
 
 /// Does an early return with the cached hash value if it is present
@@ -82,13 +83,13 @@ pub struct HashCache(CacheMap);
 #[derive(Clone,Hash,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
 pub struct CacheEntry {
     pub filestats: FileStats,
-    pub hash: dag::ObjectKey,
+    pub hash: ObjectKey,
 }
 
 /// Subset of file metadata used to determine if file has been modified
 #[derive(Clone,Hash,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
 pub struct FileStats {
-    size: dag::ObjectSize,
+    size: ObjectSize,
     mtime: encodable::SystemTime,
 }
 
@@ -107,7 +108,7 @@ impl HashCache {
     pub fn insert_entry(&mut self,
                         file_path: path::PathBuf,
                         file_stats: FileStats,
-                        hash: dag::ObjectKey) {
+                        hash: ObjectKey) {
 
         debug!("Caching file hash: {} => {}", file_path.display(), hash);
         self.0.insert(file_path.into(),
@@ -224,7 +225,7 @@ impl AllCaches {
     pub fn insert(&mut self,
                   file_path: path::PathBuf,
                   stats: FileStats,
-                  hash: dag::ObjectKey)
+                  hash: ObjectKey)
                   -> Result<()> {
 
         let dir_path = try!(file_path.parent_or_err());
