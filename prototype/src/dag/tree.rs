@@ -1,11 +1,11 @@
 use cache::CacheStatus;
 use human_readable;
-use std::collections;
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::io;
 use super::*;
 
-type PathKeyMap = collections::BTreeMap<OsString, ObjectKey>;
+type PathKeyMap = BTreeMap<OsString, ObjectKey>;
 
 wrapper_struct!{
     /// DAG Object representing a directory
@@ -99,7 +99,7 @@ impl ReadObjectContent for Tree {
 }
 
 
-type UnhashedMap = collections::BTreeMap<OsString, UnhashedPath>;
+type UnhashedMap = BTreeMap<OsString, UnhashedPath>;
 
 /// An incomplete Tree object that requires some files to be hashed
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
