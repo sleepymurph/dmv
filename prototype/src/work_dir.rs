@@ -186,13 +186,13 @@ impl WorkDir {
             _ => unimplemented!(),
         };
         let partial = self.fs_transfer.check_status(&abs_path)?;
-        self.check_status_inner(&rel_path, key, Some(partial))
+        self.check_status_inner(&rel_path, key, partial)
     }
 
     fn check_status_inner(&mut self,
                           rel_path: &Path,
                           key: Option<ObjectKey>,
-                          partial: Option<HashedOrNot>)
+                          partial: HashedOrNot)
                           -> Result<Status> {
         trace!("comparing {} to {:?}", rel_path.display(), key);
         use self::Status::*;
@@ -200,17 +200,10 @@ impl WorkDir {
 
         let mark = self.state.marks.get(rel_path.into()).map(ToOwned::to_owned);
 
-        match (key, partial, mark) {
-            (None, None, _) => {
-                bail!("Path does not exist: {}", rel_path.display())
-            }
-            (None, Some(_), Some(FileMark::Add)) => Ok(Leaf(Add)),
-            (None, Some(_), _) => Ok(Leaf(Untracked)),
-            (Some(_), None, Some(FileMark::Delete)) => Ok(Leaf(Delete)),
-            (Some(_), None, _) => Ok(Leaf(Offline)),
-            (Some(key), Some(partial), _) => {
-                self.compare_path(rel_path, &key, partial)
-            }
+        match (key, mark) {
+            (None, Some(FileMark::Add)) => Ok(Leaf(Add)),
+            (None, _) => Ok(Leaf(Untracked)),
+            (Some(key), _) => self.compare_path(rel_path, &key, partial),
         }
     }
 
@@ -256,17 +249,15 @@ impl WorkDir {
         for (ch_name, ch_partial) in partial.all() {
             let ch_rel_path = rel_path.join(&ch_name);
             let ch_key = tree.get(&ch_name).map(|k| k.to_owned());
-            let ch_status = self.check_status_inner(
-                                    &ch_rel_path,
-                                    ch_key,
-                                    Some(ch_partial))?;
+            let ch_status =
+                self.check_status_inner(&ch_rel_path, ch_key, ch_partial)?;
             status.insert(ch_name.to_owned(), ch_status);
         }
         // Check missing files
         for ch_name in tree.keys() {
             status.entry(ch_name.to_owned())
                 .or_insert_with(|| Leaf(Offline));
-            // TODO: Double-check ignores
+            // TODO: Check ignores
         }
         Ok(status)
     }
