@@ -1,18 +1,18 @@
 //! Working Directory: Files checked out from an ObjectStore
 
-use cache::CacheStatus;
 use constants::DEFAULT_BRANCH_NAME;
 use constants::HIDDEN_DIR_NAME;
 use dag::Commit;
+use dag::HashedOrNot;
 use dag::ObjectHandle;
 use dag::ObjectKey;
+use dag::PartialTree;
 use dag::Tree;
 use disk_backed::DiskBacked;
 use encodable;
 use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::FsTransfer;
-use fsutil::is_empty_dir;
 use object_store::ObjectStore;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -180,118 +180,110 @@ impl WorkDir {
 
         let abs_path = self.path().to_owned();
         let rel_path = PathBuf::from("");
-        match self.parents().to_owned() {
-            ref v if v.len() == 1 => {
-                let key = self.try_find_tree_path(&v[0], &rel_path)?;
-                self.check_status_inner(&abs_path, &rel_path, key)
-            }
-            ref v if v.len() == 0 => {
-                self.check_status_inner(&abs_path, &rel_path, None)
-            }
+        let key = match self.parents().to_owned() {
+            ref v if v.len() == 1 => self.try_find_tree_path(&v[0], &rel_path)?,
+            ref v if v.len() == 0 => None,
             _ => unimplemented!(),
-        }
+        };
+        let partial = self.fs_transfer.check_status(&abs_path)?;
+        self.check_status_inner(&abs_path, &rel_path, key, Some(partial))
     }
 
     fn check_status_inner(&mut self,
                           abs_path: &Path,
                           rel_path: &Path,
-                          key: Option<ObjectKey>)
+                          key: Option<ObjectKey>,
+                          partial: Option<HashedOrNot>)
                           -> Result<Status> {
         trace!("comparing {} to {:?}", rel_path.display(), key);
         use self::Status::*;
         use self::LeafStatus::*;
-        match (key, abs_path.exists()) {
-            (None, false) => {
+
+        match (key, partial) {
+            (None, None) => {
                 bail!("Path does not exist: {}", rel_path.display())
             }
-            (None, true) => {
+            (None, Some(_)) => {
                 if self.state.marks.get(rel_path.into()) ==
                    Some(&FileMark::Add) {
                     return Ok(Leaf(Add));
                 }
-                if self.ignored.ignores(&rel_path) || is_empty_dir(&abs_path)? {
-                    return Ok(Leaf(Ignored));
-                }
                 Ok(Leaf(Untracked))
             }
-            (Some(_), false) => Ok(Leaf(Offline)),
-            (Some(key), true) => self.compare_path(abs_path, rel_path, &key),
+            (Some(_), None) => Ok(Leaf(Offline)),
+            (Some(key), Some(partial)) => {
+                self.compare_path(abs_path, rel_path, &key, partial)
+            }
         }
     }
 
     fn compare_path(&mut self,
                     abs_path: &Path,
                     rel_path: &Path,
-                    key: &ObjectKey)
+                    key: &ObjectKey,
+                    partial: HashedOrNot)
                     -> Result<Status> {
         use self::Status::*;
         use self::LeafStatus::*;
-        let path_meta =
-            abs_path.metadata()
-                .chain_err(|| {
-                    format!("getting metadata for {}", rel_path.display())
-                })?;
 
-        if path_meta.is_file() {
-            match self.cache.check_with(&abs_path, &path_meta.into())? {
-                CacheStatus::Cached { hash: cached } if &cached == key => {
-                    Ok(Leaf(Unchanged))
-                }
-                CacheStatus::Cached { .. } => Ok(Leaf(Modified)),
-                CacheStatus::Modified { .. } => Ok(Leaf(Modified)),
-                CacheStatus::NotCached { .. } => Ok(Leaf(MaybeModified)),
+        match partial {
+            HashedOrNot::Hashed(ref cached) if cached == key => {
+                Ok(Leaf(Unchanged))
             }
+            HashedOrNot::Hashed(ref cached) if cached != key => {
+                Ok(Leaf(Modified))
+            }
+            HashedOrNot::UnhashedFile(_) => Ok(Leaf(MaybeModified)),
+            HashedOrNot::Dir(partial) => {
+                match self.open_object(&key)? {
+                    // Was a file, now a dir. Definitely modified.
+                    ObjectHandle::Blob(_) |
+                    ObjectHandle::ChunkedBlob(_) => Ok(Leaf(Modified)),
 
-        } else if path_meta.is_dir() {
-            match self.open_object(&key)? {
-                // Was a file, now a dir. Definitely modified.
-                ObjectHandle::Blob(_) |
-                ObjectHandle::ChunkedBlob(_) => Ok(Leaf(Modified)),
-
-                // Both dirs, need to compare recursively.
-                ObjectHandle::Tree(raw) => {
-                    let tree = raw.read_content()?;
-                    self.compare_dir(abs_path, rel_path, tree)
-                        .map(|status_tree| Tree(status_tree))
-                }
-                ObjectHandle::Commit(raw) => {
-                    let tree = raw.read_content()
-                        .and_then(|commit| self.open_tree(&commit.tree))?;
-                    self.compare_dir(abs_path, rel_path, tree)
-                        .map(|status_tree| Tree(status_tree))
+                    // Both dirs, need to compare recursively.
+                    ObjectHandle::Tree(raw) => {
+                        let tree = raw.read_content()?;
+                        self.compare_dir(abs_path, rel_path, tree, partial)
+                            .map(|status_tree| Tree(status_tree))
+                    }
+                    ObjectHandle::Commit(raw) => {
+                        let tree = raw.read_content()
+                            .and_then(|commit| self.open_tree(&commit.tree))?;
+                        self.compare_dir(abs_path, rel_path, tree, partial)
+                            .map(|status_tree| Tree(status_tree))
+                    }
                 }
             }
-
-
-        } else {
-            unimplemented!()
+            _ => Err(Error::from("TODO")),
         }
     }
 
     fn compare_dir(&mut self,
                    abs_path: &Path,
                    rel_path: &Path,
-                   tree: Tree)
+                   tree: Tree,
+                   partial: PartialTree)
                    -> Result<StatusTree> {
         use self::Status::*;
         use self::LeafStatus::*;
 
         let mut status = StatusTree::new();
         // Check all child paths in directory
-        for entry in abs_path.read_dir()? {
-            let entry = entry?;
-            let ch_abs_path = entry.path();
-            let ch_name = ch_abs_path.file_name_or_err()?;
+        for (ch_name, ch_partial) in partial.all() {
+            let ch_abs_path = abs_path.join(&ch_name);
             let ch_rel_path = rel_path.join(&ch_name);
-            let ch_key = tree.get(ch_name).map(|k| k.to_owned());
-            let ch_status =
-                self.check_status_inner(&ch_abs_path, &ch_rel_path, ch_key)?;
+            let ch_key = tree.get(&ch_name).map(|k| k.to_owned());
+            let ch_status = self.check_status_inner(&ch_abs_path,
+                                    &ch_rel_path,
+                                    ch_key,
+                                    Some(ch_partial))?;
             status.insert(ch_name.to_owned(), ch_status);
         }
         // Check missing files
         for ch_name in tree.keys() {
             status.entry(ch_name.to_owned())
                 .or_insert_with(|| Leaf(Offline));
+            // TODO: Double-check ignores
         }
         Ok(status)
     }

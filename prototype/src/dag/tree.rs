@@ -1,5 +1,6 @@
 use cache::CacheStatus;
 use human_readable;
+use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::io;
@@ -192,6 +193,28 @@ impl PartialTree {
     /// Does this directory have no children at all?
     pub fn is_empty(&self) -> bool {
         self.tree.len() == 0 && self.unhashed.len() == 0
+    }
+
+    pub fn all(&self) -> BTreeMap<OsString, HashedOrNot> {
+        let mut map = BTreeMap::<OsString, HashedOrNot>::new();
+        for (name, entry) in self.tree.iter() {
+            map.insert(name.to_owned(), entry.to_owned().into());
+        }
+        for (name, entry) in self.unhashed.iter() {
+            map.insert(name.to_owned(), entry.to_owned().into());
+        }
+        map
+    }
+
+    pub fn get<O>(&self, name: &O) -> Option<HashedOrNot>
+        where OsString: Borrow<O>,
+              O: Ord
+    {
+        let from_tree =
+            self.tree.get(name).map(ToOwned::to_owned).map(HashedOrNot::from);
+        let from_unhashed =
+            self.tree.get(name).map(ToOwned::to_owned).map(HashedOrNot::from);
+        from_tree.or(from_unhashed)
     }
 }
 
