@@ -186,11 +186,10 @@ impl WorkDir {
             _ => unimplemented!(),
         };
         let partial = self.fs_transfer.check_status(&abs_path)?;
-        self.check_status_inner(&abs_path, &rel_path, key, Some(partial))
+        self.check_status_inner(&rel_path, key, Some(partial))
     }
 
     fn check_status_inner(&mut self,
-                          abs_path: &Path,
                           rel_path: &Path,
                           key: Option<ObjectKey>,
                           partial: Option<HashedOrNot>)
@@ -210,13 +209,12 @@ impl WorkDir {
             (Some(_), None, Some(FileMark::Delete)) => Ok(Leaf(Delete)),
             (Some(_), None, _) => Ok(Leaf(Offline)),
             (Some(key), Some(partial), _) => {
-                self.compare_path(abs_path, rel_path, &key, partial)
+                self.compare_path(rel_path, &key, partial)
             }
         }
     }
 
     fn compare_path(&mut self,
-                    abs_path: &Path,
                     rel_path: &Path,
                     key: &ObjectKey,
                     partial: HashedOrNot)
@@ -237,7 +235,7 @@ impl WorkDir {
                     }
                     ObjectType::Tree | ObjectType::Commit => {
                         let tree = self.open_tree(&key)?;
-                        self.compare_dir(abs_path, rel_path, tree, partial)
+                        self.compare_dir(rel_path, tree, partial)
                             .map(|st| Tree(st))
                     }
                 }
@@ -246,7 +244,6 @@ impl WorkDir {
     }
 
     fn compare_dir(&mut self,
-                   abs_path: &Path,
                    rel_path: &Path,
                    tree: Tree,
                    partial: PartialTree)
@@ -257,10 +254,9 @@ impl WorkDir {
         let mut status = StatusTree::new();
         // Check all child paths in directory
         for (ch_name, ch_partial) in partial.all() {
-            let ch_abs_path = abs_path.join(&ch_name);
             let ch_rel_path = rel_path.join(&ch_name);
             let ch_key = tree.get(&ch_name).map(|k| k.to_owned());
-            let ch_status = self.check_status_inner(&ch_abs_path,
+            let ch_status = self.check_status_inner(
                                     &ch_rel_path,
                                     ch_key,
                                     Some(ch_partial))?;
