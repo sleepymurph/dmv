@@ -3,7 +3,6 @@ use human_readable;
 use std::collections;
 use std::ffi::OsString;
 use std::io;
-use std::path::PathBuf;
 use super::*;
 
 type PathKeyMap = collections::BTreeMap<OsString, ObjectKey>;
@@ -100,7 +99,7 @@ impl ReadObjectContent for Tree {
 }
 
 
-type UnhashedMap = collections::BTreeMap<PathBuf, UnhashedPath>;
+type UnhashedMap = collections::BTreeMap<OsString, UnhashedPath>;
 
 /// An incomplete Tree object that requires some files to be hashed
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
@@ -143,7 +142,7 @@ impl PartialTree {
     ///
     /// Accepts any type that can be converted into a HashedOrNot.
     pub fn insert<P, T>(&mut self, path: P, st: T)
-        where P: Into<PathBuf>,
+        where P: Into<OsString>,
               T: Into<HashedOrNot>
     {
 
@@ -162,12 +161,12 @@ impl PartialTree {
         }
     }
 
-    fn insert_hash(&mut self, path: PathBuf, hash: ObjectKey) {
+    fn insert_hash(&mut self, path: OsString, hash: ObjectKey) {
         self.unhashed.remove(&path);
         self.tree.insert(path, hash);
     }
 
-    fn insert_unhashed<T>(&mut self, path: PathBuf, unknown: T)
+    fn insert_unhashed<T>(&mut self, path: OsString, unknown: T)
         where UnhashedPath: From<T>
     {
         let unknown = UnhashedPath::from(unknown);
@@ -276,8 +275,8 @@ impl UnhashedPath {
 #[cfg(test)]
 mod test {
 
+    use std::ffi::OsString;
     use std::io;
-    use std::path::PathBuf;
     use super::super::*;
     use testutil;
     use testutil::rand::Rng;
@@ -340,7 +339,7 @@ mod test {
                 },
         };
 
-        assert_eq!(partial.unhashed().get(&PathBuf::from("fizz")),
+        assert_eq!(partial.unhashed().get(&OsString::from("fizz")),
                    Some(&UnhashedPath::File(1024)));
 
         assert_eq!(partial.unhashed_size(), 3072);
@@ -357,7 +356,7 @@ mod test {
         // Begin adding hashes for incomplete objects
 
         partial.insert("buzz", object_key(3));
-        assert_eq!(partial.unhashed().get(&PathBuf::from("buzz")),
+        assert_eq!(partial.unhashed().get(&OsString::from("buzz")),
                    None,
                    "After setting hash, path should be removed from unhashed");
         assert_eq!(partial.unhashed_size(), 1024);
@@ -399,7 +398,7 @@ mod test {
                    "not safe to take the tree value: it is missing the \
                     subtree");
 
-        assert_eq!(partial.unhashed().get(&PathBuf::from("bar")),
+        assert_eq!(partial.unhashed().get(&OsString::from("bar")),
                    Some(&UnhashedPath::Dir(partial_tree!{
                         "baz" => object_key(1),
                    })),
