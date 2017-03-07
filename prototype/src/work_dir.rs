@@ -4,8 +4,8 @@ use constants::DEFAULT_BRANCH_NAME;
 use constants::HIDDEN_DIR_NAME;
 use dag::Commit;
 use dag::HashedOrNot;
-use dag::ObjectHandle;
 use dag::ObjectKey;
+use dag::ObjectType;
 use dag::PartialTree;
 use dag::Tree;
 use disk_backed::DiskBacked;
@@ -94,7 +94,7 @@ impl fmt::Display for Status {
     }
 }
 
-#[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
+#[derive(Debug,Clone,Copy,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
 pub enum FileMark {
     /// Mark this file for addition
     Add,
@@ -199,19 +199,17 @@ impl WorkDir {
         use self::Status::*;
         use self::LeafStatus::*;
 
-        match (key, partial) {
-            (None, None) => {
+        let mark = self.state.marks.get(rel_path.into()).map(ToOwned::to_owned);
+
+        match (key, partial, mark) {
+            (None, None, _) => {
                 bail!("Path does not exist: {}", rel_path.display())
             }
-            (None, Some(_)) => {
-                if self.state.marks.get(rel_path.into()) ==
-                   Some(&FileMark::Add) {
-                    return Ok(Leaf(Add));
-                }
-                Ok(Leaf(Untracked))
-            }
-            (Some(_), None) => Ok(Leaf(Offline)),
-            (Some(key), Some(partial)) => {
+            (None, Some(_), Some(FileMark::Add)) => Ok(Leaf(Add)),
+            (None, Some(_), _) => Ok(Leaf(Untracked)),
+            (Some(_), None, Some(FileMark::Delete)) => Ok(Leaf(Delete)),
+            (Some(_), None, _) => Ok(Leaf(Offline)),
+            (Some(key), Some(partial), _) => {
                 self.compare_path(abs_path, rel_path, &key, partial)
             }
         }
@@ -230,31 +228,20 @@ impl WorkDir {
             HashedOrNot::Hashed(ref cached) if cached == key => {
                 Ok(Leaf(Unchanged))
             }
-            HashedOrNot::Hashed(ref cached) if cached != key => {
-                Ok(Leaf(Modified))
-            }
+            HashedOrNot::Hashed(_) => Ok(Leaf(Modified)),
             HashedOrNot::UnhashedFile(_) => Ok(Leaf(MaybeModified)),
             HashedOrNot::Dir(partial) => {
-                match self.open_object(&key)? {
-                    // Was a file, now a dir. Definitely modified.
-                    ObjectHandle::Blob(_) |
-                    ObjectHandle::ChunkedBlob(_) => Ok(Leaf(Modified)),
-
-                    // Both dirs, need to compare recursively.
-                    ObjectHandle::Tree(raw) => {
-                        let tree = raw.read_content()?;
-                        self.compare_dir(abs_path, rel_path, tree, partial)
-                            .map(|status_tree| Tree(status_tree))
+                match self.open_object(&key)?.header().object_type {
+                    ObjectType::Blob | ObjectType::ChunkedBlob => {
+                        Ok(Leaf(Modified))
                     }
-                    ObjectHandle::Commit(raw) => {
-                        let tree = raw.read_content()
-                            .and_then(|commit| self.open_tree(&commit.tree))?;
+                    ObjectType::Tree | ObjectType::Commit => {
+                        let tree = self.open_tree(&key)?;
                         self.compare_dir(abs_path, rel_path, tree, partial)
-                            .map(|status_tree| Tree(status_tree))
+                            .map(|st| Tree(st))
                     }
                 }
             }
-            _ => Err(Error::from("TODO")),
         }
     }
 
