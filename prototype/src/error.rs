@@ -71,3 +71,25 @@ impl PathExt for ::std::path::Path {
             })
     }
 }
+
+
+/// Additional convenience methods for Options
+pub trait OptionExt<T> {
+    /// Chain a function that returns a result
+    fn and_then_try<U, E, F>(self,
+                             f: F)
+                             -> ::std::result::Result<Option<U>, E>
+        where F: FnOnce(T) -> ::std::result::Result<U, E>;
+}
+
+impl<T> OptionExt<T> for Option<T> {
+    fn and_then_try<U, E, F>(self, f: F) -> ::std::result::Result<Option<U>, E>
+        where F: FnOnce(T) -> ::std::result::Result<U, E>
+    {
+        match self.map(f) {
+            None => Ok(None),
+            Some(Ok(t)) => Ok(Some(t)),
+            Some(Err(e)) => Err(e),
+        }
+    }
+}
