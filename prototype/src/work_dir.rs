@@ -15,6 +15,7 @@ use fs_transfer::FsTransfer;
 use fsutil::is_empty_dir;
 use object_store::ObjectStore;
 use std::collections::BTreeMap;
+use std::ffi::OsString;
 use std::fmt;
 use std::path::Path;
 use std::path::PathBuf;
@@ -67,7 +68,7 @@ pub enum Status {
     Tree(StatusTree),
 }
 
-type StatusTree = BTreeMap<PathBuf, Status>;
+type StatusTree = BTreeMap<OsString, Status>;
 
 impl Status {
     fn write(&self, f: &mut fmt::Formatter, prefix: &PathBuf) -> fmt::Result {
@@ -280,12 +281,12 @@ impl WorkDir {
         for entry in abs_path.read_dir()? {
             let entry = entry?;
             let ch_abs_path = entry.path();
-            let ch_name = PathBuf::from(ch_abs_path.file_name_or_err()?);
+            let ch_name = ch_abs_path.file_name_or_err()?;
             let ch_rel_path = rel_path.join(&ch_name);
-            let ch_key = tree.get(&ch_name).map(|k| k.to_owned());
+            let ch_key = tree.get(ch_name).map(|k| k.to_owned());
             let ch_status =
                 self.check_status_inner(&ch_abs_path, &ch_rel_path, ch_key)?;
-            status.insert(ch_name, ch_status);
+            status.insert(ch_name.to_owned(), ch_status);
         }
         // Check missing files
         for ch_name in tree.keys() {

@@ -191,10 +191,9 @@ impl ObjectStore {
                             path_so_far.display())
                 })?;
             match component {
-                Component::Normal(osstr) => {
-                    let child_path = PathBuf::from(osstr);
+                Component::Normal(child_path) => {
                     path_so_far.push(&child_path);
-                    match tree.get(&child_path) {
+                    match tree.get(child_path) {
                         Some(child_key) => next_key = child_key.to_owned(),
                         None => return Ok(None),
                     }

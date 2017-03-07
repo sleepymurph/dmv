@@ -1,11 +1,12 @@
 use cache::CacheStatus;
 use human_readable;
 use std::collections;
+use std::ffi::OsString;
 use std::io;
 use std::path::PathBuf;
 use super::*;
 
-type PathKeyMap = collections::BTreeMap<PathBuf, ObjectKey>;
+type PathKeyMap = collections::BTreeMap<OsString, ObjectKey>;
 
 wrapper_struct!{
     /// DAG Object representing a directory
@@ -17,7 +18,7 @@ impl Tree {
     pub fn new() -> Self { Tree(PathKeyMap::new()) }
 
     pub fn insert<P>(&mut self, name: P, hash: ObjectKey)
-        where P: Into<PathBuf>
+        where P: Into<OsString>
     {
         self.0.insert(name.into(), hash);
     }
