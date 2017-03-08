@@ -7,7 +7,6 @@ use dag::ObjectHandle;
 use dag::ObjectKey;
 use dag::PartialTree;
 use dag::Tree;
-use dag::UnhashedPath;
 use error::*;
 use human_readable::human_bytes;
 use ignore::IgnoreList;
@@ -130,27 +129,29 @@ impl FsTransfer {
 
     fn hash_partial_tree(&mut self,
                          dir_path: &Path,
-                         mut partial: PartialTree)
+                         partial: PartialTree)
                          -> Result<ObjectKey> {
 
         if partial.is_empty() {
             bail!("Refusing to hash empty directory: {}", dir_path.display());
         }
 
-        for (ch_name, unknown) in partial.unhashed().clone() {
+        let mut tree = Tree::new();
+
+        for (ch_name, unknown) in partial.into_iter() {
             let ch_path = dir_path.join(&ch_name);
 
             let hash = match unknown {
-                UnhashedPath::File(_) => self.hash_file(ch_path),
-                UnhashedPath::Dir(partial) => {
-                    self.hash_partial_tree(&ch_path, partial)
+                HashedOrNot::UnhashedFile(_) => self.hash_file(ch_path)?,
+                HashedOrNot::Dir(partial) => {
+                    self.hash_partial_tree(&ch_path, partial)?
                 }
+                HashedOrNot::Hashed(hash) => hash,
             };
-            partial.insert(ch_name, hash?);
+            tree.insert(ch_name, hash);
         }
 
-        assert!(partial.is_complete());
-        self.store_object(partial.tree())
+        self.store_object(&tree)
     }
 
 

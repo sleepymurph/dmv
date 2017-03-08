@@ -100,14 +100,11 @@ impl ReadObjectContent for Tree {
 }
 
 
-type UnhashedMap = BTreeMap<OsString, UnhashedPath>;
+type PartialMap = BTreeMap<OsString, HashedOrNot>;
 
 /// An incomplete Tree object that requires some files to be hashed
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
-pub struct PartialTree {
-    tree: Tree,
-    unhashed: UnhashedMap,
-}
+pub struct PartialTree(PartialMap);
 
 /// For PartialTree: A child path that needs hashing
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
@@ -130,13 +127,13 @@ pub enum HashedOrNot {
 }
 
 impl PartialTree {
-    pub fn new() -> Self { PartialTree::from(Tree::new()) }
+    pub fn new() -> Self { PartialTree(PartialMap::new()) }
 
     /// Calculate the total size of all unhashed children
     ///
     /// How many bytes must be hashed to complete this Tree?
     pub fn unhashed_size(&self) -> ObjectSize {
-        self.unhashed.values().map(|unhashed| unhashed.unhashed_size()).sum()
+        self.unhashed().map(|(_, unhashed)| unhashed.unhashed_size()).sum()
     }
 
     /// Insert a new child path
@@ -146,39 +143,36 @@ impl PartialTree {
         where P: Into<OsString>,
               T: Into<HashedOrNot>
     {
-
-        let path = path.into();
         let st = st.into();
-        match st {
-            HashedOrNot::Hashed(hash) => self.insert_hash(path, hash),
-            HashedOrNot::UnhashedFile(size) => {
-                self.insert_unhashed(path, UnhashedPath::File(size))
-            }
-            HashedOrNot::Dir(partial) => {
-                if !partial.is_empty() {
-                    self.insert_unhashed(path, UnhashedPath::Dir(partial))
-                }
-            }
-        }
-    }
-
-    fn insert_hash(&mut self, path: OsString, hash: ObjectKey) {
-        self.unhashed.remove(&path);
-        self.tree.insert(path, hash);
-    }
-
-    fn insert_unhashed<T>(&mut self, path: OsString, unknown: T)
-        where UnhashedPath: From<T>
-    {
-        let unknown = UnhashedPath::from(unknown);
-        self.unhashed.insert(path, unknown);
+        match &st {
+            &HashedOrNot::Dir(ref partial) if partial.is_empty() => return,
+            _ => (),
+        };
+        self.0.insert(path.into(), st.into());
     }
 
     /// Get a map of unhashed children: path => UnhashedPath
-    pub fn unhashed(&self) -> &UnhashedMap { &self.unhashed }
+    pub fn unhashed<'a>
+        (&'a self)
+         -> Box<Iterator<Item = (&'a OsString, &'a HashedOrNot)> + 'a> {
+        Box::new(self.0.iter().filter(|&(_, entry)| match entry {
+            &HashedOrNot::Hashed(_) => false,
+            &HashedOrNot::UnhashedFile(_) => true,
+            &HashedOrNot::Dir(_) => true,
+        }))
+    }
 
     /// Get a Tree from the known hashed children
-    pub fn tree(&self) -> &Tree { &self.tree }
+    pub fn tree(&self) -> Tree {
+        let mut tree = Tree::new();
+        for (name, entry) in &self.0 {
+            match entry {
+                &HashedOrNot::Hashed(hash) => tree.insert(name, hash),
+                _ => (),
+            }
+        }
+        tree
+    }
 
     /// Do all children have known hashes?
     ///
@@ -188,42 +182,33 @@ impl PartialTree {
     /// that subtree, but storing it as just a hash would loose the information
     /// we have about its children. So we should not do that until we can be
     /// sure that the tree has been stored in an object store.
-    pub fn is_complete(&self) -> bool { self.unhashed.len() == 0 }
+    pub fn is_complete(&self) -> bool {
+        for _ in self.unhashed() {
+            return false;
+        }
+        true
+    }
 
     /// Does this directory have no children at all?
-    pub fn is_empty(&self) -> bool {
-        self.tree.len() == 0 && self.unhashed.len() == 0
-    }
+    pub fn is_empty(&self) -> bool { self.0.len() == 0 }
 
-    pub fn all(&self) -> BTreeMap<OsString, HashedOrNot> {
-        let mut map = BTreeMap::<OsString, HashedOrNot>::new();
-        for (name, entry) in self.tree.iter() {
-            map.insert(name.to_owned(), entry.to_owned().into());
-        }
-        for (name, entry) in self.unhashed.iter() {
-            map.insert(name.to_owned(), entry.to_owned().into());
-        }
-        map
-    }
+    pub fn all(&self) -> &PartialMap { &self.0 }
 
-    pub fn get<O>(&self, name: &O) -> Option<HashedOrNot>
+    pub fn get<O>(&self, name: &O) -> Option<&HashedOrNot>
         where OsString: Borrow<O>,
               O: Ord
     {
-        let from_tree =
-            self.tree.get(name).map(ToOwned::to_owned).map(HashedOrNot::from);
-        let from_unhashed =
-            self.tree.get(name).map(ToOwned::to_owned).map(HashedOrNot::from);
-        from_tree.or(from_unhashed)
+        self.0.get(name)
     }
 }
 
 impl From<Tree> for PartialTree {
     fn from(t: Tree) -> Self {
-        PartialTree {
-            tree: t,
-            unhashed: UnhashedMap::new(),
+        let mut partial = PartialTree::new();
+        for (name, hash) in t.0 {
+            partial.insert(name, HashedOrNot::Hashed(hash));
         }
+        partial
     }
 }
 
@@ -233,6 +218,12 @@ macro_rules! partial_tree {
     ( $( $k:expr => $v:expr , )*) => {
         map!{ $crate::dag::PartialTree::new(), $( $k => $v, )* };
     }
+}
+
+impl IntoIterator for PartialTree {
+    type Item = (OsString, HashedOrNot);
+    type IntoIter = <BTreeMap<OsString, HashedOrNot> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
 // Conversions for HashedOrNot
@@ -356,19 +347,19 @@ mod test {
                 "foo" => object_key(0),
                 "bar" => object_key(2),
                 "baz" => object_key(1),
-                "fizz" => UnhashedPath::File(1024),
+                "fizz" => HashedOrNot::UnhashedFile(1024),
                 "buzz" => partial_tree!{
-                    "strange" => UnhashedPath::File(2048),
+                    "strange" => HashedOrNot::UnhashedFile(2048),
                 },
         };
 
-        assert_eq!(partial.unhashed().get(&OsString::from("fizz")),
-                   Some(&UnhashedPath::File(1024)));
+        assert_eq!(partial.get(&OsString::from("fizz")),
+                   Some(&HashedOrNot::UnhashedFile(1024)));
 
         assert_eq!(partial.unhashed_size(), 3072);
 
         assert_eq!(partial.tree(),
-                   &tree_object!{
+                   tree_object!{
                         "foo" => object_key(0),
                         "bar" => object_key(2),
                         "baz" => object_key(1),
@@ -379,21 +370,20 @@ mod test {
         // Begin adding hashes for incomplete objects
 
         partial.insert("buzz", object_key(3));
-        assert_eq!(partial.unhashed().get(&OsString::from("buzz")),
-                   None,
-                   "After setting hash, path should be removed from unhashed");
+        assert_eq!(partial.get(&OsString::from("buzz")),
+                   Some(&HashedOrNot::Hashed(object_key(3))));
         assert_eq!(partial.unhashed_size(), 1024);
 
         partial.insert("fizz", object_key(4));
 
         // Should be complete now
 
-        assert!(partial.unhashed().is_empty());
+        assert!(partial.unhashed().next().is_none());
         assert!(partial.is_complete());
         assert_eq!(partial.unhashed_size(), 0);
 
         assert_eq!(partial.tree(),
-                   &tree_object!{
+                   tree_object!{
                         "foo" => object_key(0),
                         "bar" => object_key(2),
                         "baz" => object_key(1),
@@ -415,14 +405,14 @@ mod test {
         assert_eq!(partial.is_complete(), false, "still incomplete");
 
         assert_eq!(partial.tree(),
-                   &tree_object!{
+                   tree_object!{
                         "foo" => object_key(0),
                    },
                    "not safe to take the tree value: it is missing the \
                     subtree");
 
-        assert_eq!(partial.unhashed().get(&OsString::from("bar")),
-                   Some(&UnhashedPath::Dir(partial_tree!{
+        assert_eq!(partial.get(&OsString::from("bar")),
+                   Some(&HashedOrNot::Dir(partial_tree!{
                         "baz" => object_key(1),
                    })),
                    "the nested PartialTree still holds information that \
