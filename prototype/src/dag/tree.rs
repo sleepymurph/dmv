@@ -153,10 +153,13 @@ impl PartialItem {
         }
     }
     pub fn is_vacant(&self) -> bool {
-        match self.hon() {
-            HashedOrNot::Hashed(_) |
-            HashedOrNot::UnhashedFile(_) => false,
-            HashedOrNot::Dir(ref partial) => partial.is_vacant(),
+        match self {
+            &PartialItem { hash: Some(_), .. } => false,
+            &PartialItem { mark_ignore: true, .. } => true,
+            &PartialItem { children: Some(ref children), .. } => {
+                children.is_vacant()
+            }
+            _ => false,
         }
     }
 }
