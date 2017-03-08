@@ -162,33 +162,6 @@ impl PartialTree {
             &HashedOrNot::Dir(_) => true,
         }))
     }
-
-    /// Get a Tree from the known hashed children
-    pub fn tree(&self) -> Tree {
-        let mut tree = Tree::new();
-        for (name, entry) in &self.0 {
-            match entry {
-                &HashedOrNot::Hashed(hash) => tree.insert(name, hash),
-                _ => (),
-            }
-        }
-        tree
-    }
-
-    /// Do all children have known hashes?
-    ///
-    /// Note that a PartialTree can be "incomplete," even if it has no files
-    /// that need to be hashed. This can happen if one of the children is a
-    /// PartialTree that is "complete." We may be able to calculate the hash of
-    /// that subtree, but storing it as just a hash would loose the information
-    /// we have about its children. So we should not do that until we can be
-    /// sure that the tree has been stored in an object store.
-    pub fn is_complete(&self) -> bool {
-        for _ in self.unhashed() {
-            return false;
-        }
-        true
-    }
 }
 
 impl From<Tree> for PartialTree {
@@ -347,15 +320,6 @@ mod test {
 
         assert_eq!(partial.unhashed_size(), 3072);
 
-        assert_eq!(partial.tree(),
-                   tree_object!{
-                        "foo" => object_key(0),
-                        "bar" => object_key(2),
-                        "baz" => object_key(1),
-        });
-
-        assert!(!partial.is_complete());
-
         // Begin adding hashes for incomplete objects
 
         partial.insert("buzz", object_key(3));
@@ -367,18 +331,7 @@ mod test {
 
         // Should be complete now
 
-        assert!(partial.unhashed().next().is_none());
-        assert!(partial.is_complete());
         assert_eq!(partial.unhashed_size(), 0);
-
-        assert_eq!(partial.tree(),
-                   tree_object!{
-                        "foo" => object_key(0),
-                        "bar" => object_key(2),
-                        "baz" => object_key(1),
-                        "fizz" => object_key(4),
-                        "buzz" => object_key(3),
-        });
     }
 
     #[test]
@@ -391,14 +344,6 @@ mod test {
         };
 
         assert_eq!(partial.unhashed_size(), 0, "no files need to be hashed");
-        assert_eq!(partial.is_complete(), false, "still incomplete");
-
-        assert_eq!(partial.tree(),
-                   tree_object!{
-                        "foo" => object_key(0),
-                   },
-                   "not safe to take the tree value: it is missing the \
-                    subtree");
 
         assert_eq!(partial.get(&OsString::from("bar")),
                    Some(&HashedOrNot::Dir(partial_tree!{
