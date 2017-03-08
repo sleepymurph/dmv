@@ -59,10 +59,11 @@ impl FsTransfer {
 
     pub fn check_status(&mut self, path: &Path) -> Result<PartialItem> {
 
+        let mark_ignore = self.ignored.ignores(path);
         let path_meta = path.metadata()
             .chain_err(|| format!("getting metadata for {}", path.display()))?;
 
-        let hashed_or_not: PartialItem;
+        let mut hashed_or_not: PartialItem;
 
         if path_meta.is_file() {
 
@@ -73,17 +74,15 @@ impl FsTransfer {
 
             let mut partial = PartialTree::new();
 
-            for entry in try!(read_dir(path)) {
-                let entry = try!(entry);
-                let ch_path = entry.path();
-
-                if self.ignored.ignores(&ch_path) {
-                    continue;
+            if !mark_ignore {
+                // Don't descend into ignored directory
+                for entry in try!(read_dir(path)) {
+                    let entry = try!(entry);
+                    let ch_path = entry.path();
+                    let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
+                    let hashed_status = self.check_status(&ch_path)?;
+                    partial.insert(ch_name, hashed_status);
                 }
-
-                let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
-                let hashed_status = self.check_status(&ch_path)?;
-                partial.insert(ch_name, hashed_status);
             }
             hashed_or_not = partial.into();
 
@@ -91,6 +90,7 @@ impl FsTransfer {
             bail!("Path {} was neither file nor directory", path.display());
         }
 
+        hashed_or_not.mark_ignore = mark_ignore;
         Ok(hashed_or_not)
     }
 
@@ -100,6 +100,7 @@ impl FsTransfer {
                        status: &PartialItem)
                        -> Result<ObjectKey> {
         use dag::HashedOrNot::*;
+        let status = status.prune_vacant();
         match status.hon() {
             Hashed(hash) => Ok(hash.to_owned()),
             UnhashedFile(_) => self.hash_file(path.to_owned()),
@@ -380,18 +381,25 @@ mod test {
         // Flush cache files
         fs_transfer.cache.flush();
 
-        // Build partial tree again -- make sure it doesn't pick up cache files
+        // Build partial tree again -- check how it handles the cache files
 
         let partial = fs_transfer.check_status(&wd_path).unwrap();
-        assert_eq!(partial, PartialItem::from(expected_cached_partial.clone()));
+        assert_eq!(partial.prune_vacant(),
+                   PartialItem::from(expected_cached_partial.prune_vacant()));
+        let rehash = fs_transfer.hash_object(&wd_path, &partial).unwrap();
+        assert_eq!(rehash, hash);
 
         // Extract and compare
         let extract_path = temp.path().join("extract_dir");
         fs_transfer.extract_object(&hash, &extract_path).unwrap();
 
         let extract_partial = fs_transfer.check_status(&extract_path).unwrap();
-        assert_eq!(extract_partial,
+        assert_eq!(extract_partial.prune_vacant(),
                    PartialItem::from(expected_cached_partial.prune_vacant()));
+
+        let rehash = fs_transfer.hash_object(&extract_path, &extract_partial)
+            .unwrap();
+        assert_eq!(rehash, hash);
     }
 
     #[test]

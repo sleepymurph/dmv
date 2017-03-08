@@ -99,7 +99,7 @@ impl ReadObjectContent for Tree {
 }
 
 
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+#[derive(Clone,Copy,Eq,PartialEq,Hash,Debug)]
 pub enum ItemClass {
     BlobLike,
     TreeLike,
@@ -114,7 +114,7 @@ pub struct PartialItem {
     size: ObjectSize,
     hash: Option<ObjectKey>,
     children: Option<PartialTree>,
-    mark_ignore: bool,
+    pub mark_ignore: bool,
 }
 
 impl PartialItem {
@@ -126,6 +126,11 @@ impl PartialItem {
             children: None,
             mark_ignore: false,
         }
+    }
+    pub fn ignored_file(size: ObjectSize) -> Self {
+        let mut partial = PartialItem::unhashed_file(size);
+        partial.mark_ignore = true;
+        partial
     }
     pub fn hon(&self) -> HashedOrNot {
         match self {
@@ -160,6 +165,18 @@ impl PartialItem {
                 children.is_vacant()
             }
             _ => false,
+        }
+    }
+    pub fn prune_vacant(&self) -> PartialItem {
+        PartialItem {
+            class: self.class,
+            size: self.size,
+            hash: self.hash.to_owned(),
+            children: match self.children {
+                Some(ref children) => Some(children.prune_vacant()),
+                None => None,
+            },
+            mark_ignore: self.mark_ignore,
         }
     }
 }
@@ -254,7 +271,7 @@ impl PartialTree {
         PartialTree(self.0
             .iter()
             .filter(|&(_, ref entry)| !entry.is_vacant())
-            .map(|(name, entry)| (name.to_owned(), entry.to_owned()))
+            .map(|(name, entry)| (name.to_owned(), entry.prune_vacant()))
             .collect())
     }
 }
@@ -368,6 +385,30 @@ mod test {
         // Should be complete now
 
         assert_eq!(partial.unhashed_size(), 0);
+    }
+
+    #[test]
+    fn test_partial_tree_prune() {
+        let partial = partial_tree!{
+                "foo" => object_key(0),
+                "fizz" => PartialItem::unhashed_file(1024),
+                ".prototype_cache" => PartialItem::ignored_file(123),
+                "buzz" => partial_tree!{
+                    "strange" => PartialItem::unhashed_file(2048),
+                    ".prototype_cache" => PartialItem::ignored_file(123),
+                },
+                "empty" => PartialTree::new(),
+        };
+
+        let expected = partial_tree!{
+                "foo" => object_key(0),
+                "fizz" => PartialItem::unhashed_file(1024),
+                "buzz" => partial_tree!{
+                    "strange" => PartialItem::unhashed_file(2048),
+                },
+        };
+
+        assert_eq!(partial.prune_vacant(), expected);
     }
 
     #[test]
