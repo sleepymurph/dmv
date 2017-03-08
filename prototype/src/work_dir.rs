@@ -246,7 +246,7 @@ impl WorkDir {
 
         let mut status = StatusTree::new();
         // Check all child paths in directory
-        for (ch_name, ch_partial) in partial.all() {
+        for (ch_name, ch_partial) in partial.iter() {
             let ch_rel_path = rel_path.join(&ch_name);
             let ch_key = tree.get(ch_name).map(|k| k.to_owned());
             let ch_status = self.check_status_inner(&ch_rel_path,

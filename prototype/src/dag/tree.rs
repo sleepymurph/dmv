@@ -1,6 +1,5 @@
 use cache::CacheStatus;
 use human_readable;
-use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::io;
@@ -106,6 +105,8 @@ type PartialMap = BTreeMap<OsString, HashedOrNot>;
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct PartialTree(PartialMap);
 
+impl_deref!(PartialTree => PartialMap);
+
 /// For PartialTree: A child path that needs hashing
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub enum UnhashedPath {
@@ -187,18 +188,6 @@ impl PartialTree {
             return false;
         }
         true
-    }
-
-    /// Does this directory have no children at all?
-    pub fn is_empty(&self) -> bool { self.0.len() == 0 }
-
-    pub fn all(&self) -> &PartialMap { &self.0 }
-
-    pub fn get<O>(&self, name: &O) -> Option<&HashedOrNot>
-        where OsString: Borrow<O>,
-              O: Ord
-    {
-        self.0.get(name)
     }
 }
 
