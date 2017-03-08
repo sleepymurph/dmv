@@ -409,9 +409,9 @@ mod test {
         };
 
         let expected_partial = partial_tree!{
-            "foo" => HashedOrNot::UnhashedFile(3),
-            "bar" => HashedOrNot::UnhashedFile(4),
-            "baz" => HashedOrNot::UnhashedFile(5),
+            "foo" => PartialItem::unhashed_file(3),
+            "bar" => PartialItem::unhashed_file(4),
+            "baz" => PartialItem::unhashed_file(5),
         };
 
         let expected_tree = tree_object!{
@@ -446,11 +446,11 @@ mod test {
         };
 
         let expected_partial = partial_tree!{
-            "foo" => HashedOrNot::UnhashedFile(3),
+            "foo" => PartialItem::unhashed_file(3),
             "level1" => partial_tree!{
-                "bar" => HashedOrNot::UnhashedFile(4),
+                "bar" => PartialItem::unhashed_file(4),
                 "level2" => partial_tree!{
-                    "baz" => HashedOrNot::UnhashedFile(5),
+                    "baz" => PartialItem::unhashed_file(5),
                 },
             },
         };
@@ -494,11 +494,11 @@ mod test {
         };
 
         let expected_partial = partial_tree!{
-            "foo" => HashedOrNot::UnhashedFile(3),
+            "foo" => PartialItem::unhashed_file(3),
             "level1" => partial_tree!{
-                "bar" => HashedOrNot::UnhashedFile(4),
+                "bar" => PartialItem::unhashed_file(4),
                 "level2" => partial_tree!{
-                    "baz" => HashedOrNot::UnhashedFile(5),
+                    "baz" => PartialItem::unhashed_file(5),
                 },
             },
         };
@@ -541,10 +541,10 @@ mod test {
         };
 
         let expected_partial = partial_tree!{
-            "foo" => HashedOrNot::UnhashedFile(3),
-            "empty1" => HashedOrNot::Dir(partial_tree!{
-                "empty2" => HashedOrNot::Dir(partial_tree!{
-                    "empty3" => HashedOrNot::Dir(PartialTree::new()),
+            "foo" => PartialItem::unhashed_file(3),
+            "empty1" => PartialItem::from(partial_tree!{
+                "empty2" => PartialItem::from(partial_tree!{
+                    "empty3" => PartialItem::from(PartialTree::new()),
                 }),
             }),
         };
@@ -555,9 +555,9 @@ mod test {
 
         let expected_cached_partial = partial_tree!{
             "foo" => Blob::from("123").calculate_hash(),
-            "empty1" => HashedOrNot::Dir(partial_tree!{
-                "empty2" => HashedOrNot::Dir(partial_tree!{
-                    "empty3" => HashedOrNot::Dir(PartialTree::new()),
+            "empty1" => PartialItem::from(partial_tree!{
+                "empty2" => PartialItem::from(partial_tree!{
+                    "empty3" => PartialItem::from(PartialTree::new()),
                 }),
             }),
         };

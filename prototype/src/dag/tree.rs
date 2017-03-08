@@ -107,6 +107,13 @@ pub struct PartialItem {
 }
 
 impl PartialItem {
+    pub fn unhashed_file(size: ObjectSize) -> Self {
+        PartialItem {
+            size: size,
+            hash: None,
+            children: None,
+        }
+    }
     pub fn hon(&self) -> HashedOrNot {
         match self {
             &PartialItem { hash: Some(hash), .. } => HashedOrNot::Hashed(hash),
@@ -130,34 +137,6 @@ impl PartialItem {
             HashedOrNot::Hashed(_) |
             HashedOrNot::UnhashedFile(_) => false,
             HashedOrNot::Dir(ref partial) => partial.is_vacant(),
-        }
-    }
-}
-
-impl From<HashedOrNot> for PartialItem {
-    fn from(hon: HashedOrNot) -> Self {
-        match hon {
-            HashedOrNot::Hashed(hash) => {
-                PartialItem {
-                    size: 0,
-                    hash: Some(hash),
-                    children: None,
-                }
-            }
-            HashedOrNot::UnhashedFile(size) => {
-                PartialItem {
-                    size: size,
-                    hash: None,
-                    children: None,
-                }
-            }
-            HashedOrNot::Dir(partial) => {
-                PartialItem {
-                    size: 0,
-                    hash: None,
-                    children: Some(partial),
-                }
-            }
         }
     }
 }
@@ -277,7 +256,7 @@ impl From<Tree> for PartialTree {
     fn from(t: Tree) -> Self {
         let mut partial = PartialTree::new();
         for (name, hash) in t.0 {
-            partial.insert(name, HashedOrNot::Hashed(hash));
+            partial.insert(name, hash);
         }
         partial
     }
@@ -359,22 +338,22 @@ mod test {
                 "foo" => object_key(0),
                 "bar" => object_key(2),
                 "baz" => object_key(1),
-                "fizz" => HashedOrNot::UnhashedFile(1024),
+                "fizz" => PartialItem::unhashed_file(1024),
                 "buzz" => partial_tree!{
-                    "strange" => HashedOrNot::UnhashedFile(2048),
+                    "strange" => PartialItem::unhashed_file(2048),
                 },
         };
 
-        assert_eq!(partial.get(&OsString::from("fizz")).map(|i| i.hon()),
-                   Some(HashedOrNot::UnhashedFile(1024)));
+        assert_eq!(partial.get(&OsString::from("fizz")),
+                   Some(&PartialItem::unhashed_file(1024)));
 
         assert_eq!(partial.unhashed_size(), 3072);
 
         // Begin adding hashes for incomplete objects
 
         partial.insert("buzz", object_key(3));
-        assert_eq!(partial.get(&OsString::from("buzz")).map(|i| i.hon()),
-                   Some(HashedOrNot::Hashed(object_key(3))));
+        assert_eq!(partial.get(&OsString::from("buzz")),
+                   Some(&PartialItem::from(object_key(3))));
         assert_eq!(partial.unhashed_size(), 1024);
 
         partial.insert("fizz", object_key(4));
@@ -395,8 +374,8 @@ mod test {
 
         assert_eq!(partial.unhashed_size(), 0, "no files need to be hashed");
 
-        assert_eq!(partial.get(&OsString::from("bar")).map(|i| i.hon()),
-                   Some(HashedOrNot::Dir(partial_tree!{
+        assert_eq!(partial.get(&OsString::from("bar")),
+                   Some(&PartialItem::from(partial_tree!{
                         "baz" => object_key(1),
                        })),
                    "the nested PartialTree still holds information that \
