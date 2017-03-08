@@ -219,6 +219,7 @@ impl WorkDir {
         use self::Status::*;
         use self::LeafStatus::*;
         use item::ItemClass::*;
+        use item::LoadItems::*;
 
         debug!("compare_path: {}, ignore: {}",
                rel_path.display(),
@@ -230,9 +231,7 @@ impl WorkDir {
             PartialItem { hash: Some(_), .. } => Ok(Leaf(Modified)),
             PartialItem { mark_ignore: true, .. } => Ok(Leaf(Ignored)),
             PartialItem { class: BlobLike(_), .. } => Ok(Leaf(MaybeModified)),
-            PartialItem { class: TreeLike,
-                          children: Some(ref partial),
-                          .. } => {
+            PartialItem { class: TreeLike(Loaded(ref partial)), .. } => {
                 match self.open_object(&key)?.header().object_type {
                     ObjectType::Blob | ObjectType::ChunkedBlob => {
                         Ok(Leaf(Modified))

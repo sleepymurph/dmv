@@ -4,11 +4,27 @@ use cache::CacheStatus;
 use dag::*;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
+use std::path::PathBuf;
 
-#[derive(Clone,Copy,Eq,PartialEq,Hash,Debug)]
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+pub enum ItemHandle {
+    Path(PathBuf),
+    Object(ObjectKey),
+}
+
+
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+pub enum LoadItems {
+    NotLoaded(ItemHandle),
+    Loaded(PartialTree),
+}
+
+use self::LoadItems::*;
+
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub enum ItemClass {
     BlobLike(ObjectSize),
-    TreeLike,
+    TreeLike(LoadItems),
     Unknown,
 }
 
@@ -18,7 +34,6 @@ use self::ItemClass::*;
 pub struct PartialItem {
     pub class: ItemClass,
     pub hash: Option<ObjectKey>,
-    pub children: Option<PartialTree>,
     pub mark_ignore: bool,
 }
 
@@ -27,7 +42,6 @@ impl PartialItem {
         PartialItem {
             class: BlobLike(size),
             hash: None,
-            children: None,
             mark_ignore: false,
         }
     }
@@ -45,8 +59,7 @@ impl PartialItem {
                 HashedOrNot::UnhashedFile(size)
             }
             &PartialItem { hash: None,
-                           class: TreeLike,
-                           children: Some(ref partial),
+                           class: TreeLike(Loaded(ref partial)),
                            .. } => HashedOrNot::Dir(partial),
             _ => unimplemented!(),
         }
@@ -62,7 +75,7 @@ impl PartialItem {
         match self {
             &PartialItem { hash: Some(_), .. } => false,
             &PartialItem { mark_ignore: true, .. } => true,
-            &PartialItem { children: Some(ref children), .. } => {
+            &PartialItem { class: TreeLike(Loaded(ref children)), .. } => {
                 children.is_vacant()
             }
             _ => false,
@@ -70,12 +83,14 @@ impl PartialItem {
     }
     pub fn prune_vacant(&self) -> PartialItem {
         PartialItem {
-            class: self.class,
-            hash: self.hash.to_owned(),
-            children: match self.children {
-                Some(ref children) => Some(children.prune_vacant()),
-                None => None,
+            class: match &self.class {
+                &BlobLike(size) => BlobLike(size),
+                &TreeLike(Loaded(ref children)) => {
+                    TreeLike(Loaded(children.prune_vacant()))
+                }
+                other => other.to_owned(),
             },
+            hash: self.hash.to_owned(),
             mark_ignore: self.mark_ignore,
         }
     }
@@ -94,9 +109,8 @@ impl From<CacheStatus> for PartialItem {
 impl From<PartialTree> for PartialItem {
     fn from(pt: PartialTree) -> Self {
         PartialItem {
-            class: TreeLike,
+            class: TreeLike(Loaded(pt)),
             hash: None,
-            children: Some(pt),
             mark_ignore: false,
         }
     }
@@ -107,7 +121,6 @@ impl From<ObjectKey> for PartialItem {
         PartialItem {
             class: Unknown,
             hash: Some(hash),
-            children: None,
             mark_ignore: false,
         }
     }
