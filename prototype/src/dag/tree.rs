@@ -101,17 +101,53 @@ impl ReadObjectContent for Tree {
 
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct PartialItem {
-    hon: HashedOrNot,
+    size: ObjectSize,
+    hash: Option<ObjectKey>,
+    children: Option<PartialTree>,
 }
 
 impl PartialItem {
-    pub fn hon(&self) -> HashedOrNot { self.hon.to_owned() }
+    pub fn hon(&self) -> HashedOrNot {
+        match self {
+            &PartialItem { hash: Some(hash), .. } => HashedOrNot::Hashed(hash),
+            &PartialItem { hash: None, children: None, size } => {
+                HashedOrNot::UnhashedFile(size)
+            }
+            &PartialItem { hash: None, children: Some(ref partial), .. } => {
+                HashedOrNot::Dir(partial.to_owned())
+            }
+        }
+    }
     pub fn unhashed_size(&self) -> ObjectSize { self.hon().unhashed_size() }
     pub fn is_vacant(&self) -> bool { self.hon().is_vacant() }
 }
 
 impl From<HashedOrNot> for PartialItem {
-    fn from(hon: HashedOrNot) -> Self { PartialItem { hon: hon } }
+    fn from(hon: HashedOrNot) -> Self {
+        match hon {
+            HashedOrNot::Hashed(hash) => {
+                PartialItem {
+                    size: 0,
+                    hash: Some(hash),
+                    children: None,
+                }
+            }
+            HashedOrNot::UnhashedFile(size) => {
+                PartialItem {
+                    size: size,
+                    hash: None,
+                    children: None,
+                }
+            }
+            HashedOrNot::Dir(partial) => {
+                PartialItem {
+                    size: 0,
+                    hash: None,
+                    children: Some(partial),
+                }
+            }
+        }
+    }
 }
 
 impl From<CacheStatus> for PartialItem {
@@ -173,7 +209,7 @@ impl PartialTree {
     pub fn unhashed<'a>
         (&'a self)
          -> Box<Iterator<Item = (&'a OsString, &'a PartialItem)> + 'a> {
-        Box::new(self.0.iter().filter(|&(_, entry)| match &entry.hon {
+        Box::new(self.0.iter().filter(|&(_, entry)| match &entry.hon() {
             &HashedOrNot::Hashed(_) => false,
             &HashedOrNot::UnhashedFile(_) => true,
             &HashedOrNot::Dir(_) => true,
@@ -330,18 +366,16 @@ mod test {
                 },
         };
 
-        assert_eq!(partial.get(&OsString::from("fizz")),
-                   Some(&PartialItem { hon: HashedOrNot::UnhashedFile(1024) }));
+        assert_eq!(partial.get(&OsString::from("fizz")).map(|i| i.hon()),
+                   Some(HashedOrNot::UnhashedFile(1024)));
 
         assert_eq!(partial.unhashed_size(), 3072);
 
         // Begin adding hashes for incomplete objects
 
         partial.insert("buzz", object_key(3));
-        assert_eq!(partial.get(&OsString::from("buzz")),
-                   Some(&PartialItem {
-                       hon: HashedOrNot::Hashed(object_key(3)),
-                   }));
+        assert_eq!(partial.get(&OsString::from("buzz")).map(|i| i.hon()),
+                   Some(HashedOrNot::Hashed(object_key(3))));
         assert_eq!(partial.unhashed_size(), 1024);
 
         partial.insert("fizz", object_key(4));
@@ -362,12 +396,10 @@ mod test {
 
         assert_eq!(partial.unhashed_size(), 0, "no files need to be hashed");
 
-        assert_eq!(partial.get(&OsString::from("bar")),
-                   Some(&PartialItem {
-                       hon: HashedOrNot::Dir(partial_tree!{
+        assert_eq!(partial.get(&OsString::from("bar")).map(|i| i.hon()),
+                   Some(HashedOrNot::Dir(partial_tree!{
                         "baz" => object_key(1),
-                       }),
-                   }),
+                       })),
                    "the nested PartialTree still holds information that \
                     would be lost if we replaced it with just a hash");
     }
