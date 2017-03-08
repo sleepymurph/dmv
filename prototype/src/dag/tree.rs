@@ -214,7 +214,7 @@ impl PartialTree {
 
     /// Insert a new child path
     ///
-    /// Accepts any type that can be converted into a HashedOrNot.
+    /// Accepts any type that can be converted into a PartialItem.
     pub fn insert<P, T>(&mut self, path: P, st: T)
         where P: Into<OsString>,
               T: Into<PartialItem>
@@ -226,11 +226,7 @@ impl PartialTree {
     pub fn unhashed<'a>
         (&'a self)
          -> Box<Iterator<Item = (&'a OsString, &'a PartialItem)> + 'a> {
-        Box::new(self.0.iter().filter(|&(_, entry)| match &entry.hon() {
-            &HashedOrNot::Hashed(_) => false,
-            &HashedOrNot::UnhashedFile(_) => true,
-            &HashedOrNot::Dir(_) => true,
-        }))
+        Box::new(self.0.iter().filter(|&(_, entry)| entry.hash.is_none()))
     }
 
     /// Returns true if there are no files worth storing in the PartialTree
