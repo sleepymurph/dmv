@@ -287,21 +287,6 @@ impl IntoIterator for PartialTree {
 
 // Conversions for HashedOrNot
 
-impl From<CacheStatus> for HashedOrNot {
-    fn from(s: CacheStatus) -> Self {
-        use cache::CacheStatus::*;
-        match s {
-            Cached { hash } => HashedOrNot::Hashed(hash),
-            Modified { size } |
-            NotCached { size } => HashedOrNot::UnhashedFile(size),
-        }
-    }
-}
-
-impl From<PartialTree> for HashedOrNot {
-    fn from(pt: PartialTree) -> Self { HashedOrNot::Dir(pt) }
-}
-
 impl HashedOrNot {
     pub fn unhashed_size(&self) -> ObjectSize {
         use self::HashedOrNot::*;

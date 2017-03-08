@@ -6,6 +6,7 @@ use dag::Commit;
 use dag::HashedOrNot;
 use dag::ObjectKey;
 use dag::ObjectType;
+use dag::PartialItem;
 use dag::PartialTree;
 use dag::Tree;
 use disk_backed::DiskBacked;
@@ -192,7 +193,7 @@ impl WorkDir {
     fn check_status_inner(&mut self,
                           rel_path: &Path,
                           key: Option<ObjectKey>,
-                          partial: HashedOrNot)
+                          partial: PartialItem)
                           -> Result<Status> {
         trace!("comparing {} to {:?}", rel_path.display(), key);
         use self::Status::*;
@@ -210,12 +211,12 @@ impl WorkDir {
     fn compare_path(&mut self,
                     rel_path: &Path,
                     key: &ObjectKey,
-                    partial: HashedOrNot)
+                    partial: PartialItem)
                     -> Result<Status> {
         use self::Status::*;
         use self::LeafStatus::*;
 
-        match partial {
+        match partial.hon() {
             HashedOrNot::Hashed(ref cached) if cached == key => {
                 Ok(Leaf(Unchanged))
             }
@@ -251,7 +252,7 @@ impl WorkDir {
             let ch_key = tree.get(ch_name).map(|k| k.to_owned());
             let ch_status = self.check_status_inner(&ch_rel_path,
                                     ch_key,
-                                    ch_partial.hon().to_owned())?;
+                                    ch_partial.to_owned())?;
             status.insert(ch_name.to_owned(), ch_status);
         }
         // Check missing files

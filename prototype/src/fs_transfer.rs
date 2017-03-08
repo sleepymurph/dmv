@@ -5,6 +5,7 @@ use cache::FileStats;
 use dag::HashedOrNot;
 use dag::ObjectHandle;
 use dag::ObjectKey;
+use dag::PartialItem;
 use dag::PartialTree;
 use dag::Tree;
 use error::*;
@@ -56,12 +57,12 @@ impl FsTransfer {
         self.hash_object(&path, status)
     }
 
-    pub fn check_status(&mut self, path: &Path) -> Result<HashedOrNot> {
+    pub fn check_status(&mut self, path: &Path) -> Result<PartialItem> {
 
         let path_meta = path.metadata()
             .chain_err(|| format!("getting metadata for {}", path.display()))?;
 
-        let hashed_or_not: HashedOrNot;
+        let hashed_or_not: PartialItem;
 
         if path_meta.is_file() {
 
@@ -96,10 +97,10 @@ impl FsTransfer {
 
     pub fn hash_object(&mut self,
                        path: &Path,
-                       status: HashedOrNot)
+                       status: PartialItem)
                        -> Result<ObjectKey> {
         use dag::HashedOrNot::*;
-        match status {
+        match status.hon() {
             Hashed(hash) => Ok(hash),
             UnhashedFile(_) => self.hash_file(path.to_owned()),
             Dir(partial) => self.hash_partial_tree(&path, partial),
@@ -366,7 +367,7 @@ mod test {
         // Build partial tree
 
         let partial = fs_transfer.check_status(&wd_path).unwrap();
-        assert_eq!(partial, HashedOrNot::Dir(expected_partial));
+        assert_eq!(partial.hon(), HashedOrNot::Dir(expected_partial));
 
         // Hash and store files
 
@@ -383,14 +384,15 @@ mod test {
         // Build partial tree again -- make sure it doesn't pick up cache files
 
         let partial = fs_transfer.check_status(&wd_path).unwrap();
-        assert_eq!(partial, HashedOrNot::Dir(expected_cached_partial.clone()));
+        assert_eq!(partial.hon(),
+                   HashedOrNot::Dir(expected_cached_partial.clone()));
 
         // Extract and compare
         let extract_path = temp.path().join("extract_dir");
         fs_transfer.extract_object(&hash, &extract_path).unwrap();
 
         let extract_partial = fs_transfer.check_status(&extract_path).unwrap();
-        assert_eq!(extract_partial,
+        assert_eq!(extract_partial.hon(),
                    HashedOrNot::Dir(expected_cached_partial.prune_vacant()));
     }
 
