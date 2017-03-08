@@ -116,12 +116,14 @@ impl PartialItem {
     }
     pub fn hon(&self) -> HashedOrNot {
         match self {
-            &PartialItem { hash: Some(hash), .. } => HashedOrNot::Hashed(hash),
+            &PartialItem { hash: Some(ref hash), .. } => {
+                HashedOrNot::Hashed(hash)
+            }
             &PartialItem { hash: None, children: None, size } => {
                 HashedOrNot::UnhashedFile(size)
             }
             &PartialItem { hash: None, children: Some(ref partial), .. } => {
-                HashedOrNot::Dir(partial.to_owned())
+                HashedOrNot::Dir(partial)
             }
         }
     }
@@ -193,13 +195,13 @@ impl_deref!(PartialTree => PartialMap);
 
 /// For PartialTree: A child path that may or may not need hashing
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
-pub enum HashedOrNot {
+pub enum HashedOrNot<'a> {
     /// The child path is a file with a known hash, carry the hash
-    Hashed(ObjectKey),
+    Hashed(&'a ObjectKey),
     /// The child path is a file with unknown hash, carry the size
     UnhashedFile(ObjectSize),
     /// The child path is a directory
-    Dir(PartialTree),
+    Dir(&'a PartialTree),
 }
 
 impl PartialTree {

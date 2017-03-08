@@ -217,7 +217,7 @@ impl WorkDir {
         use self::LeafStatus::*;
 
         match partial.hon() {
-            HashedOrNot::Hashed(ref cached) if cached == key => {
+            HashedOrNot::Hashed(ref cached) if cached == &key => {
                 Ok(Leaf(Unchanged))
             }
             HashedOrNot::Hashed(_) => Ok(Leaf(Modified)),
@@ -240,7 +240,7 @@ impl WorkDir {
     fn compare_dir(&mut self,
                    rel_path: &Path,
                    tree: Tree,
-                   partial: PartialTree)
+                   partial: &PartialTree)
                    -> Result<StatusTree> {
         use self::Status::*;
         use self::LeafStatus::*;

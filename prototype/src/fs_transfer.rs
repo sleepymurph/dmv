@@ -54,7 +54,7 @@ impl FsTransfer {
             stderrln!("{} to hash. Hashing...",
                       human_bytes(status.unhashed_size()));
         }
-        self.hash_object(&path, status)
+        self.hash_object(&path, &status)
     }
 
     pub fn check_status(&mut self, path: &Path) -> Result<PartialItem> {
@@ -97,11 +97,11 @@ impl FsTransfer {
 
     pub fn hash_object(&mut self,
                        path: &Path,
-                       status: PartialItem)
+                       status: &PartialItem)
                        -> Result<ObjectKey> {
         use dag::HashedOrNot::*;
         match status.hon() {
-            Hashed(hash) => Ok(hash),
+            Hashed(hash) => Ok(hash.to_owned()),
             UnhashedFile(_) => self.hash_file(path.to_owned()),
             Dir(partial) => self.hash_partial_tree(&path, partial),
         }
@@ -130,7 +130,7 @@ impl FsTransfer {
 
     fn hash_partial_tree(&mut self,
                          dir_path: &Path,
-                         partial: PartialTree)
+                         partial: &PartialTree)
                          -> Result<ObjectKey> {
 
         if partial.is_vacant() {
@@ -141,7 +141,7 @@ impl FsTransfer {
 
         let mut tree = Tree::new();
 
-        for (ch_name, unknown) in partial.into_iter() {
+        for (ch_name, unknown) in partial.iter() {
             let ch_path = dir_path.join(&ch_name);
 
             let hash = match unknown.hon() {
@@ -152,7 +152,7 @@ impl FsTransfer {
                     }
                     self.hash_partial_tree(&ch_path, partial)?
                 }
-                HashedOrNot::Hashed(hash) => hash,
+                HashedOrNot::Hashed(hash) => hash.to_owned(),
             };
             tree.insert(ch_name, hash);
         }
@@ -273,7 +273,6 @@ impl_deref_mut!(FsTransfer => ObjectStore, object_store);
 mod test {
     use cache::CacheStatus;
     use dag::Blob;
-    use dag::HashedOrNot;
     use dag::Object;
     use dag::ObjectCommon;
     use dag::ObjectType;
@@ -367,11 +366,11 @@ mod test {
         // Build partial tree
 
         let partial = fs_transfer.check_status(&wd_path).unwrap();
-        assert_eq!(partial.hon(), HashedOrNot::Dir(expected_partial));
+        assert_eq!(partial, PartialItem::from(expected_partial));
 
         // Hash and store files
 
-        let hash = fs_transfer.hash_object(&wd_path, partial).unwrap();
+        let hash = fs_transfer.hash_object(&wd_path, &partial).unwrap();
 
         let obj = fs_transfer.open_object(&hash).unwrap();
         let obj = obj.read_content().unwrap();
@@ -384,16 +383,15 @@ mod test {
         // Build partial tree again -- make sure it doesn't pick up cache files
 
         let partial = fs_transfer.check_status(&wd_path).unwrap();
-        assert_eq!(partial.hon(),
-                   HashedOrNot::Dir(expected_cached_partial.clone()));
+        assert_eq!(partial, PartialItem::from(expected_cached_partial.clone()));
 
         // Extract and compare
         let extract_path = temp.path().join("extract_dir");
         fs_transfer.extract_object(&hash, &extract_path).unwrap();
 
         let extract_partial = fs_transfer.check_status(&extract_path).unwrap();
-        assert_eq!(extract_partial.hon(),
-                   HashedOrNot::Dir(expected_cached_partial.prune_vacant()));
+        assert_eq!(extract_partial,
+                   PartialItem::from(expected_cached_partial.prune_vacant()));
     }
 
     #[test]
@@ -581,7 +579,7 @@ mod test {
 
         // Hash and store files
 
-        let hash = fs_transfer.hash_object(&wd_path, partial);
+        let hash = fs_transfer.hash_object(&wd_path, &partial);
         assert!(hash.is_err(), "Should refuse to hash an empty directory");
         // hash.unwrap();
     }
