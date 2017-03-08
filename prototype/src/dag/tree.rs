@@ -118,8 +118,20 @@ impl PartialItem {
             }
         }
     }
-    pub fn unhashed_size(&self) -> ObjectSize { self.hon().unhashed_size() }
-    pub fn is_vacant(&self) -> bool { self.hon().is_vacant() }
+    pub fn unhashed_size(&self) -> ObjectSize {
+        match self.hon() {
+            HashedOrNot::Hashed(_) => 0,
+            HashedOrNot::UnhashedFile(size) => size,
+            HashedOrNot::Dir(ref partial) => partial.unhashed_size(),
+        }
+    }
+    pub fn is_vacant(&self) -> bool {
+        match self.hon() {
+            HashedOrNot::Hashed(_) |
+            HashedOrNot::UnhashedFile(_) => false,
+            HashedOrNot::Dir(ref partial) => partial.is_vacant(),
+        }
+    }
 }
 
 impl From<HashedOrNot> for PartialItem {
@@ -285,26 +297,6 @@ impl IntoIterator for PartialTree {
     fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
-// Conversions for HashedOrNot
-
-impl HashedOrNot {
-    pub fn unhashed_size(&self) -> ObjectSize {
-        use self::HashedOrNot::*;
-        match self {
-            &Hashed(_) => 0,
-            &UnhashedFile(size) => size,
-            &Dir(ref partial) => partial.unhashed_size(),
-        }
-    }
-
-    pub fn is_vacant(&self) -> bool {
-        use self::HashedOrNot::*;
-        match self {
-            &Hashed(_) | &UnhashedFile(_) => false,
-            &Dir(ref partial) => partial.is_vacant(),
-        }
-    }
-}
 
 #[cfg(test)]
 mod test {
