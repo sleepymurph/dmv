@@ -135,11 +135,6 @@ impl PartialTree {
         where P: Into<OsString>,
               T: Into<HashedOrNot>
     {
-        let st = st.into();
-        match &st {
-            &HashedOrNot::Dir(ref partial) if partial.is_empty() => return,
-            _ => (),
-        };
         self.0.insert(path.into(), st.into());
     }
 
@@ -152,6 +147,24 @@ impl PartialTree {
             &HashedOrNot::UnhashedFile(_) => true,
             &HashedOrNot::Dir(_) => true,
         }))
+    }
+
+    /// Returns true if there are no files worth storing in the PartialTree
+    pub fn is_vacant(&self) -> bool {
+        for entry in self.0.values() {
+            if !entry.is_vacant() {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn prune_vacant(&self) -> PartialTree {
+        PartialTree(self.0
+            .iter()
+            .filter(|&(_, ref entry)| !entry.is_vacant())
+            .map(|(name, entry)| (name.to_owned(), entry.to_owned()))
+            .collect())
     }
 }
 
@@ -207,6 +220,14 @@ impl HashedOrNot {
             &Hashed(_) => 0,
             &UnhashedFile(size) => size,
             &Dir(ref partial) => partial.unhashed_size(),
+        }
+    }
+
+    pub fn is_vacant(&self) -> bool {
+        use self::HashedOrNot::*;
+        match self {
+            &Hashed(_) | &UnhashedFile(_) => false,
+            &Dir(ref partial) => partial.is_vacant(),
         }
     }
 }

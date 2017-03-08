@@ -132,8 +132,10 @@ impl FsTransfer {
                          partial: PartialTree)
                          -> Result<ObjectKey> {
 
-        if partial.is_empty() {
-            bail!("Refusing to hash empty directory: {}", dir_path.display());
+        if partial.is_vacant() {
+            bail!("No children to hash (all empty dirs or ignored) in \
+                   directory: {}",
+                  dir_path.display());
         }
 
         let mut tree = Tree::new();
@@ -144,6 +146,9 @@ impl FsTransfer {
             let hash = match unknown {
                 HashedOrNot::UnhashedFile(_) => self.hash_file(ch_path)?,
                 HashedOrNot::Dir(partial) => {
+                    if partial.is_vacant() {
+                        continue;
+                    }
                     self.hash_partial_tree(&ch_path, partial)?
                 }
                 HashedOrNot::Hashed(hash) => hash,
@@ -384,9 +389,9 @@ mod test {
         let extract_path = temp.path().join("extract_dir");
         fs_transfer.extract_object(&hash, &extract_path).unwrap();
 
-        let extract_partial = fs_transfer.check_status(&extract_path)
-            .unwrap();
-        assert_eq!(extract_partial, HashedOrNot::Dir(expected_cached_partial));
+        let extract_partial = fs_transfer.check_status(&extract_path).unwrap();
+        assert_eq!(extract_partial,
+                   HashedOrNot::Dir(expected_cached_partial.prune_vacant()));
     }
 
     #[test]
@@ -535,6 +540,11 @@ mod test {
 
         let expected_partial = partial_tree!{
             "foo" => HashedOrNot::UnhashedFile(3),
+            "empty1" => HashedOrNot::Dir(partial_tree!{
+                "empty2" => HashedOrNot::Dir(partial_tree!{
+                    "empty3" => HashedOrNot::Dir(PartialTree::new()),
+                }),
+            }),
         };
 
         let expected_tree = tree_object!{
@@ -543,6 +553,11 @@ mod test {
 
         let expected_cached_partial = partial_tree!{
             "foo" => Blob::from("123").calculate_hash(),
+            "empty1" => HashedOrNot::Dir(partial_tree!{
+                "empty2" => HashedOrNot::Dir(partial_tree!{
+                    "empty3" => HashedOrNot::Dir(PartialTree::new()),
+                }),
+            }),
         };
 
         do_store_directory_test("work_dir",
@@ -561,12 +576,11 @@ mod test {
         // Build partial tree
 
         let partial = fs_transfer.check_status(&wd_path).unwrap();
-        assert_eq!(partial, HashedOrNot::Dir(PartialTree::new()));
 
         // Hash and store files
 
         let hash = fs_transfer.hash_object(&wd_path, partial);
-        assert!(hash.is_err());
+        assert!(hash.is_err(), "Should refuse to hash an empty directory");
         // hash.unwrap();
     }
 
