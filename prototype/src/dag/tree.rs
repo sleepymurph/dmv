@@ -104,6 +104,7 @@ pub struct PartialItem {
     size: ObjectSize,
     hash: Option<ObjectKey>,
     children: Option<PartialTree>,
+    mark_ignore: bool,
 }
 
 impl PartialItem {
@@ -112,6 +113,7 @@ impl PartialItem {
             size: size,
             hash: None,
             children: None,
+            mark_ignore: false,
         }
     }
     pub fn hon(&self) -> HashedOrNot {
@@ -119,7 +121,7 @@ impl PartialItem {
             &PartialItem { hash: Some(ref hash), .. } => {
                 HashedOrNot::Hashed(hash)
             }
-            &PartialItem { hash: None, children: None, size } => {
+            &PartialItem { hash: None, children: None, size, .. } => {
                 HashedOrNot::UnhashedFile(size)
             }
             &PartialItem { hash: None, children: Some(ref partial), .. } => {
@@ -146,21 +148,9 @@ impl PartialItem {
 impl From<CacheStatus> for PartialItem {
     fn from(s: CacheStatus) -> Self {
         match s {
-            CacheStatus::Cached { hash } => {
-                PartialItem {
-                    size: 0,
-                    hash: Some(hash),
-                    children: None,
-                }
-            }
+            CacheStatus::Cached { hash } => PartialItem::from(hash),
             CacheStatus::Modified { size } |
-            CacheStatus::NotCached { size } => {
-                PartialItem {
-                    size: size,
-                    hash: None,
-                    children: None,
-                }
-            }
+            CacheStatus::NotCached { size } => PartialItem::unhashed_file(size),
         }
     }
 }
@@ -171,6 +161,7 @@ impl From<PartialTree> for PartialItem {
             size: 0,
             hash: None,
             children: Some(pt),
+            mark_ignore: false,
         }
     }
 }
@@ -181,8 +172,16 @@ impl From<ObjectKey> for PartialItem {
             size: 0,
             hash: Some(hash),
             children: None,
+            mark_ignore: false,
         }
     }
+}
+
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+pub enum HashedOrNot<'a> {
+    Hashed(&'a ObjectKey),
+    UnhashedFile(ObjectSize),
+    Dir(&'a PartialTree),
 }
 
 type PartialMap = BTreeMap<OsString, PartialItem>;
@@ -192,17 +191,6 @@ type PartialMap = BTreeMap<OsString, PartialItem>;
 pub struct PartialTree(PartialMap);
 
 impl_deref!(PartialTree => PartialMap);
-
-/// For PartialTree: A child path that may or may not need hashing
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
-pub enum HashedOrNot<'a> {
-    /// The child path is a file with a known hash, carry the hash
-    Hashed(&'a ObjectKey),
-    /// The child path is a file with unknown hash, carry the size
-    UnhashedFile(ObjectSize),
-    /// The child path is a directory
-    Dir(&'a PartialTree),
-}
 
 impl PartialTree {
     pub fn new() -> Self { PartialTree(PartialMap::new()) }
