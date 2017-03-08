@@ -5,14 +5,14 @@ use constants::HIDDEN_DIR_NAME;
 use dag::Commit;
 use dag::ObjectKey;
 use dag::ObjectType;
-use dag::PartialItem;
-use dag::PartialTree;
 use dag::Tree;
 use disk_backed::DiskBacked;
 use encodable;
 use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::FsTransfer;
+use item::PartialItem;
+use item::PartialTree;
 use object_store::ObjectStore;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -218,7 +218,7 @@ impl WorkDir {
                     -> Result<Status> {
         use self::Status::*;
         use self::LeafStatus::*;
-        use dag::ItemClass::*;
+        use item::ItemClass::*;
 
         debug!("compare_path: {}, ignore: {}",
                rel_path.display(),

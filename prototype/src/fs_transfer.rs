@@ -2,15 +2,15 @@
 
 use cache::AllCaches;
 use cache::FileStats;
-use dag::HashedOrNot;
 use dag::ObjectHandle;
 use dag::ObjectKey;
-use dag::PartialItem;
-use dag::PartialTree;
 use dag::Tree;
 use error::*;
 use human_readable::human_bytes;
 use ignore::IgnoreList;
+use item::HashedOrNot;
+use item::PartialItem;
+use item::PartialTree;
 use object_store::ObjectStore;
 use rolling_hash::read_file_objects;
 use std::fs::File;
@@ -99,7 +99,7 @@ impl FsTransfer {
                        path: &Path,
                        status: &PartialItem)
                        -> Result<ObjectKey> {
-        use dag::HashedOrNot::*;
+        use item::HashedOrNot::*;
         let status = status.prune_vacant();
         match status.hon() {
             Hashed(hash) => Ok(hash.to_owned()),
