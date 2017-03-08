@@ -151,18 +151,44 @@ impl From<HashedOrNot> for PartialItem {
 }
 
 impl From<CacheStatus> for PartialItem {
-    fn from(s: CacheStatus) -> Self { PartialItem::from(HashedOrNot::from(s)) }
+    fn from(s: CacheStatus) -> Self {
+        match s {
+            CacheStatus::Cached { hash } => {
+                PartialItem {
+                    size: 0,
+                    hash: Some(hash),
+                    children: None,
+                }
+            }
+            CacheStatus::Modified { size } |
+            CacheStatus::NotCached { size } => {
+                PartialItem {
+                    size: size,
+                    hash: None,
+                    children: None,
+                }
+            }
+        }
+    }
 }
 
 impl From<PartialTree> for PartialItem {
     fn from(pt: PartialTree) -> Self {
-        PartialItem::from(HashedOrNot::from(pt))
+        PartialItem {
+            size: 0,
+            hash: None,
+            children: Some(pt),
+        }
     }
 }
 
 impl From<ObjectKey> for PartialItem {
     fn from(hash: ObjectKey) -> Self {
-        PartialItem::from(HashedOrNot::from(hash))
+        PartialItem {
+            size: 0,
+            hash: Some(hash),
+            children: None,
+        }
     }
 }
 
@@ -274,10 +300,6 @@ impl From<CacheStatus> for HashedOrNot {
 
 impl From<PartialTree> for HashedOrNot {
     fn from(pt: PartialTree) -> Self { HashedOrNot::Dir(pt) }
-}
-
-impl From<ObjectKey> for HashedOrNot {
-    fn from(hash: ObjectKey) -> Self { HashedOrNot::Hashed(hash) }
 }
 
 impl HashedOrNot {
