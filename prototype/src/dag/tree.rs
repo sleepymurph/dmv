@@ -110,10 +110,10 @@ use self::ItemClass::*;
 
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct PartialItem {
-    class: ItemClass,
-    size: ObjectSize,
-    hash: Option<ObjectKey>,
-    children: Option<PartialTree>,
+    pub class: ItemClass,
+    pub size: ObjectSize,
+    pub hash: Option<ObjectKey>,
+    pub children: Option<PartialTree>,
     pub mark_ignore: bool,
 }
 

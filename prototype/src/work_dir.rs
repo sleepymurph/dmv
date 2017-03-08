@@ -3,7 +3,6 @@
 use constants::DEFAULT_BRANCH_NAME;
 use constants::HIDDEN_DIR_NAME;
 use dag::Commit;
-use dag::HashedOrNot;
 use dag::ObjectKey;
 use dag::ObjectType;
 use dag::PartialItem;
@@ -201,10 +200,14 @@ impl WorkDir {
 
         let mark = self.state.marks.get(rel_path.into()).map(ToOwned::to_owned);
 
-        match (key, mark) {
-            (None, Some(FileMark::Add)) => Ok(Leaf(Add)),
-            (None, _) => Ok(Leaf(Untracked)),
-            (Some(key), _) => self.compare_path(rel_path, &key, partial),
+        debug!("check_status_inner: {}, ignore: {}",
+               rel_path.display(),
+               partial.mark_ignore);
+        match (key, mark, partial.is_vacant()) {
+            (None, Some(FileMark::Add), _) => Ok(Leaf(Add)),
+            (None, _, true) => Ok(Leaf(Ignored)),
+            (None, _, _) => Ok(Leaf(Untracked)),
+            (Some(key), _, _) => self.compare_path(rel_path, &key, partial),
         }
     }
 
@@ -215,14 +218,21 @@ impl WorkDir {
                     -> Result<Status> {
         use self::Status::*;
         use self::LeafStatus::*;
+        use dag::ItemClass::*;
 
-        match partial.hon() {
-            HashedOrNot::Hashed(ref cached) if cached == &key => {
+        debug!("compare_path: {}, ignore: {}",
+               rel_path.display(),
+               partial.mark_ignore);
+        match partial {
+            PartialItem { hash: Some(ref cached), .. } if cached == key => {
                 Ok(Leaf(Unchanged))
             }
-            HashedOrNot::Hashed(_) => Ok(Leaf(Modified)),
-            HashedOrNot::UnhashedFile(_) => Ok(Leaf(MaybeModified)),
-            HashedOrNot::Dir(partial) => {
+            PartialItem { hash: Some(_), .. } => Ok(Leaf(Modified)),
+            PartialItem { mark_ignore: true, .. } => Ok(Leaf(Ignored)),
+            PartialItem { class: BlobLike, .. } => Ok(Leaf(MaybeModified)),
+            PartialItem { class: TreeLike,
+                          children: Some(ref partial),
+                          .. } => {
                 match self.open_object(&key)?.header().object_type {
                     ObjectType::Blob | ObjectType::ChunkedBlob => {
                         Ok(Leaf(Modified))
@@ -234,6 +244,7 @@ impl WorkDir {
                     }
                 }
             }
+            _ => unimplemented!(),
         }
     }
 
