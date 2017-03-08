@@ -229,7 +229,7 @@ impl WorkDir {
             }
             PartialItem { hash: Some(_), .. } => Ok(Leaf(Modified)),
             PartialItem { mark_ignore: true, .. } => Ok(Leaf(Ignored)),
-            PartialItem { class: BlobLike, .. } => Ok(Leaf(MaybeModified)),
+            PartialItem { class: BlobLike(_), .. } => Ok(Leaf(MaybeModified)),
             PartialItem { class: TreeLike,
                           children: Some(ref partial),
                           .. } => {

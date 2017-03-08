@@ -7,7 +7,7 @@ use std::ffi::OsString;
 
 #[derive(Clone,Copy,Eq,PartialEq,Hash,Debug)]
 pub enum ItemClass {
-    BlobLike,
+    BlobLike(ObjectSize),
     TreeLike,
     Unknown,
 }
@@ -17,7 +17,6 @@ use self::ItemClass::*;
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct PartialItem {
     pub class: ItemClass,
-    pub size: ObjectSize,
     pub hash: Option<ObjectKey>,
     pub children: Option<PartialTree>,
     pub mark_ignore: bool,
@@ -26,8 +25,7 @@ pub struct PartialItem {
 impl PartialItem {
     pub fn unhashed_file(size: ObjectSize) -> Self {
         PartialItem {
-            class: BlobLike,
-            size: size,
+            class: BlobLike(size),
             hash: None,
             children: None,
             mark_ignore: false,
@@ -43,17 +41,14 @@ impl PartialItem {
             &PartialItem { hash: Some(ref hash), .. } => {
                 HashedOrNot::Hashed(hash)
             }
+            &PartialItem { hash: None, class: BlobLike(size), .. } => {
+                HashedOrNot::UnhashedFile(size)
+            }
             &PartialItem { hash: None,
                            class: TreeLike,
                            children: Some(ref partial),
                            .. } => HashedOrNot::Dir(partial),
-            &PartialItem { hash: None,
-                           class: TreeLike,
-                           children: None,
-                           .. } => unimplemented!(),
-            &PartialItem { hash: None, size, .. } => {
-                HashedOrNot::UnhashedFile(size)
-            }
+            _ => unimplemented!(),
         }
     }
     pub fn unhashed_size(&self) -> ObjectSize {
@@ -76,7 +71,6 @@ impl PartialItem {
     pub fn prune_vacant(&self) -> PartialItem {
         PartialItem {
             class: self.class,
-            size: self.size,
             hash: self.hash.to_owned(),
             children: match self.children {
                 Some(ref children) => Some(children.prune_vacant()),
@@ -101,7 +95,6 @@ impl From<PartialTree> for PartialItem {
     fn from(pt: PartialTree) -> Self {
         PartialItem {
             class: TreeLike,
-            size: 0,
             hash: None,
             children: Some(pt),
             mark_ignore: false,
@@ -113,7 +106,6 @@ impl From<ObjectKey> for PartialItem {
     fn from(hash: ObjectKey) -> Self {
         PartialItem {
             class: Unknown,
-            size: 0,
             hash: Some(hash),
             children: None,
             mark_ignore: false,
