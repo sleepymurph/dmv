@@ -100,7 +100,17 @@ impl ReadObjectContent for Tree {
 
 
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
+pub enum ItemClass {
+    BlobLike,
+    TreeLike,
+    Unknown,
+}
+
+use self::ItemClass::*;
+
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub struct PartialItem {
+    class: ItemClass,
     size: ObjectSize,
     hash: Option<ObjectKey>,
     children: Option<PartialTree>,
@@ -110,6 +120,7 @@ pub struct PartialItem {
 impl PartialItem {
     pub fn unhashed_file(size: ObjectSize) -> Self {
         PartialItem {
+            class: BlobLike,
             size: size,
             hash: None,
             children: None,
@@ -121,11 +132,16 @@ impl PartialItem {
             &PartialItem { hash: Some(ref hash), .. } => {
                 HashedOrNot::Hashed(hash)
             }
-            &PartialItem { hash: None, children: None, size, .. } => {
+            &PartialItem { hash: None,
+                           class: TreeLike,
+                           children: Some(ref partial),
+                           .. } => HashedOrNot::Dir(partial),
+            &PartialItem { hash: None,
+                           class: TreeLike,
+                           children: None,
+                           .. } => unimplemented!(),
+            &PartialItem { hash: None, size, .. } => {
                 HashedOrNot::UnhashedFile(size)
-            }
-            &PartialItem { hash: None, children: Some(ref partial), .. } => {
-                HashedOrNot::Dir(partial)
             }
         }
     }
@@ -158,6 +174,7 @@ impl From<CacheStatus> for PartialItem {
 impl From<PartialTree> for PartialItem {
     fn from(pt: PartialTree) -> Self {
         PartialItem {
+            class: TreeLike,
             size: 0,
             hash: None,
             children: Some(pt),
@@ -169,6 +186,7 @@ impl From<PartialTree> for PartialItem {
 impl From<ObjectKey> for PartialItem {
     fn from(hash: ObjectKey) -> Self {
         PartialItem {
+            class: Unknown,
             size: 0,
             hash: Some(hash),
             children: None,
