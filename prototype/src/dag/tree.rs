@@ -110,12 +110,25 @@ impl PartialItem {
     pub fn is_vacant(&self) -> bool { self.hon().is_vacant() }
 }
 
-impl<T> From<T> for PartialItem
-    where HashedOrNot: From<T>
-{
-    fn from(t: T) -> Self { PartialItem { hon: HashedOrNot::from(t) } }
+impl From<HashedOrNot> for PartialItem {
+    fn from(hon: HashedOrNot) -> Self { PartialItem { hon: hon } }
 }
 
+impl From<CacheStatus> for PartialItem {
+    fn from(s: CacheStatus) -> Self { PartialItem::from(HashedOrNot::from(s)) }
+}
+
+impl From<PartialTree> for PartialItem {
+    fn from(pt: PartialTree) -> Self {
+        PartialItem::from(HashedOrNot::from(pt))
+    }
+}
+
+impl From<ObjectKey> for PartialItem {
+    fn from(hash: ObjectKey) -> Self {
+        PartialItem::from(HashedOrNot::from(hash))
+    }
+}
 
 type PartialMap = BTreeMap<OsString, PartialItem>;
 
