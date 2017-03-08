@@ -104,10 +104,10 @@ pub struct PartialItem {
     hon: HashedOrNot,
 }
 
-impl_deref!(PartialItem => HashedOrNot, hon);
-
 impl PartialItem {
     pub fn hon(&self) -> HashedOrNot { self.hon.to_owned() }
+    pub fn unhashed_size(&self) -> ObjectSize { self.hon().unhashed_size() }
+    pub fn is_vacant(&self) -> bool { self.hon().is_vacant() }
 }
 
 impl<T> From<T> for PartialItem
