@@ -143,7 +143,7 @@ impl FsTransfer {
         for (ch_name, unknown) in partial.into_iter() {
             let ch_path = dir_path.join(&ch_name);
 
-            let hash = match unknown {
+            let hash = match unknown.hon() {
                 HashedOrNot::UnhashedFile(_) => self.hash_file(ch_path)?,
                 HashedOrNot::Dir(partial) => {
                     if partial.is_vacant() {

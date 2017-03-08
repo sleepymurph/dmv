@@ -251,7 +251,7 @@ impl WorkDir {
             let ch_key = tree.get(ch_name).map(|k| k.to_owned());
             let ch_status = self.check_status_inner(&ch_rel_path,
                                     ch_key,
-                                    ch_partial.to_owned())?;
+                                    ch_partial.hon().to_owned())?;
             status.insert(ch_name.to_owned(), ch_status);
         }
         // Check missing files

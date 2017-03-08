@@ -99,7 +99,25 @@ impl ReadObjectContent for Tree {
 }
 
 
-type PartialMap = BTreeMap<OsString, HashedOrNot>;
+#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+pub struct PartialItem {
+    hon: HashedOrNot,
+}
+
+impl_deref!(PartialItem => HashedOrNot, hon);
+
+impl PartialItem {
+    pub fn hon(&self) -> HashedOrNot { self.hon.to_owned() }
+}
+
+impl<T> From<T> for PartialItem
+    where HashedOrNot: From<T>
+{
+    fn from(t: T) -> Self { PartialItem { hon: HashedOrNot::from(t) } }
+}
+
+
+type PartialMap = BTreeMap<OsString, PartialItem>;
 
 /// An incomplete Tree object that requires some files to be hashed
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
@@ -133,7 +151,7 @@ impl PartialTree {
     /// Accepts any type that can be converted into a HashedOrNot.
     pub fn insert<P, T>(&mut self, path: P, st: T)
         where P: Into<OsString>,
-              T: Into<HashedOrNot>
+              T: Into<PartialItem>
     {
         self.0.insert(path.into(), st.into());
     }
@@ -141,8 +159,8 @@ impl PartialTree {
     /// Get an iterator of unhashed children
     pub fn unhashed<'a>
         (&'a self)
-         -> Box<Iterator<Item = (&'a OsString, &'a HashedOrNot)> + 'a> {
-        Box::new(self.0.iter().filter(|&(_, entry)| match entry {
+         -> Box<Iterator<Item = (&'a OsString, &'a PartialItem)> + 'a> {
+        Box::new(self.0.iter().filter(|&(_, entry)| match &entry.hon {
             &HashedOrNot::Hashed(_) => false,
             &HashedOrNot::UnhashedFile(_) => true,
             &HashedOrNot::Dir(_) => true,
@@ -187,8 +205,8 @@ macro_rules! partial_tree {
 }
 
 impl IntoIterator for PartialTree {
-    type Item = (OsString, HashedOrNot);
-    type IntoIter = <BTreeMap<OsString, HashedOrNot> as IntoIterator>::IntoIter;
+    type Item = (OsString, PartialItem);
+    type IntoIter = <BTreeMap<OsString, PartialItem> as IntoIterator>::IntoIter;
     fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
@@ -300,7 +318,7 @@ mod test {
         };
 
         assert_eq!(partial.get(&OsString::from("fizz")),
-                   Some(&HashedOrNot::UnhashedFile(1024)));
+                   Some(&PartialItem { hon: HashedOrNot::UnhashedFile(1024) }));
 
         assert_eq!(partial.unhashed_size(), 3072);
 
@@ -308,7 +326,9 @@ mod test {
 
         partial.insert("buzz", object_key(3));
         assert_eq!(partial.get(&OsString::from("buzz")),
-                   Some(&HashedOrNot::Hashed(object_key(3))));
+                   Some(&PartialItem {
+                       hon: HashedOrNot::Hashed(object_key(3)),
+                   }));
         assert_eq!(partial.unhashed_size(), 1024);
 
         partial.insert("fizz", object_key(4));
@@ -330,9 +350,11 @@ mod test {
         assert_eq!(partial.unhashed_size(), 0, "no files need to be hashed");
 
         assert_eq!(partial.get(&OsString::from("bar")),
-                   Some(&HashedOrNot::Dir(partial_tree!{
+                   Some(&PartialItem {
+                       hon: HashedOrNot::Dir(partial_tree!{
                         "baz" => object_key(1),
-                   })),
+                       }),
+                   }),
                    "the nested PartialTree still holds information that \
                     would be lost if we replaced it with just a hash");
     }
