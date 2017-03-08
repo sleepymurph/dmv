@@ -107,15 +107,6 @@ pub struct PartialTree(PartialMap);
 
 impl_deref!(PartialTree => PartialMap);
 
-/// For PartialTree: A child path that needs hashing
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
-pub enum UnhashedPath {
-    /// The child path is a file, carry its size
-    File(ObjectSize),
-    /// The child path is a directory, carry its PartialTree
-    Dir(PartialTree),
-}
-
 /// For PartialTree: A child path that may or may not need hashing
 #[derive(Clone,Eq,PartialEq,Hash,Debug)]
 pub enum HashedOrNot {
@@ -152,7 +143,7 @@ impl PartialTree {
         self.0.insert(path.into(), st.into());
     }
 
-    /// Get a map of unhashed children: path => UnhashedPath
+    /// Get an iterator of unhashed children
     pub fn unhashed<'a>
         (&'a self)
          -> Box<Iterator<Item = (&'a OsString, &'a HashedOrNot)> + 'a> {
@@ -205,15 +196,6 @@ impl From<PartialTree> for HashedOrNot {
     fn from(pt: PartialTree) -> Self { HashedOrNot::Dir(pt) }
 }
 
-impl From<UnhashedPath> for HashedOrNot {
-    fn from(unhashed: UnhashedPath) -> Self {
-        match unhashed {
-            UnhashedPath::File(size) => HashedOrNot::UnhashedFile(size),
-            UnhashedPath::Dir(partial) => HashedOrNot::Dir(partial),
-        }
-    }
-}
-
 impl From<ObjectKey> for HashedOrNot {
     fn from(hash: ObjectKey) -> Self { HashedOrNot::Hashed(hash) }
 }
@@ -225,25 +207,6 @@ impl HashedOrNot {
             &Hashed(_) => 0,
             &UnhashedFile(size) => size,
             &Dir(ref partial) => partial.unhashed_size(),
-        }
-    }
-}
-
-// Conversions for UnhashedPath
-
-impl From<ObjectSize> for UnhashedPath {
-    fn from(s: ObjectSize) -> Self { UnhashedPath::File(s) }
-}
-
-impl From<PartialTree> for UnhashedPath {
-    fn from(pt: PartialTree) -> Self { UnhashedPath::Dir(pt) }
-}
-
-impl UnhashedPath {
-    pub fn unhashed_size(&self) -> ObjectSize {
-        match *self {
-            UnhashedPath::File(size) => size,
-            UnhashedPath::Dir(ref partial_tree) => partial_tree.unhashed_size(),
         }
     }
 }
