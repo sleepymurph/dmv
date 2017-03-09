@@ -21,6 +21,7 @@ use std::fs::remove_dir_all;
 use std::fs::remove_file;
 use std::io::BufReader;
 use std::io::Write;
+use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -69,6 +70,24 @@ impl FsTransfer {
         match handle {
             &ItemHandle::Path(ref path) => self.load_dir(path),
             &ItemHandle::Object(ref hash) => self.load_tree(hash.to_owned()),
+        }
+    }
+
+    pub fn load_in_place<'a>(&mut self,
+                             load: &'a mut LoadItems)
+                             -> Result<&'a mut PartialTree> {
+        use item::LoadItems::*;
+        let to_load = match load {
+            &mut NotLoaded(ref handle) => Some(handle.to_owned()),
+            &mut Loaded(_) => None,
+        };
+        if let Some(handle) = to_load {
+            let children = self.load_children(&handle)?;
+            mem::replace(load, Loaded(children));
+        }
+        match load {
+            &mut Loaded(ref mut p) => Ok(p),
+            &mut NotLoaded(_) => unreachable!(),
         }
     }
 
@@ -134,7 +153,7 @@ impl FsTransfer {
 
     /// Check, hash, and store a file or directory
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
-        let status = self.check_status(&path)?;
+        let status = self.check_status(path)?;
         if status.unhashed_size() > 0 {
             stderrln!("{} to hash. Hashing...",
                       human_bytes(status.unhashed_size()));
@@ -142,41 +161,27 @@ impl FsTransfer {
         self.hash_object(&path, &status)
     }
 
+
     pub fn check_status(&mut self, path: &Path) -> Result<PartialItem> {
+        let mut status = self.load_item(path)?;
+        self.build_index(&mut status)?;
+        Ok(status)
+    }
 
-        let mark_ignore = self.ignored.ignores(path);
-        let path_meta = path.metadata()
-            .chain_err(|| format!("getting metadata for {}", path.display()))?;
-
-        let mut hashed_or_not: PartialItem;
-
-        if path_meta.is_file() {
-
-            hashed_or_not =
-                self.cache.check_with(&path, &path_meta.into())?.into();
-
-        } else if path_meta.is_dir() {
-
-            let mut partial = PartialTree::new();
-
-            if !mark_ignore {
-                // Don't descend into ignored directory
-                for entry in try!(read_dir(path)) {
-                    let entry = try!(entry);
-                    let ch_path = entry.path();
-                    let ch_name = PathBuf::from(ch_path.file_name_or_err()?);
-                    let hashed_status = self.check_status(&ch_path)?;
-                    partial.insert(ch_name, hashed_status);
+    fn build_index(&mut self, item: &mut PartialItem) -> Result<()> {
+        use item::ItemClass::*;
+        match item {
+            &mut PartialItem { class: TreeLike(ref mut load),
+                               mark_ignore: false,
+                               .. } => {
+                let children = self.load_in_place(load)?;
+                for (_, child) in children.iter_mut() {
+                    self.build_index(child)?;
                 }
             }
-            hashed_or_not = partial.into();
-
-        } else {
-            bail!("Path {} was neither file nor directory", path.display());
-        }
-
-        hashed_or_not.mark_ignore = mark_ignore;
-        Ok(hashed_or_not)
+            _ => (),
+        };
+        Ok(())
     }
 
 

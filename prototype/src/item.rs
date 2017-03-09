@@ -23,7 +23,7 @@ impl From<PathBuf> for ItemHandle {
 impl From<ObjectKey> for ItemHandle {
     fn from(o: ObjectKey) -> Self { ItemHandle::Object(o) }
 }
-impl<'a, T, O> From<&'a T> for ItemHandle
+impl<'a, T: ?Sized, O> From<&'a T> for ItemHandle
     where T: ToOwned<Owned = O> + 'a,
           O: Borrow<T>,
           O: Into<ItemHandle>
@@ -100,14 +100,20 @@ impl PartialItem {
             &PartialItem { hash: None,
                            class: TreeLike(Loaded(ref partial)),
                            .. } => HashedOrNot::Dir(partial),
-            _ => unimplemented!(),
+            _ => panic!("Cannot convert to HashedOrNot: {:?}", self),
         }
     }
     pub fn unhashed_size(&self) -> ObjectSize {
-        match self.hon() {
-            HashedOrNot::Hashed(_) => 0,
-            HashedOrNot::UnhashedFile(size) => size,
-            HashedOrNot::Dir(ref partial) => partial.unhashed_size(),
+        match self {
+            &PartialItem { hash: Some(_), .. } => 0,
+            &PartialItem { class: BlobLike(size), .. } => size,
+            &PartialItem { class: TreeLike(Loaded(ref children)), .. } => {
+                children.unhashed_size()
+            }
+            &PartialItem { class: TreeLike(NotLoaded(_)),
+                           mark_ignore: true,
+                           .. } => 0,
+            _ => panic!("Cannot calculate unhashed_size: {:?}", self),
         }
     }
     pub fn is_vacant(&self) -> bool {
