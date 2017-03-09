@@ -189,16 +189,20 @@ impl FsTransfer {
                        path: &Path,
                        status: &PartialItem)
                        -> Result<ObjectKey> {
-        use item::HashedOrNot::*;
-        let status = status.prune_vacant();
-        match status.hon() {
-            Hashed(hash) => Ok(hash.to_owned()),
-            UnhashedFile(_) => self.hash_file(path.to_owned()),
-            Dir(partial) => self.hash_partial_tree(&path, partial),
+        use item::ItemClass::*;
+        use item::LoadItems::*;
+
+        match status {
+            &PartialItem { hash: Some(hash), .. } => Ok(hash.to_owned()),
+            &PartialItem { class: BlobLike(_), .. } => self.hash_file(path),
+            &PartialItem { class: TreeLike(Loaded(ref subtree)), .. } => {
+                self.hash_partial_tree(&path, subtree)
+            }
+            _ => bail!("Can't hash: {:?}", status),
         }
     }
 
-    fn hash_file(&mut self, file_path: PathBuf) -> Result<ObjectKey> {
+    fn hash_file(&mut self, file_path: &Path) -> Result<ObjectKey> {
         let file = File::open(&file_path)?;
         let file_stats = FileStats::from(file.metadata()?);
         let file = BufReader::new(file);
@@ -214,7 +218,8 @@ impl FsTransfer {
         }
         let last_hash = last_hash.expect("Iterator always emits objects");
 
-        self.cache.insert(file_path, file_stats, last_hash.to_owned())?;
+        self.cache
+            .insert(file_path.to_owned(), file_stats, last_hash.to_owned())?;
 
         Ok(last_hash)
     }
@@ -223,7 +228,6 @@ impl FsTransfer {
                          dir_path: &Path,
                          partial: &PartialTree)
                          -> Result<ObjectKey> {
-
         if partial.is_vacant() {
             bail!("No children to hash (all empty dirs or ignored) in \
                    directory: {}",
@@ -232,20 +236,12 @@ impl FsTransfer {
 
         let mut tree = Tree::new();
 
-        for (ch_name, unknown) in partial.iter() {
+        for (ch_name, item) in partial.iter() {
+            if item.is_vacant() {
+                continue;
+            }
             let ch_path = dir_path.join(&ch_name);
-
-            let hash = match unknown.hon() {
-                HashedOrNot::UnhashedFile(_) => self.hash_file(ch_path)?,
-                HashedOrNot::Dir(partial) => {
-                    if partial.is_vacant() {
-                        continue;
-                    }
-                    self.hash_partial_tree(&ch_path, partial)?
-                }
-                HashedOrNot::Hashed(hash) => hash.to_owned(),
-            };
-            tree.insert(ch_name, hash);
+            tree.insert(ch_name, self.hash_object(&ch_path, item)?);
         }
 
         self.store_object(&tree)
@@ -690,13 +686,13 @@ mod test {
 
         let source = wd_path.join("in_file");
         testutil::write_file(&source, "in_file content").unwrap();
-        let hash = fs_transfer.hash_file(source.clone()).unwrap();
+        let hash = fs_transfer.hash_file(source.as_path()).unwrap();
 
 
         // File vs cached file
         let target = wd_path.join("cached_file");
         testutil::write_file(&target, "cached_file content").unwrap();
-        fs_transfer.hash_file(target.clone()).unwrap();
+        fs_transfer.hash_file(target.as_path()).unwrap();
 
         fs_transfer.extract_object(&hash, &target).unwrap();
         let content = testutil::read_file_to_string(&target).unwrap();
@@ -750,7 +746,7 @@ mod test {
         // Dir vs cached file
         let target = wd_path.join("cached_file");
         testutil::write_file(&target, "cached_file content").unwrap();
-        fs_transfer.hash_file(target.clone()).unwrap();
+        fs_transfer.hash_file(target.as_path()).unwrap();
 
         fs_transfer.extract_object(&hash, &target).unwrap();
         assert_that!(&target, existing_dir());
@@ -759,7 +755,7 @@ mod test {
         // Dir vs uncached file
         let target = wd_path.join("uncached_file");
         testutil::write_file(&target, "uncached_file content").unwrap();
-        fs_transfer.hash_file(target.clone()).unwrap();
+        fs_transfer.hash_file(target.as_path()).unwrap();
 
         fs_transfer.extract_object(&hash, &target).unwrap();
         assert_that!(&target, existing_dir());

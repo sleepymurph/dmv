@@ -94,20 +94,6 @@ impl PartialItem {
         partial.mark_ignore = true;
         partial
     }
-    pub fn hon(&self) -> HashedOrNot {
-        match self {
-            &PartialItem { hash: Some(ref hash), .. } => {
-                HashedOrNot::Hashed(hash)
-            }
-            &PartialItem { hash: None, class: BlobLike(size), .. } => {
-                HashedOrNot::UnhashedFile(size)
-            }
-            &PartialItem { hash: None,
-                           class: TreeLike(Loaded(ref partial)),
-                           .. } => HashedOrNot::Dir(partial),
-            _ => panic!("Cannot convert to HashedOrNot: {:?}", self),
-        }
-    }
     pub fn unhashed_size(&self) -> ObjectSize {
         match self {
             &PartialItem { hash: Some(_), .. } => 0,
@@ -164,13 +150,6 @@ impl From<Blob> for PartialItem {
             mark_ignore: false,
         }
     }
-}
-
-#[derive(Clone,PartialEq,Hash,Debug)]
-pub enum HashedOrNot<'a> {
-    Hashed(&'a ObjectKey),
-    UnhashedFile(ObjectSize),
-    Dir(&'a PartialTree),
 }
 
 type PartialMap = BTreeMap<OsString, PartialItem>;
