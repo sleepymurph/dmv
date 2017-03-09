@@ -184,23 +184,23 @@ impl WorkDir {
             ref v if v.len() == 0 => None,
             _ => unimplemented!(),
         };
-        let a = a.and_then_try(|a| self.load_item(a))?;
-        let b = Some(self.load_item(abs_path)?);
-        self.compare_option_items(rel_path.as_ref(), a.as_ref(), b.as_ref())
+        let mut a = a.and_then_try(|a| self.load_item(a))?;
+        let mut b = Some(self.load_item(abs_path)?);
+        self.compare_option_items(rel_path.as_ref(), a.as_mut(), b.as_mut())
     }
 
 
     fn compare_option_items(&mut self,
                             rel_path: &Path,
-                            a: Option<&PartialItem>,
-                            b: Option<&PartialItem>)
+                            a: Option<&mut PartialItem>,
+                            b: Option<&mut PartialItem>)
                             -> Result<Status> {
         use self::Status::*;
         use self::LeafStatus::*;
         let mark = self.state.marks.get(rel_path).map(ToOwned::to_owned);
         match (a, b, mark) {
             (Some(a), Some(b), _) => self.compare_items(rel_path, a, b),
-            (None, Some(&PartialItem { mark_ignore: true, .. }), _) => {
+            (None, Some(&mut PartialItem { mark_ignore: true, .. }), _) => {
                 Ok(Leaf(Ignored))
             }
             (None, Some(_), Some(FileMark::Add)) => Ok(Leaf(Add)),
@@ -213,30 +213,30 @@ impl WorkDir {
 
     fn compare_items(&mut self,
                      rel_path: &Path,
-                     a: &PartialItem,
-                     b: &PartialItem)
+                     a: &mut PartialItem,
+                     b: &mut PartialItem)
                      -> Result<Status> {
         use self::Status::*;
         use self::LeafStatus::*;
         use item::ItemClass::*;
         match (a, b) {
-            (&PartialItem { hash: Some(a), .. },
-             &PartialItem { hash: Some(b), .. }) if a == b => {
+            (&mut PartialItem { hash: Some(a), .. },
+             &mut PartialItem { hash: Some(b), .. }) if a == b => {
                 Ok(Leaf(Unchanged))
             }
 
-            (&PartialItem { class: BlobLike(_), .. },
-             &PartialItem { class: BlobLike(_), .. }) => {
+            (&mut PartialItem { class: BlobLike(_), .. },
+             &mut PartialItem { class: BlobLike(_), .. }) => {
                 Ok(Leaf(MaybeModified))
             }
 
-            (&PartialItem { class: TreeLike(ref a), .. },
-             &PartialItem { class: TreeLike(ref b), .. }) => {
+            (&mut PartialItem { class: TreeLike(ref mut a), .. },
+             &mut PartialItem { class: TreeLike(ref mut b), .. }) => {
                 Ok(Status::Tree(self.compare_children(rel_path, a, b)?))
             }
 
-            (&PartialItem { hash: Some(_), .. },
-             &PartialItem { hash: Some(_), .. }) => Ok(Leaf(Modified)),
+            (&mut PartialItem { hash: Some(_), .. },
+             &mut PartialItem { hash: Some(_), .. }) => Ok(Leaf(Modified)),
 
             _ => Ok(Leaf(MaybeModified)),
         }
@@ -244,24 +244,21 @@ impl WorkDir {
 
     fn compare_children(&mut self,
                         rel_path: &Path,
-                        a: &LoadItems,
-                        b: &LoadItems)
+                        a: &mut LoadItems,
+                        b: &mut LoadItems)
                         -> Result<StatusTree> {
-        let a = match a {
-            &LoadItems::Loaded(ref p) => p.to_owned(),
-            &LoadItems::NotLoaded(ref handle) => self.load_children(handle)?,
-        };
-        let b = match b {
-            &LoadItems::Loaded(ref p) => p.to_owned(),
-            &LoadItems::NotLoaded(ref handle) => self.load_children(handle)?,
-        };
+        let a = self.load_in_place(a)?;
+        let b = self.load_in_place(b)?;
 
         let mut statuses = StatusTree::new();
-        let all_names = a.keys().chain(b.keys()).collect::<BTreeSet<_>>();
+        let all_names = a.keys()
+            .chain(b.keys())
+            .map(ToOwned::to_owned)
+            .collect::<BTreeSet<_>>();
         for name in all_names {
-            let a = a.get(name);
-            let b = b.get(name);
-            let rel_path = rel_path.join(name);
+            let a = a.get_mut(&name);
+            let b = b.get_mut(&name);
+            let rel_path = rel_path.join(&name);
             let status = self.compare_option_items(&rel_path, a, b)?;
             statuses.insert(name.to_owned(), status);
         }
