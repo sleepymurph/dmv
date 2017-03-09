@@ -255,11 +255,9 @@ impl WorkDir {
             &LoadItems::Loaded(ref p) => p.to_owned(),
             &LoadItems::NotLoaded(ref handle) => self.load_children(handle)?,
         };
-        let mut all_names = BTreeSet::new();
-        all_names.extend(a.keys());
-        all_names.extend(b.keys());
 
         let mut statuses = StatusTree::new();
+        let all_names = a.keys().chain(b.keys()).collect::<BTreeSet<_>>();
         for name in all_names {
             let a = a.get(name);
             let b = b.get(name);
