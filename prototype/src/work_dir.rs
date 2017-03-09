@@ -9,8 +9,9 @@ use encodable;
 use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::FsTransfer;
-use item::LoadItems;
-use item::PartialItem;
+use item::*;
+use item::ItemClass::*;
+use item::LoadItems::*;
 use maputil::mux;
 use object_store::ObjectStore;
 use std::collections::BTreeMap;
@@ -175,7 +176,7 @@ impl WorkDir {
             .collect::<Vec<String>>()
     }
 
-    pub fn check_status(&mut self) -> Result<Status> {
+    pub fn status(&mut self) -> Result<Status> {
 
         let abs_path = self.path().to_owned();
         let rel_path = PathBuf::from("");
@@ -218,7 +219,6 @@ impl WorkDir {
                      -> Result<Status> {
         use self::Status::*;
         use self::LeafStatus::*;
-        use item::ItemClass::*;
         match (a, b) {
             (&mut PartialItem { hash: Some(a), .. },
              &mut PartialItem { hash: Some(b), .. }) if a == b => {
@@ -268,6 +268,37 @@ impl WorkDir {
         Ok(())
     }
 
+    fn build_index(&mut self,
+                   mut item: PartialItem,
+                   parent: Option<PartialItem>)
+                   -> Result<PartialItem> {
+        match item {
+            PartialItem { class: TreeLike(load), mark_ignore: false, .. } => {
+                let children = self.load_if_needed(load)?
+                    .into_iter();
+                let compare = parent.and_then(|p| p.take_load())
+                    .and_then_try(|load| self.load_if_needed(load))?
+                    .into_iter()
+                    .flat_map(|pt| pt.into_iter());
+
+                let mut new = PartialTree::new();
+                for (name, child, compare) in mux(children, compare) {
+                    match (child, compare) {
+                        (Some(child), compare) => {
+                            new.insert(name, self.build_index(child, compare)?);
+                        }
+                        (None, Some(compare)) => {
+                            new.insert(name, compare.to_owned());
+                        }
+                        (None, None) => unreachable!(),
+                    }
+                }
+                item.class = TreeLike(Loaded(new));
+            }
+            _ => (),
+        };
+        Ok(item)
+    }
     pub fn commit(&mut self,
                   message: String)
                   -> Result<(Option<&str>, ObjectKey)> {

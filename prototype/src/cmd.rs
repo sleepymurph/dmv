@@ -65,7 +65,7 @@ pub fn cache_status(file_path: PathBuf) -> Result<()> {
 
 pub fn status() -> Result<()> {
     let mut work_dir = find_work_dir()?;
-    let status = work_dir.check_status()?;
+    let status = work_dir.status()?;
     println!("{}", status);
     Ok(())
 }

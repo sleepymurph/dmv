@@ -67,7 +67,8 @@ impl FsTransfer {
 
 /// Methods for building the index of files to hash
 impl FsTransfer {
-    pub fn check_status(&mut self, path: &Path) -> Result<PartialItem> {
+    // Moved to WorkDir. TODO: Delete
+    fn check_status(&mut self, path: &Path) -> Result<PartialItem> {
         let status = self.load_shallow(path)?;
         self.build_index(status, None)
     }
