@@ -15,7 +15,6 @@ use item::LoadItems::*;
 use maputil::mux;
 use object_store::ObjectStore;
 use rolling_hash::read_file_objects;
-use std::collections::BTreeMap;
 use std::fs::File;
 use std::fs::Metadata;
 use std::fs::OpenOptions;
@@ -69,56 +68,40 @@ impl FsTransfer {
 /// Methods for building the index of files to hash
 impl FsTransfer {
     pub fn check_status(&mut self, path: &Path) -> Result<PartialItem> {
-        let mut status = self.load_shallow(path)?;
-        self.build_index(&mut status, None)?;
-        Ok(status)
+        let status = self.load_shallow(path)?;
+        self.build_index(status, None)
     }
 
     fn build_index(&mut self,
-                   item: &mut PartialItem,
-                   parent: Option<&mut PartialItem>)
-                   -> Result<()> {
+                   mut item: PartialItem,
+                   parent: Option<PartialItem>)
+                   -> Result<PartialItem> {
         match item {
-            &mut PartialItem { class: TreeLike(ref mut load),
-                               mark_ignore: false,
-                               .. } => {
-                let children = self.load_children_in_place(load)?;
-                let mut compare = self.maybe_children(parent)?;
-                let mut new = BTreeMap::new();
+            PartialItem { class: TreeLike(load), mark_ignore: false, .. } => {
+                let children = self.load_if_needed(load)?
+                    .into_iter();
+                let compare = parent.and_then(|p| p.take_load())
+                    .and_then_try(|load| self.load_if_needed(load))?
+                    .into_iter()
+                    .flat_map(|pt| pt.into_iter());
 
-                for (name, child, compare) in mux(children.iter_mut(),
-                                                  compare.iter_mut()
-                                                      .flat_map(|pt| {
-                                                          pt.iter_mut()
-                                                      })) {
+                let mut new = PartialTree::new();
+                for (name, child, compare) in mux(children, compare) {
                     match (child, compare) {
                         (Some(child), compare) => {
-                            self.build_index(child, compare)?
+                            new.insert(name, self.build_index(child, compare)?);
                         }
                         (None, Some(compare)) => {
-                            new.insert(name.to_owned(), compare.to_owned());
+                            new.insert(name, compare.to_owned());
                         }
                         (None, None) => unreachable!(),
                     }
                 }
-                children.append(&mut new);
+                item.class = TreeLike(Loaded(new));
             }
             _ => (),
         };
-        Ok(())
-    }
-
-    fn maybe_children<'a>(&mut self,
-                          item: Option<&'a mut PartialItem>)
-                          -> Result<Option<&'a mut PartialTree>> {
-        match item {
-            Some(&mut PartialItem { class: TreeLike(ref mut load),
-                                    mark_ignore: false,
-                                    .. }) => {
-                Ok(Some(self.load_children_in_place(load)?))
-            }
-            _ => Ok(None),
-        }
+        Ok(item)
     }
 }
 
@@ -313,6 +296,13 @@ impl FsTransfer {
         match handle {
             &ItemHandle::Path(ref path) => self.load_dir(path),
             &ItemHandle::Object(ref hash) => self.load_tree(hash.to_owned()),
+        }
+    }
+
+    pub fn load_if_needed(&mut self, load: LoadItems) -> Result<PartialTree> {
+        match load {
+            Loaded(p) => Ok(p),
+            NotLoaded(handle) => self.load_children(&handle),
         }
     }
 

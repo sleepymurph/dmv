@@ -107,6 +107,18 @@ impl PartialItem {
             _ => panic!("Cannot calculate unhashed_size: {:?}", self),
         }
     }
+    pub fn take_load(self) -> Option<LoadItems> {
+        match self.class {
+            TreeLike(load) => Some(load),
+            _ => None,
+        }
+    }
+    pub fn load_mut(&mut self) -> Option<&mut LoadItems> {
+        match &mut self.class {
+            &mut TreeLike(ref mut load) => Some(load),
+            _ => None,
+        }
+    }
     pub fn is_vacant(&self) -> bool {
         match self {
             &PartialItem { hash: Some(_), .. } => false,
