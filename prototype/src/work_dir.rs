@@ -11,9 +11,9 @@ use find_repo::RepoLayout;
 use fs_transfer::FsTransfer;
 use item::LoadItems;
 use item::PartialItem;
+use maputil::mux;
 use object_store::ObjectStore;
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::fmt;
 use std::path::Path;
@@ -251,13 +251,7 @@ impl WorkDir {
         let b = self.load_in_place(b)?;
 
         let mut statuses = StatusTree::new();
-        let all_names = a.keys()
-            .chain(b.keys())
-            .map(ToOwned::to_owned)
-            .collect::<BTreeSet<_>>();
-        for name in all_names {
-            let a = a.get_mut(&name);
-            let b = b.get_mut(&name);
+        for (name, a, b) in mux(a.iter_mut(), b.iter_mut()) {
             let rel_path = rel_path.join(&name);
             let status = self.compare_option_items(&rel_path, a, b)?;
             statuses.insert(name.to_owned(), status);
