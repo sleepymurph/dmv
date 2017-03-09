@@ -1,6 +1,7 @@
 //! Functionality for transfering files between filesystem and object store
 
 use cache::AllCaches;
+use cache::CacheStatus;
 use cache::FileStats;
 use dag::ObjectHandle;
 use dag::ObjectKey;
@@ -8,12 +9,11 @@ use dag::Tree;
 use error::*;
 use human_readable::human_bytes;
 use ignore::IgnoreList;
-use item::HashedOrNot;
-use item::PartialItem;
-use item::PartialTree;
+use item::*;
 use object_store::ObjectStore;
 use rolling_hash::read_file_objects;
 use std::fs::File;
+use std::fs::Metadata;
 use std::fs::OpenOptions;
 use std::fs::create_dir;
 use std::fs::read_dir;
@@ -45,6 +45,88 @@ impl FsTransfer {
 
     pub fn with_repo_path(repo_path: PathBuf) -> Result<Self> {
         Ok(FsTransfer::with_object_store(ObjectStore::open(repo_path)?))
+    }
+
+    pub fn load_item<H>(&mut self, handle: H) -> Result<PartialItem>
+        where H: Into<ItemHandle>
+    {
+        match handle.into() {
+            ItemHandle::Path(ref path) => {
+                self.load_path_shallow(path, path.metadata()?)
+            }
+            ItemHandle::Object(ref hash) => {
+                self.load_object_shallow(hash.to_owned())
+            }
+        }
+    }
+
+    pub fn load_children(&mut self,
+                         handle: &ItemHandle)
+                         -> Result<PartialTree> {
+        match handle {
+            &ItemHandle::Path(ref path) => self.load_dir(path),
+            &ItemHandle::Object(ref hash) => self.load_tree(hash.to_owned()),
+        }
+    }
+
+    fn load_path_shallow(&mut self,
+                         path: &Path,
+                         meta: Metadata)
+                         -> Result<PartialItem> {
+        Ok(PartialItem {
+            class: ItemClass::for_path(path, &meta)?,
+            hash: match self.cache
+                .check_with(&path, &meta.into())? {
+                CacheStatus::Cached { hash } => Some(hash),
+                _ => None,
+            },
+            mark_ignore: self.ignored.ignores(path),
+        })
+    }
+
+    fn load_dir(&mut self, path: &Path) -> Result<PartialTree> {
+        let mut partial = PartialTree::new();
+        for entry in read_dir(path)? {
+            let entry = entry?;
+            let ch_path = entry.path();
+            let ch_name = ch_path.file_name_or_err()?;
+            let ch =
+                self.load_path_shallow(ch_path.as_path(), entry.metadata()?)?;
+            partial.insert(ch_name, ch);
+        }
+        Ok(partial)
+    }
+
+    fn load_object_shallow(&mut self, hash: ObjectKey) -> Result<PartialItem> {
+        let obj_handle = self.open_object(&hash)?;
+        let class = match obj_handle {
+            ObjectHandle::Blob(_) => {
+                ItemClass::BlobLike(obj_handle.header().content_size)
+            }
+            ObjectHandle::ChunkedBlob(raw) => {
+                let index = raw.read_content()?;
+                ItemClass::BlobLike(index.total_size)
+            }
+            ObjectHandle::Tree(_) |
+            ObjectHandle::Commit(_) => {
+                ItemClass::TreeLike(
+                    LoadItems::NotLoaded(ItemHandle::Object(hash.to_owned())))
+            }
+        };
+        Ok(PartialItem {
+            class: class,
+            hash: Some(hash),
+            mark_ignore: false,
+        })
+    }
+
+    fn load_tree(&mut self, hash: ObjectKey) -> Result<PartialTree> {
+        let tree = self.open_tree(&hash)?;
+        let mut partial = PartialTree::new();
+        for (name, hash) in tree {
+            partial.insert(name, self.load_object_shallow(hash)?);
+        }
+        Ok(partial)
     }
 
     /// Check, hash, and store a file or directory

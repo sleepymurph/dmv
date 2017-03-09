@@ -4,17 +4,16 @@ use constants::DEFAULT_BRANCH_NAME;
 use constants::HIDDEN_DIR_NAME;
 use dag::Commit;
 use dag::ObjectKey;
-use dag::ObjectType;
-use dag::Tree;
 use disk_backed::DiskBacked;
 use encodable;
 use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::FsTransfer;
+use item::LoadItems;
 use item::PartialItem;
-use item::PartialTree;
 use object_store::ObjectStore;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::fmt;
 use std::path::Path;
@@ -180,98 +179,95 @@ impl WorkDir {
 
         let abs_path = self.path().to_owned();
         let rel_path = PathBuf::from("");
-        let key = match self.parents().to_owned() {
+        let a = match self.parents().to_owned() {
             ref v if v.len() == 1 => self.try_find_tree_path(&v[0], &rel_path)?,
             ref v if v.len() == 0 => None,
             _ => unimplemented!(),
         };
-        let partial = self.fs_transfer.check_status(&abs_path)?;
-        self.check_status_inner(&rel_path, key, partial)
+        let a = a.and_then_try(|a| self.load_item(a))?;
+        let b = Some(self.load_item(abs_path)?);
+        self.compare_option_items(rel_path.as_ref(), a.as_ref(), b.as_ref())
     }
 
-    fn check_status_inner(&mut self,
-                          rel_path: &Path,
-                          key: Option<ObjectKey>,
-                          partial: PartialItem)
-                          -> Result<Status> {
-        trace!("comparing {} to {:?}", rel_path.display(), key);
+
+    fn compare_option_items(&mut self,
+                            rel_path: &Path,
+                            a: Option<&PartialItem>,
+                            b: Option<&PartialItem>)
+                            -> Result<Status> {
         use self::Status::*;
         use self::LeafStatus::*;
-
-        let mark = self.state.marks.get(rel_path.into()).map(ToOwned::to_owned);
-
-        debug!("check_status_inner: {}, ignore: {}",
-               rel_path.display(),
-               partial.mark_ignore);
-        match (key, mark, partial.is_vacant()) {
-            (None, Some(FileMark::Add), _) => Ok(Leaf(Add)),
-            (None, _, true) => Ok(Leaf(Ignored)),
-            (None, _, _) => Ok(Leaf(Untracked)),
-            (Some(key), _, _) => self.compare_path(rel_path, &key, partial),
+        let mark = self.state.marks.get(rel_path).map(ToOwned::to_owned);
+        match (a, b, mark) {
+            (Some(a), Some(b), _) => self.compare_items(rel_path, a, b),
+            (None, Some(&PartialItem { mark_ignore: true, .. }), _) => {
+                Ok(Leaf(Ignored))
+            }
+            (None, Some(_), Some(FileMark::Add)) => Ok(Leaf(Add)),
+            (None, Some(_), _) => Ok(Leaf(Untracked)),
+            (Some(_), None, Some(FileMark::Delete)) => Ok(Leaf(Delete)),
+            (Some(_), None, _) => Ok(Leaf(Offline)),
+            (None, None, _) => bail!("Nothing to compare"),
         }
     }
 
-    fn compare_path(&mut self,
-                    rel_path: &Path,
-                    key: &ObjectKey,
-                    partial: PartialItem)
-                    -> Result<Status> {
+    fn compare_items(&mut self,
+                     rel_path: &Path,
+                     a: &PartialItem,
+                     b: &PartialItem)
+                     -> Result<Status> {
         use self::Status::*;
         use self::LeafStatus::*;
         use item::ItemClass::*;
-        use item::LoadItems::*;
-
-        debug!("compare_path: {}, ignore: {}",
-               rel_path.display(),
-               partial.mark_ignore);
-        match partial {
-            PartialItem { hash: Some(ref cached), .. } if cached == key => {
+        match (a, b) {
+            (&PartialItem { hash: Some(a), .. },
+             &PartialItem { hash: Some(b), .. }) if a == b => {
                 Ok(Leaf(Unchanged))
             }
-            PartialItem { hash: Some(_), .. } => Ok(Leaf(Modified)),
-            PartialItem { mark_ignore: true, .. } => Ok(Leaf(Ignored)),
-            PartialItem { class: BlobLike(_), .. } => Ok(Leaf(MaybeModified)),
-            PartialItem { class: TreeLike(Loaded(ref partial)), .. } => {
-                match self.open_object(&key)?.header().object_type {
-                    ObjectType::Blob | ObjectType::ChunkedBlob => {
-                        Ok(Leaf(Modified))
-                    }
-                    ObjectType::Tree | ObjectType::Commit => {
-                        let tree = self.open_tree(&key)?;
-                        self.compare_dir(rel_path, tree, partial)
-                            .map(|st| Tree(st))
-                    }
-                }
+
+            (&PartialItem { class: BlobLike(_), .. },
+             &PartialItem { class: BlobLike(_), .. }) => {
+                Ok(Leaf(MaybeModified))
             }
-            _ => unimplemented!(),
+
+            (&PartialItem { class: TreeLike(ref a), .. },
+             &PartialItem { class: TreeLike(ref b), .. }) => {
+                Ok(Status::Tree(self.compare_children(rel_path, a, b)?))
+            }
+
+            (&PartialItem { hash: Some(_), .. },
+             &PartialItem { hash: Some(_), .. }) => Ok(Leaf(Modified)),
+
+            _ => Ok(Leaf(MaybeModified)),
         }
     }
 
-    fn compare_dir(&mut self,
-                   rel_path: &Path,
-                   tree: Tree,
-                   partial: &PartialTree)
-                   -> Result<StatusTree> {
-        use self::Status::*;
-        use self::LeafStatus::*;
+    fn compare_children(&mut self,
+                        rel_path: &Path,
+                        a: &LoadItems,
+                        b: &LoadItems)
+                        -> Result<StatusTree> {
+        let a = match a {
+            &LoadItems::Loaded(ref p) => p.to_owned(),
+            &LoadItems::NotLoaded(ref handle) => self.load_children(handle)?,
+        };
+        let b = match b {
+            &LoadItems::Loaded(ref p) => p.to_owned(),
+            &LoadItems::NotLoaded(ref handle) => self.load_children(handle)?,
+        };
+        let mut all_names = BTreeSet::new();
+        all_names.extend(a.keys());
+        all_names.extend(b.keys());
 
-        let mut status = StatusTree::new();
-        // Check all child paths in directory
-        for (ch_name, ch_partial) in partial.iter() {
-            let ch_rel_path = rel_path.join(&ch_name);
-            let ch_key = tree.get(ch_name).map(|k| k.to_owned());
-            let ch_status = self.check_status_inner(&ch_rel_path,
-                                    ch_key,
-                                    ch_partial.to_owned())?;
-            status.insert(ch_name.to_owned(), ch_status);
+        let mut statuses = StatusTree::new();
+        for name in all_names {
+            let a = a.get(name);
+            let b = b.get(name);
+            let rel_path = rel_path.join(name);
+            let status = self.compare_option_items(&rel_path, a, b)?;
+            statuses.insert(name.to_owned(), status);
         }
-        // Check missing files
-        for ch_name in tree.keys() {
-            status.entry(ch_name.to_owned())
-                .or_insert_with(|| Leaf(Offline));
-            // TODO: Check ignores
-        }
-        Ok(status)
+        Ok(statuses)
     }
 
     pub fn mark_for_add(&mut self, path: PathBuf) -> Result<()> {

@@ -2,35 +2,64 @@
 
 use cache::CacheStatus;
 use dag::*;
+use error::*;
+use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
+use std::fs::Metadata;
+use std::path::Path;
 use std::path::PathBuf;
 
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+#[derive(Clone,PartialEq,Hash,Debug)]
 pub enum ItemHandle {
     Path(PathBuf),
     Object(ObjectKey),
 }
 
+impl From<PathBuf> for ItemHandle {
+    fn from(o: PathBuf) -> Self { ItemHandle::Path(o) }
+}
+impl From<ObjectKey> for ItemHandle {
+    fn from(o: ObjectKey) -> Self { ItemHandle::Object(o) }
+}
+impl<'a, T, O> From<&'a T> for ItemHandle
+    where T: ToOwned<Owned = O> + 'a,
+          O: Borrow<T>,
+          O: Into<ItemHandle>
+{
+    fn from(o: &'a T) -> Self { o.to_owned().into() }
+}
 
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+
+#[derive(Clone,PartialEq,Hash,Debug)]
 pub enum LoadItems {
     NotLoaded(ItemHandle),
     Loaded(PartialTree),
 }
-
 use self::LoadItems::*;
 
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+#[derive(Clone,PartialEq,Hash,Debug)]
 pub enum ItemClass {
     BlobLike(ObjectSize),
     TreeLike(LoadItems),
     Unknown,
 }
-
 use self::ItemClass::*;
 
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+impl ItemClass {
+    pub fn for_path(path: &Path, meta: &Metadata) -> Result<Self> {
+        if meta.is_file() {
+            Ok(ItemClass::BlobLike(meta.len()))
+        } else if meta.is_dir() {
+            Ok(ItemClass::TreeLike(
+                    NotLoaded(ItemHandle::Path(path.to_owned()))))
+        } else {
+            bail!("Unknown file type for {}:", path.display())
+        }
+    }
+}
+
+#[derive(Clone,PartialEq,Hash,Debug)]
 pub struct PartialItem {
     pub class: ItemClass,
     pub hash: Option<ObjectKey>,
@@ -126,7 +155,7 @@ impl From<ObjectKey> for PartialItem {
     }
 }
 
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+#[derive(Clone,PartialEq,Hash,Debug)]
 pub enum HashedOrNot<'a> {
     Hashed(&'a ObjectKey),
     UnhashedFile(ObjectSize),
@@ -136,7 +165,7 @@ pub enum HashedOrNot<'a> {
 type PartialMap = BTreeMap<OsString, PartialItem>;
 
 /// An incomplete Tree object that requires some files to be hashed
-#[derive(Clone,Eq,PartialEq,Hash,Debug)]
+#[derive(Clone,PartialEq,Hash,Debug)]
 pub struct PartialTree(PartialMap);
 
 impl_deref!(PartialTree => PartialMap);
