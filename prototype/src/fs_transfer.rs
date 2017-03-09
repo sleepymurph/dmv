@@ -164,11 +164,11 @@ impl FsTransfer {
             })
     }
 
-    pub fn extract_object_open(&mut self,
-                               handle: ObjectHandle,
-                               hash: &ObjectKey,
-                               path: &Path)
-                               -> Result<()> {
+    fn extract_object_open(&mut self,
+                           handle: ObjectHandle,
+                           hash: &ObjectKey,
+                           path: &Path)
+                           -> Result<()> {
         match handle {
             ObjectHandle::Blob(_) |
             ObjectHandle::ChunkedBlob(_) => {
@@ -274,9 +274,7 @@ impl FsTransfer {
         }
     }
 
-    pub fn load_children(&mut self,
-                         handle: &ItemHandle)
-                         -> Result<PartialTree> {
+    fn load_children(&mut self, handle: &ItemHandle) -> Result<PartialTree> {
         debug!("Loading children:   {}", handle);
         match handle {
             &ItemHandle::Path(ref path) => self.load_dir(path),
