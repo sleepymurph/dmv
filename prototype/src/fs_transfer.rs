@@ -67,7 +67,7 @@ impl FsTransfer {
 /// Methods for building the index of files to hash
 impl FsTransfer {
     pub fn check_status(&mut self, path: &Path) -> Result<PartialItem> {
-        let mut status = self.load_item(path)?;
+        let mut status = self.load_shallow(path)?;
         self.build_index(&mut status)?;
         Ok(status)
     }
@@ -77,7 +77,7 @@ impl FsTransfer {
             &mut PartialItem { class: TreeLike(ref mut load),
                                mark_ignore: false,
                                .. } => {
-                let children = self.load_in_place(load)?;
+                let children = self.load_children_in_place(load)?;
                 for (_, child) in children.iter_mut() {
                     self.build_index(child)?;
                 }
@@ -259,7 +259,7 @@ impl FsTransfer {
 
 /// Methods for loading PartialItem objects either from disk or object store
 impl FsTransfer {
-    pub fn load_item<H>(&mut self, handle: H) -> Result<PartialItem>
+    pub fn load_shallow<H>(&mut self, handle: H) -> Result<PartialItem>
         where H: Into<ItemHandle>
     {
         let handle = handle.into();
@@ -282,9 +282,9 @@ impl FsTransfer {
         }
     }
 
-    pub fn load_in_place<'a>(&mut self,
-                             load: &'a mut LoadItems)
-                             -> Result<&'a mut PartialTree> {
+    pub fn load_children_in_place<'a>(&mut self,
+                                      load: &'a mut LoadItems)
+                                      -> Result<&'a mut PartialTree> {
         let to_load = match load {
             &mut NotLoaded(ref handle) => Some(handle.to_owned()),
             &mut Loaded(_) => None,

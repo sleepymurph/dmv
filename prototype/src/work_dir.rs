@@ -184,8 +184,8 @@ impl WorkDir {
             ref v if v.len() == 0 => None,
             _ => unimplemented!(),
         };
-        let mut a = a.and_then_try(|a| self.load_item(a))?;
-        let mut b = Some(self.load_item(abs_path)?);
+        let mut a = a.and_then_try(|a| self.load_shallow(a))?;
+        let mut b = Some(self.load_shallow(abs_path)?);
         self.compare_option_items(rel_path.as_ref(), a.as_mut(), b.as_mut())
     }
 
@@ -247,8 +247,8 @@ impl WorkDir {
                         a: &mut LoadItems,
                         b: &mut LoadItems)
                         -> Result<StatusTree> {
-        let a = self.load_in_place(a)?;
-        let b = self.load_in_place(b)?;
+        let a = self.load_children_in_place(a)?;
+        let b = self.load_children_in_place(b)?;
 
         let mut statuses = StatusTree::new();
         for (name, a, b) in mux(a.iter_mut(), b.iter_mut()) {
