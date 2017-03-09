@@ -6,6 +6,7 @@ use error::*;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
+use std::fmt;
 use std::fs::Metadata;
 use std::path::Path;
 use std::path::PathBuf;
@@ -28,6 +29,15 @@ impl<'a, T, O> From<&'a T> for ItemHandle
           O: Into<ItemHandle>
 {
     fn from(o: &'a T) -> Self { o.to_owned().into() }
+}
+
+impl fmt::Display for ItemHandle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ItemHandle::Path(ref path) => write!(f, "{}", path.display()),
+            &ItemHandle::Object(ref hash) => write!(f, "{}", hash),
+        }
+    }
 }
 
 

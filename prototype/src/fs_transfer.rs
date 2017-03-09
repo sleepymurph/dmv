@@ -50,6 +50,8 @@ impl FsTransfer {
     pub fn load_item<H>(&mut self, handle: H) -> Result<PartialItem>
         where H: Into<ItemHandle>
     {
+        let handle = handle.into();
+        debug!("Loading shallow:    {}", handle);
         match handle.into() {
             ItemHandle::Path(ref path) => {
                 self.load_path_shallow(path, path.metadata()?)
@@ -63,6 +65,7 @@ impl FsTransfer {
     pub fn load_children(&mut self,
                          handle: &ItemHandle)
                          -> Result<PartialTree> {
+        debug!("Loading children:   {}", handle);
         match handle {
             &ItemHandle::Path(ref path) => self.load_dir(path),
             &ItemHandle::Object(ref hash) => self.load_tree(hash.to_owned()),
