@@ -10,6 +10,8 @@ use error::*;
 use human_readable::human_bytes;
 use ignore::IgnoreList;
 use item::*;
+use item::ItemClass::*;
+use item::LoadItems::*;
 use object_store::ObjectStore;
 use rolling_hash::read_file_objects;
 use std::fs::File;
@@ -32,6 +34,9 @@ pub struct FsTransfer {
     pub ignored: IgnoreList,
 }
 
+impl_deref_mut!(FsTransfer => ObjectStore, object_store);
+
+/// Constructors and high-level methods
 impl FsTransfer {
     pub fn with_object_store(object_store: ObjectStore) -> Self {
         let mut ignored = IgnoreList::default();
@@ -48,109 +53,6 @@ impl FsTransfer {
         Ok(FsTransfer::with_object_store(ObjectStore::open(repo_path)?))
     }
 
-    pub fn load_item<H>(&mut self, handle: H) -> Result<PartialItem>
-        where H: Into<ItemHandle>
-    {
-        let handle = handle.into();
-        debug!("Loading shallow:    {}", handle);
-        match handle.into() {
-            ItemHandle::Path(ref path) => {
-                self.load_path_shallow(path, path.metadata()?)
-            }
-            ItemHandle::Object(ref hash) => {
-                self.load_object_shallow(hash.to_owned())
-            }
-        }
-    }
-
-    pub fn load_children(&mut self,
-                         handle: &ItemHandle)
-                         -> Result<PartialTree> {
-        debug!("Loading children:   {}", handle);
-        match handle {
-            &ItemHandle::Path(ref path) => self.load_dir(path),
-            &ItemHandle::Object(ref hash) => self.load_tree(hash.to_owned()),
-        }
-    }
-
-    pub fn load_in_place<'a>(&mut self,
-                             load: &'a mut LoadItems)
-                             -> Result<&'a mut PartialTree> {
-        use item::LoadItems::*;
-        let to_load = match load {
-            &mut NotLoaded(ref handle) => Some(handle.to_owned()),
-            &mut Loaded(_) => None,
-        };
-        if let Some(handle) = to_load {
-            let children = self.load_children(&handle)?;
-            mem::replace(load, Loaded(children));
-        }
-        match load {
-            &mut Loaded(ref mut p) => Ok(p),
-            &mut NotLoaded(_) => unreachable!(),
-        }
-    }
-
-    fn load_path_shallow(&mut self,
-                         path: &Path,
-                         meta: Metadata)
-                         -> Result<PartialItem> {
-        Ok(PartialItem {
-            class: ItemClass::for_path(path, &meta)?,
-            hash: match self.cache
-                .check_with(&path, &meta.into())? {
-                CacheStatus::Cached { hash } => Some(hash),
-                _ => None,
-            },
-            mark_ignore: self.ignored.ignores(path),
-        })
-    }
-
-    fn load_dir(&mut self, path: &Path) -> Result<PartialTree> {
-        let mut partial = PartialTree::new();
-        for entry in read_dir(path)? {
-            let entry = entry?;
-            let ch_path = entry.path();
-            let ch_name = ch_path.file_name_or_err()?;
-            let ch =
-                self.load_path_shallow(ch_path.as_path(), entry.metadata()?)?;
-            partial.insert(ch_name, ch);
-        }
-        Ok(partial)
-    }
-
-    fn load_object_shallow(&mut self, hash: ObjectKey) -> Result<PartialItem> {
-        let obj_handle = self.open_object(&hash)?;
-        let class = match obj_handle {
-            ObjectHandle::Blob(_) => {
-                ItemClass::BlobLike(obj_handle.header().content_size)
-            }
-            ObjectHandle::ChunkedBlob(raw) => {
-                let index = raw.read_content()?;
-                ItemClass::BlobLike(index.total_size)
-            }
-            ObjectHandle::Tree(_) |
-            ObjectHandle::Commit(_) => {
-                ItemClass::TreeLike(
-                    LoadItems::NotLoaded(ItemHandle::Object(hash.to_owned())))
-            }
-        };
-        Ok(PartialItem {
-            class: class,
-            hash: Some(hash),
-            mark_ignore: false,
-        })
-    }
-
-    fn load_tree(&mut self, hash: ObjectKey) -> Result<PartialTree> {
-        let tree = self.open_tree(&hash)?;
-        let mut partial = PartialTree::new();
-        for (name, hash) in tree {
-            partial.insert(name, self.load_object_shallow(hash)?);
-        }
-        Ok(partial)
-    }
-
     /// Check, hash, and store a file or directory
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
         let status = self.check_status(path)?;
@@ -160,8 +62,10 @@ impl FsTransfer {
         }
         self.hash_object(&path, &status)
     }
+}
 
-
+/// Methods for building the index of files to hash
+impl FsTransfer {
     pub fn check_status(&mut self, path: &Path) -> Result<PartialItem> {
         let mut status = self.load_item(path)?;
         self.build_index(&mut status)?;
@@ -169,7 +73,6 @@ impl FsTransfer {
     }
 
     fn build_index(&mut self, item: &mut PartialItem) -> Result<()> {
-        use item::ItemClass::*;
         match item {
             &mut PartialItem { class: TreeLike(ref mut load),
                                mark_ignore: false,
@@ -183,15 +86,14 @@ impl FsTransfer {
         };
         Ok(())
     }
+}
 
-
+/// Methods for hashing and storing files
+impl FsTransfer {
     pub fn hash_object(&mut self,
                        path: &Path,
                        status: &PartialItem)
                        -> Result<ObjectKey> {
-        use item::ItemClass::*;
-        use item::LoadItems::*;
-
         match status {
             &PartialItem { hash: Some(hash), .. } => Ok(hash.to_owned()),
             &PartialItem { class: BlobLike(_), .. } => self.hash_file(path),
@@ -246,8 +148,10 @@ impl FsTransfer {
 
         self.store_object(&tree)
     }
+}
 
-
+/// Methods for extracting objects back onto disk
+impl FsTransfer {
     pub fn extract_object(&mut self,
                           hash: &ObjectKey,
                           path: &Path)
@@ -353,8 +257,110 @@ impl FsTransfer {
     }
 }
 
-impl_deref_mut!(FsTransfer => ObjectStore, object_store);
+/// Methods for loading PartialItem objects either from disk or object store
+impl FsTransfer {
+    pub fn load_item<H>(&mut self, handle: H) -> Result<PartialItem>
+        where H: Into<ItemHandle>
+    {
+        let handle = handle.into();
+        debug!("Loading shallow:    {}", handle);
+        match handle.into() {
+            ItemHandle::Path(ref path) => {
+                self.load_path_shallow(path, path.metadata()?)
+            }
+            ItemHandle::Object(ref hash) => {
+                self.load_object_shallow(hash.to_owned())
+            }
+        }
+    }
 
+    pub fn load_children(&mut self,
+                         handle: &ItemHandle)
+                         -> Result<PartialTree> {
+        debug!("Loading children:   {}", handle);
+        match handle {
+            &ItemHandle::Path(ref path) => self.load_dir(path),
+            &ItemHandle::Object(ref hash) => self.load_tree(hash.to_owned()),
+        }
+    }
+
+    pub fn load_in_place<'a>(&mut self,
+                             load: &'a mut LoadItems)
+                             -> Result<&'a mut PartialTree> {
+        let to_load = match load {
+            &mut NotLoaded(ref handle) => Some(handle.to_owned()),
+            &mut Loaded(_) => None,
+        };
+        if let Some(handle) = to_load {
+            let children = self.load_children(&handle)?;
+            mem::replace(load, Loaded(children));
+        }
+        match load {
+            &mut Loaded(ref mut p) => Ok(p),
+            &mut NotLoaded(_) => unreachable!(),
+        }
+    }
+
+    fn load_path_shallow(&mut self,
+                         path: &Path,
+                         meta: Metadata)
+                         -> Result<PartialItem> {
+        Ok(PartialItem {
+            class: ItemClass::for_path(path, &meta)?,
+            hash: match self.cache
+                .check_with(&path, &meta.into())? {
+                CacheStatus::Cached { hash } => Some(hash),
+                _ => None,
+            },
+            mark_ignore: self.ignored.ignores(path),
+        })
+    }
+
+    fn load_dir(&mut self, path: &Path) -> Result<PartialTree> {
+        let mut partial = PartialTree::new();
+        for entry in read_dir(path)? {
+            let entry = entry?;
+            let ch_path = entry.path();
+            let ch_name = ch_path.file_name_or_err()?;
+            let ch =
+                self.load_path_shallow(ch_path.as_path(), entry.metadata()?)?;
+            partial.insert(ch_name, ch);
+        }
+        Ok(partial)
+    }
+
+    fn load_object_shallow(&mut self, hash: ObjectKey) -> Result<PartialItem> {
+        let obj_handle = self.open_object(&hash)?;
+        let class = match obj_handle {
+            ObjectHandle::Blob(_) => {
+                ItemClass::BlobLike(obj_handle.header().content_size)
+            }
+            ObjectHandle::ChunkedBlob(raw) => {
+                let index = raw.read_content()?;
+                ItemClass::BlobLike(index.total_size)
+            }
+            ObjectHandle::Tree(_) |
+            ObjectHandle::Commit(_) => {
+                ItemClass::TreeLike(
+                    LoadItems::NotLoaded(ItemHandle::Object(hash.to_owned())))
+            }
+        };
+        Ok(PartialItem {
+            class: class,
+            hash: Some(hash),
+            mark_ignore: false,
+        })
+    }
+
+    fn load_tree(&mut self, hash: ObjectKey) -> Result<PartialTree> {
+        let tree = self.open_tree(&hash)?;
+        let mut partial = PartialTree::new();
+        for (name, hash) in tree {
+            partial.insert(name, self.load_object_shallow(hash)?);
+        }
+        Ok(partial)
+    }
+}
 
 #[cfg(test)]
 mod test {
