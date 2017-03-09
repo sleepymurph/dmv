@@ -12,8 +12,10 @@ use ignore::IgnoreList;
 use item::*;
 use item::ItemClass::*;
 use item::LoadItems::*;
+use maputil::mux;
 use object_store::ObjectStore;
 use rolling_hash::read_file_objects;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::fs::Metadata;
 use std::fs::OpenOptions;
@@ -68,23 +70,55 @@ impl FsTransfer {
 impl FsTransfer {
     pub fn check_status(&mut self, path: &Path) -> Result<PartialItem> {
         let mut status = self.load_shallow(path)?;
-        self.build_index(&mut status)?;
+        self.build_index(&mut status, None)?;
         Ok(status)
     }
 
-    fn build_index(&mut self, item: &mut PartialItem) -> Result<()> {
+    fn build_index(&mut self,
+                   item: &mut PartialItem,
+                   parent: Option<&mut PartialItem>)
+                   -> Result<()> {
         match item {
             &mut PartialItem { class: TreeLike(ref mut load),
                                mark_ignore: false,
                                .. } => {
                 let children = self.load_children_in_place(load)?;
-                for (_, child) in children.iter_mut() {
-                    self.build_index(child)?;
+                let mut compare = self.maybe_children(parent)?;
+                let mut new = BTreeMap::new();
+
+                for (name, child, compare) in mux(children.iter_mut(),
+                                                  compare.iter_mut()
+                                                      .flat_map(|pt| {
+                                                          pt.iter_mut()
+                                                      })) {
+                    match (child, compare) {
+                        (Some(child), compare) => {
+                            self.build_index(child, compare)?
+                        }
+                        (None, Some(compare)) => {
+                            new.insert(name.to_owned(), compare.to_owned());
+                        }
+                        (None, None) => unreachable!(),
+                    }
                 }
+                children.append(&mut new);
             }
             _ => (),
         };
         Ok(())
+    }
+
+    fn maybe_children<'a>(&mut self,
+                          item: Option<&'a mut PartialItem>)
+                          -> Result<Option<&'a mut PartialTree>> {
+        match item {
+            Some(&mut PartialItem { class: TreeLike(ref mut load),
+                                    mark_ignore: false,
+                                    .. }) => {
+                Ok(Some(self.load_children_in_place(load)?))
+            }
+            _ => Ok(None),
+        }
     }
 }
 
