@@ -1,6 +1,5 @@
 //! Items that represent either objects in the store or files on disk
 
-use cache::CacheStatus;
 use dag::*;
 use error::*;
 use std::borrow::Borrow;
@@ -52,7 +51,6 @@ use self::LoadItems::*;
 pub enum ItemClass {
     BlobLike(ObjectSize),
     TreeLike(LoadItems),
-    Unknown,
 }
 use self::ItemClass::*;
 
@@ -81,6 +79,13 @@ impl PartialItem {
         PartialItem {
             class: BlobLike(size),
             hash: None,
+            mark_ignore: false,
+        }
+    }
+    pub fn hashed_file(size: ObjectSize, hash: ObjectKey) -> Self {
+        PartialItem {
+            class: BlobLike(size),
+            hash: Some(hash),
             mark_ignore: false,
         }
     }
@@ -141,16 +146,6 @@ impl PartialItem {
     }
 }
 
-impl From<CacheStatus> for PartialItem {
-    fn from(s: CacheStatus) -> Self {
-        match s {
-            CacheStatus::Cached { hash } => PartialItem::from(hash),
-            CacheStatus::Modified { size } |
-            CacheStatus::NotCached { size } => PartialItem::unhashed_file(size),
-        }
-    }
-}
-
 impl From<PartialTree> for PartialItem {
     fn from(pt: PartialTree) -> Self {
         PartialItem {
@@ -161,11 +156,11 @@ impl From<PartialTree> for PartialItem {
     }
 }
 
-impl From<ObjectKey> for PartialItem {
-    fn from(hash: ObjectKey) -> Self {
+impl From<Blob> for PartialItem {
+    fn from(b: Blob) -> Self {
         PartialItem {
-            class: Unknown,
-            hash: Some(hash),
+            class: BlobLike(b.content_size()),
+            hash: Some(b.calculate_hash()),
             mark_ignore: false,
         }
     }
@@ -232,16 +227,6 @@ impl PartialTree {
     }
 }
 
-impl From<Tree> for PartialTree {
-    fn from(t: Tree) -> Self {
-        let mut partial = PartialTree::new();
-        for (name, hash) in t.into_iter() {
-            partial.insert(name, hash);
-        }
-        partial
-    }
-}
-
 /// Create and populate a PartialTree object
 #[macro_export]
 macro_rules! partial_tree {
@@ -270,9 +255,9 @@ mod test {
         // Create partial tree
 
         let mut partial = partial_tree!{
-                "foo" => object_key(0),
-                "bar" => object_key(2),
-                "baz" => object_key(1),
+                "foo" => PartialItem::hashed_file(256, object_key(0)),
+                "bar" => PartialItem::hashed_file(512, object_key(2)),
+                "baz" => PartialItem::hashed_file(1024,object_key(1)),
                 "fizz" => PartialItem::unhashed_file(1024),
                 "buzz" => partial_tree!{
                     "strange" => PartialItem::unhashed_file(2048),
@@ -286,12 +271,10 @@ mod test {
 
         // Begin adding hashes for incomplete objects
 
-        partial.insert("buzz", object_key(3));
-        assert_eq!(partial.get(&OsString::from("buzz")),
-                   Some(&PartialItem::from(object_key(3))));
+        partial.insert("buzz", PartialItem::hashed_file(2048, object_key(3)));
         assert_eq!(partial.unhashed_size(), 1024);
 
-        partial.insert("fizz", object_key(4));
+        partial.insert("fizz", PartialItem::hashed_file(1024, object_key(4)));
 
         // Should be complete now
 
@@ -301,7 +284,7 @@ mod test {
     #[test]
     fn test_partial_tree_prune() {
         let partial = partial_tree!{
-                "foo" => object_key(0),
+                "foo" => PartialItem::hashed_file(256,object_key(0)),
                 "fizz" => PartialItem::unhashed_file(1024),
                 ".prototype_cache" => PartialItem::ignored_file(123),
                 "buzz" => partial_tree!{
@@ -312,7 +295,7 @@ mod test {
         };
 
         let expected = partial_tree!{
-                "foo" => object_key(0),
+                "foo" => PartialItem::hashed_file(256,object_key(0)),
                 "fizz" => PartialItem::unhashed_file(1024),
                 "buzz" => partial_tree!{
                     "strange" => PartialItem::unhashed_file(2048),
@@ -325,9 +308,9 @@ mod test {
     #[test]
     fn test_partial_tree_with_zero_unhashed() {
         let partial = partial_tree!{
-                "foo" => object_key(0),
+                "foo" => PartialItem::hashed_file(256,object_key(0)),
                 "bar" => partial_tree!{
-                    "baz" => object_key(1),
+                    "baz" => PartialItem::hashed_file(512,object_key(1)),
                 },
         };
 
@@ -335,7 +318,7 @@ mod test {
 
         assert_eq!(partial.get(&OsString::from("bar")),
                    Some(&PartialItem::from(partial_tree!{
-                        "baz" => object_key(1),
+                    "baz" => PartialItem::hashed_file(512,object_key(1)),
                        })),
                    "the nested PartialTree still holds information that \
                     would be lost if we replaced it with just a hash");

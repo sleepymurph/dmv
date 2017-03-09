@@ -517,9 +517,9 @@ mod test {
         };
 
         let expected_cached_partial = partial_tree!{
-            "foo" => Blob::from("123").calculate_hash(),
-            "bar" => Blob::from("1234").calculate_hash(),
-            "baz" => Blob::from("12345").calculate_hash(),
+            "foo" => Blob::from("123"),
+            "bar" => Blob::from("1234"),
+            "baz" => Blob::from("12345"),
         };
 
         do_store_directory_test("work_dir",
@@ -562,11 +562,11 @@ mod test {
         };
 
         let expected_cached_partial = partial_tree!{
-            "foo" => Blob::from("123").calculate_hash(),
+            "foo" => Blob::from("123"),
             "level1" => partial_tree!{
-                "bar" => Blob::from("1234").calculate_hash(),
+                "bar" => Blob::from("1234"),
                 "level2" => partial_tree!{
-                    "baz" => Blob::from("12345").calculate_hash(),
+                    "baz" => Blob::from("12345"),
                 },
             },
         };
@@ -610,11 +610,11 @@ mod test {
         };
 
         let expected_cached_partial = partial_tree!{
-            "foo" => Blob::from("123").calculate_hash(),
+            "foo" => Blob::from("123"),
             "level1" => partial_tree!{
-                "bar" => Blob::from("1234").calculate_hash(),
+                "bar" => Blob::from("1234"),
                 "level2" => partial_tree!{
-                    "baz" => Blob::from("12345").calculate_hash(),
+                    "baz" => Blob::from("12345"),
                 },
             },
         };
@@ -650,7 +650,7 @@ mod test {
         };
 
         let expected_cached_partial = partial_tree!{
-            "foo" => Blob::from("123").calculate_hash(),
+            "foo" => Blob::from("123"),
             "empty1" => PartialItem::from(partial_tree!{
                 "empty2" => PartialItem::from(partial_tree!{
                     "empty3" => PartialItem::from(PartialTree::new()),
