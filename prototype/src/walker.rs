@@ -1,6 +1,7 @@
 //! A framework for walking different hierarchies of nodes
 
 use error::*;
+use maputil::mux;
 use std::collections::BTreeMap;
 
 /// Type for reading and iterating over a node's children
@@ -94,4 +95,37 @@ pub trait WalkOp<N> {
                     node: N,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>>;
+}
+
+
+impl<A, B, RA, RB> NodeReader<(Option<A>, Option<B>)> for (RA, RB)
+    where RA: NodeReader<A>,
+          RB: NodeReader<B>
+{
+    fn read_children(&mut self,
+                     node: &(Option<A>, Option<B>))
+                     -> Result<ChildMap<(Option<A>, Option<B>)>> {
+        let mut children = ChildMap::new();
+        match node {
+            &(Some(ref a), Some(ref b)) => {
+                let a = self.0.read_children(a)?;
+                let b = self.1.read_children(b)?;
+                for (name, a, b) in mux(a.into_iter(), b.into_iter()) {
+                    children.insert(name, (a, b));
+                }
+            }
+            &(Some(ref a), None) => {
+                for (name, a) in self.0.read_children(a)? {
+                    children.insert(name, (Some(a), None));
+                }
+            }
+            &(None, Some(ref b)) => {
+                for (name, b) in self.1.read_children(b)? {
+                    children.insert(name, (None, Some(b)));
+                }
+            }
+            &(None, None) => {}
+        }
+        Ok(children)
+    }
 }
