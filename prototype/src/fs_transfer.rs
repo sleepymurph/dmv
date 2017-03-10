@@ -440,10 +440,50 @@ impl ReadWalkable<PathWalkNode> for FsTransfer {
 }
 
 
+#[derive(Clone,Copy,Eq,PartialEq,Debug)]
+pub enum Status {
+    Untracked,
+    Ignored,
+    Add,
+    Offline,
+    Delete,
+    Unchanged,
+    Modified,
+    MaybeModified,
+}
+
+impl Status {
+    fn code(&self) -> &'static str {
+        match self {
+            &Status::Untracked => "?",
+            &Status::Ignored => "i",
+            &Status::Add => "a",
+            &Status::Offline => "o",
+            &Status::Delete => "d",
+            &Status::Unchanged => " ",
+            &Status::Modified => "M",
+            &Status::MaybeModified => "m",
+        }
+    }
+
+    fn is_included_in_commit(&self) -> bool {
+        match self {
+            &Status::Add |
+            &Status::Offline |
+            &Status::Unchanged |
+            &Status::Modified |
+            &Status::MaybeModified => true,
+            &Status::Untracked |
+            &Status::Ignored |
+            &Status::Delete => false,
+        }
+    }
+}
+
 pub struct HashPlan {
     path: PathBuf,
     is_dir: bool,
-    is_ignored: bool,
+    status: Status,
     hash: Option<ObjectKey>,
     size: ObjectSize,
     children: BTreeMap<String, HashPlan>,
@@ -452,7 +492,7 @@ pub struct HashPlan {
 impl HashPlan {
     fn unhashed_size(&self) -> ObjectSize {
         match self {
-            &HashPlan { is_ignored: true, .. } => 0,
+            &HashPlan { status, .. } if !status.is_included_in_commit() => 0,
             &HashPlan { is_dir: false, hash: None, size, .. } => size,
             _ => {
                 self.children
@@ -472,21 +512,30 @@ impl HasChildMap for HashPlan {
 
 struct FsOnlyPlanBuilder {}
 
+impl FsOnlyPlanBuilder {
+    fn status(&self, node: &PathWalkNode) -> Status {
+        match node {
+            &PathWalkNode { ignored: true, .. } => Status::Ignored,
+            _ => Status::Add,
+        }
+    }
+}
+
 impl WalkOp<PathWalkNode> for FsOnlyPlanBuilder {
     type VisitResult = HashPlan;
 
     fn should_descend(&mut self, node: &PathWalkNode) -> bool {
-        node.metadata.is_dir() && !node.ignored
+        node.metadata.is_dir() && self.status(node).is_included_in_commit()
     }
     fn no_descend(&mut self,
                   node: PathWalkNode)
                   -> Result<Option<Self::VisitResult>> {
         Ok(Some(HashPlan {
+            status: self.status(&node),
             path: node.path,
             is_dir: node.metadata.is_dir(),
             hash: node.hash,
             size: node.metadata.len(),
-            is_ignored: node.ignored,
             children: BTreeMap::new(),
         }))
     }
@@ -495,11 +544,11 @@ impl WalkOp<PathWalkNode> for FsOnlyPlanBuilder {
                     children: BTreeMap<String, Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
         Ok(Some(HashPlan {
+            status: self.status(&node),
             path: node.path,
             is_dir: node.metadata.is_dir(),
             hash: node.hash,
             size: node.metadata.len(),
-            is_ignored: node.ignored,
             children: children,
         }))
     }
@@ -514,16 +563,16 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
     type VisitResult = ObjectKey;
 
     fn should_descend(&mut self, node: &&HashPlan) -> bool {
-        node.is_dir && !node.is_ignored
+        node.is_dir && node.status.is_included_in_commit()
     }
 
     fn no_descend(&mut self,
                   node: &HashPlan)
                   -> Result<Option<Self::VisitResult>> {
-        match (node.is_ignored, node.hash) {
-            (true, _) => Ok(None),
-            (false, Some(hash)) => Ok(Some(hash)),
-            (false, None) => {
+        match (node.status.is_included_in_commit(), node.hash) {
+            (false, _) => Ok(None),
+            (true, Some(hash)) => Ok(Some(hash)),
+            (true, None) => {
                 let hash = self.fs_transfer.hash_file(node.path.as_path())?;
                 Ok(Some(hash))
             }
