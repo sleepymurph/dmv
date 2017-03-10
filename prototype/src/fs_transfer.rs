@@ -15,6 +15,7 @@ use item::LoadItems::*;
 use maputil::mux;
 use object_store::ObjectStore;
 use rolling_hash::read_file_objects;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::fs::Metadata;
 use std::fs::OpenOptions;
@@ -27,6 +28,7 @@ use std::io::Write;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
+use walker::ReadWalkable;
 
 
 pub struct FsTransfer {
@@ -384,6 +386,47 @@ impl FsTransfer {
         Ok(partial)
     }
 }
+
+struct PathWalkNode {
+    path: PathBuf,
+    metadata: Metadata,
+    hash: Option<ObjectKey>,
+    ignored: bool,
+}
+
+impl ReadWalkable<PathBuf, PathWalkNode> for FsTransfer {
+    fn read_shallow(&mut self, path: PathBuf) -> Result<PathWalkNode> {
+        let meta = path.metadata()?;
+        Ok(PathWalkNode {
+            hash: match self.cache
+                .check_with(&path, &meta.clone().into())? {
+                CacheStatus::Cached { hash } => Some(hash),
+                _ => None,
+            },
+            ignored: self.ignored.ignores(path.as_path()),
+            path: path,
+            metadata: meta,
+        })
+    }
+
+    fn read_children(&mut self,
+                     node: &PathWalkNode)
+                     -> Result<BTreeMap<String, PathWalkNode>> {
+        let mut children = BTreeMap::new();
+        for entry in read_dir(&node.path)? {
+            let entry = entry?;
+            let path = entry.path();
+            let name = path.file_name_or_err()?
+                .to_os_string()
+                .into_string()
+                .map_err(|e| format!("Bad UTF-8 in name: {:?}", e))?;
+            let node = self.read_shallow(path.clone())?;
+            children.insert(name, node);
+        }
+        Ok(children)
+    }
+}
+
 
 #[cfg(test)]
 mod test {
