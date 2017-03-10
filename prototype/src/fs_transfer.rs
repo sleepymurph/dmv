@@ -5,6 +5,7 @@ use cache::CacheStatus;
 use cache::FileStats;
 use dag::ObjectHandle;
 use dag::ObjectKey;
+use dag::ObjectSize;
 use dag::Tree;
 use error::*;
 use human_readable::human_bytes;
@@ -28,7 +29,7 @@ use std::io::Write;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
-use walker::ReadWalkable;
+use walker::*;
 
 
 pub struct FsTransfer {
@@ -424,6 +425,89 @@ impl ReadWalkable<PathBuf, PathWalkNode> for FsTransfer {
             children.insert(name, node);
         }
         Ok(children)
+    }
+}
+
+
+pub struct HashPlan {
+    path: PathBuf,
+    is_dir: bool,
+    is_ignored: bool,
+    hash: Option<ObjectKey>,
+    size: ObjectSize,
+    children: BTreeMap<String, HashPlan>,
+}
+
+struct FsOnlyPlanBuilder {}
+
+impl WalkOp<PathWalkNode> for FsOnlyPlanBuilder {
+    type VisitResult = HashPlan;
+
+    fn should_descend(&mut self, node: &PathWalkNode) -> bool {
+        node.metadata.is_dir() && !node.ignored
+    }
+    fn no_descend(&mut self,
+                  node: PathWalkNode)
+                  -> Result<Option<Self::VisitResult>> {
+        Ok(Some(HashPlan {
+            path: node.path,
+            is_dir: node.metadata.is_dir(),
+            hash: node.hash,
+            size: node.metadata.len(),
+            is_ignored: node.ignored,
+            children: BTreeMap::new(),
+        }))
+    }
+    fn post_descend(&mut self,
+                    node: PathWalkNode,
+                    children: BTreeMap<String, Self::VisitResult>)
+                    -> Result<Option<Self::VisitResult>> {
+        Ok(Some(HashPlan {
+            path: node.path,
+            is_dir: node.metadata.is_dir(),
+            hash: node.hash,
+            size: node.metadata.len(),
+            is_ignored: node.ignored,
+            children: children,
+        }))
+    }
+}
+
+
+struct HashAndStoreOp<'a> {
+    fs_transfer: &'a mut FsTransfer,
+}
+
+impl<'a> WalkOp<HashPlan> for HashAndStoreOp<'a> {
+    type VisitResult = ObjectKey;
+
+    fn should_descend(&mut self, node: &HashPlan) -> bool {
+        node.is_dir && !node.is_ignored
+    }
+
+    fn no_descend(&mut self,
+                  node: HashPlan)
+                  -> Result<Option<Self::VisitResult>> {
+        match (node.is_ignored, node.hash) {
+            (true, _) => Ok(None),
+            (false, Some(hash)) => Ok(Some(hash)),
+            (false, None) => {
+                let hash = self.fs_transfer.hash_file(node.path.as_path())?;
+                Ok(Some(hash))
+            }
+        }
+    }
+
+    fn post_descend(&mut self,
+                    node: HashPlan,
+                    children: BTreeMap<String, Self::VisitResult>)
+                    -> Result<Option<Self::VisitResult>> {
+        let mut tree = Tree::new();
+        for (name, hash) in children {
+            tree.insert(name, hash);
+        }
+        let hash = self.fs_transfer.store_object(&tree)?;
+        Ok(Some(hash))
     }
 }
 

@@ -11,7 +11,7 @@ pub trait ReadWalkable<H, N> {
 pub trait WalkOp<N> {
     type VisitResult;
 
-    fn should_descend(&mut self, node: &N) -> Result<bool>;
+    fn should_descend(&mut self, node: &N) -> bool;
     fn no_descend(&mut self, node: N) -> Result<Option<Self::VisitResult>>;
     fn post_descend(&mut self,
                     node: N,
@@ -37,7 +37,7 @@ fn walk_inner<H, N, R, O>(reader: &mut R,
     where R: ReadWalkable<H, N>,
           O: WalkOp<N>
 {
-    if op.should_descend(&node)? {
+    if op.should_descend(&node) {
         let mut children = ChildMap::new();
         for (name, node) in reader.read_children(&node)? {
             if let Some(result) = walk_inner(reader, op, node)? {
