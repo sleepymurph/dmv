@@ -45,19 +45,21 @@ pub trait HasChildMap: Sized {
                        -> Result<Option<O::VisitResult>>
         where O: WalkOp<&'s Self>
     {
-        if op.should_descend(&self) {
-            let mut children = ChildMap::new();
-            if let Some(mykids) = self.child_map() {
-                for (name, node) in mykids {
-                    if let Some(result) = node.walk(op)? {
-                        children.insert(name.to_owned(), result);
-                    }
-                }
+        ().walk_node(op, &self)
+    }
+}
+
+impl<'a, N: 'a> ReadWalkable<&'a N> for ()
+    where N: HasChildMap
+{
+    fn read_children(&mut self, node: &&'a N) -> Result<ChildMap<&'a N>> {
+        let mut children = ChildMap::new();
+        if let Some(mykids) = node.child_map() {
+            for (name, node) in mykids {
+                children.insert(name.to_owned(), node);
             }
-            op.post_descend(self, children)
-        } else {
-            op.no_descend(self)
         }
+        Ok(children)
     }
 }
 
