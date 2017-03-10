@@ -1,6 +1,5 @@
+use error::*;
 use std::collections::BTreeMap;
-
-type Result<T> = ::std::result::Result<T, String>;
 
 type ChildMap<N> = BTreeMap<String, N>;
 
@@ -69,7 +68,7 @@ mod tests {
     }
 
     impl<C, L, T> DeepNode<C, L, T> {
-        fn leaf(common: C, leaf: L) -> Self {
+        fn _leaf(common: C, leaf: L) -> Self {
             DeepNode::Leaf {
                 common: common,
                 leaf: leaf,
@@ -82,7 +81,10 @@ mod tests {
                 children: ChildMap::new(),
             }
         }
-        fn with_children(common: C, tree: T, children: ChildMap<Self>) -> Self {
+        fn _with_children(common: C,
+                          tree: T,
+                          children: ChildMap<Self>)
+                          -> Self {
             DeepNode::Tree {
                 common: common,
                 tree: tree,
@@ -118,6 +120,6 @@ mod tests {
     fn it_works() {
         let node = DummyDeepNode::tree("Hello".into(), ());
         let read_shallow = ().read_shallow(&node);
-        assert_eq!(read_shallow, Ok(&node));
+        assert_match!(read_shallow, Ok(read_node) if read_node==&node);
     }
 }
