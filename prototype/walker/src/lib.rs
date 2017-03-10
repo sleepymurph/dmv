@@ -91,18 +91,16 @@ mod tests {
         }
     }
 
-    type DummyDeepNode = DeepNode<String, (), ()>;
-
-    impl<'a> ReadWalkable<&'a DummyDeepNode, &'a DummyDeepNode> for () {
-        type Iter = Box<Iterator<Item = Result<(String, &'a DummyDeepNode)>>+'a>;
+    impl<'a,C,L,T> ReadWalkable<&'a DeepNode<C, L, T>, &'a DeepNode<C, L, T>> for () {
+        type Iter = Box<Iterator<Item = Result<(String, &'a DeepNode<C,L,T>)>>+'a>;
 
         fn read_shallow(&mut self,
-                        handle: &'a DummyDeepNode)
-                        -> Result<&'a DummyDeepNode> {
+                        handle: &'a DeepNode<C, L, T>)
+                        -> Result<&'a DeepNode<C, L, T>> {
             Ok(handle)
         }
         fn read_children(&mut self,
-                         node: &&'a DummyDeepNode)
+                         node: &&'a DeepNode<C, L, T>)
                          -> Result<Self::Iter> {
             match *node {
                 &DeepNode::Leaf { .. } => Err("not a tree".into()),
@@ -113,6 +111,8 @@ mod tests {
             }
         }
     }
+
+    type DummyDeepNode = DeepNode<String, (), ()>;
 
     #[test]
     fn it_works() {
