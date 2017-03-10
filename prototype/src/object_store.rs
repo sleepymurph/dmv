@@ -11,7 +11,7 @@ use std::iter::Iterator;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
-use walker::ReadWalkable;
+use walker::*;
 
 type RefMap = BTreeMap<String, ObjectKey>;
 
@@ -278,12 +278,14 @@ lazy_static!{
 
 type ObjectWalkNode = (ObjectKey, ObjectHeader);
 
-impl ReadWalkable<ObjectKey, ObjectWalkNode> for ObjectStore {
+impl HandleReader<ObjectKey, ObjectWalkNode> for ObjectStore {
     fn read_shallow(&mut self, handle: ObjectKey) -> Result<ObjectWalkNode> {
         let header = self.open_object(&handle)?.header().clone();
         Ok((handle, header))
     }
+}
 
+impl ReadWalkable<ObjectWalkNode> for ObjectStore {
     fn read_children(&mut self,
                      node: &ObjectWalkNode)
                      -> Result<BTreeMap<String, ObjectWalkNode>> {

@@ -60,7 +60,8 @@ impl FsTransfer {
     /// Check, hash, and store a file or directory
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
         debug!("Hashing object, with framework");
-        let hash_plan = walk(self, &mut FsOnlyPlanBuilder {}, path.to_owned())?;
+        let hash_plan =
+            self.walk_handle(&mut FsOnlyPlanBuilder {}, path.to_owned())?;
         if hash_plan.unhashed_size() > 0 {
             stderrln!("{} to hash. Hashing...",
                       human_bytes(hash_plan.unhashed_size()));
@@ -397,7 +398,7 @@ struct PathWalkNode {
     ignored: bool,
 }
 
-impl ReadWalkable<PathBuf, PathWalkNode> for FsTransfer {
+impl HandleReader<PathBuf, PathWalkNode> for FsTransfer {
     fn read_shallow(&mut self, path: PathBuf) -> Result<PathWalkNode> {
         let meta = path.metadata()?;
         let hash;
@@ -417,7 +418,9 @@ impl ReadWalkable<PathBuf, PathWalkNode> for FsTransfer {
             metadata: meta,
         })
     }
+}
 
+impl ReadWalkable<PathWalkNode> for FsTransfer {
     fn read_children(&mut self,
                      node: &PathWalkNode)
                      -> Result<BTreeMap<String, PathWalkNode>> {
@@ -528,7 +531,7 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
     }
 
     fn post_descend(&mut self,
-                    node: &HashPlan,
+                    _node: &HashPlan,
                     children: BTreeMap<String, Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
         if children.is_empty() {
