@@ -1,37 +1,32 @@
 use std::collections::BTreeMap;
 
-pub trait Walkable {
-    fn is_tree(&self) -> bool;
-}
-
 type Result<T> = ::std::result::Result<T, String>;
 
 type ChildMap<N> = BTreeMap<String, N>;
 
-pub trait ReadWalkable<H, N: Walkable> {
+pub trait ReadWalkable<H, N> {
     type Iter: Iterator<Item = Result<(String, N)>>;
 
     fn read_shallow(&mut self, handle: H) -> Result<N>;
     fn read_children(&mut self, node: &N) -> Result<Self::Iter>;
 }
 
-pub trait WalkOp<N: Walkable> {
+pub trait WalkOp<N> {
     type PostResult;
 
-    fn visit_leaf(&mut self, node: N) -> Result<Option<Self::PostResult>>;
-    fn enter_tree(&mut self, node: &N) -> Result<bool>;
-    fn leave_tree(&mut self,
-                  node: N,
-                  children: ChildMap<Self::PostResult>)
-                  -> Result<Option<Self::PostResult>>;
+    fn should_descend(&mut self, node: &N) -> Result<bool>;
+    fn no_descend(&mut self, node: N) -> Result<Option<Self::PostResult>>;
+    fn post_descend(&mut self,
+                    node: N,
+                    children: ChildMap<Self::PostResult>)
+                    -> Result<Option<Self::PostResult>>;
 }
 
 pub fn walk<H, N, R, O>(reader: &mut R,
                         op: &mut O,
                         start: H)
                         -> Result<O::PostResult>
-    where N: Walkable,
-          R: ReadWalkable<H, N>,
+    where R: ReadWalkable<H, N>,
           O: WalkOp<N>
 {
     let first = reader.read_shallow(start)?;
@@ -42,24 +37,20 @@ fn walk_inner<H, N, R, O>(reader: &mut R,
                           op: &mut O,
                           node: N)
                           -> Result<Option<O::PostResult>>
-    where N: Walkable,
-          R: ReadWalkable<H, N>,
+    where R: ReadWalkable<H, N>,
           O: WalkOp<N>
 {
-    if node.is_tree() {
-        let descend = op.enter_tree(&node)?;
+    if op.should_descend(&node)? {
         let mut children = ChildMap::new();
-        if descend {
-            for child in reader.read_children(&node)? {
-                let (name, node) = child?;
-                if let Some(result) = walk_inner(reader, op, node)? {
-                    children.insert(name, result);
-                }
+        for child in reader.read_children(&node)? {
+            let (name, node) = child?;
+            if let Some(result) = walk_inner(reader, op, node)? {
+                children.insert(name, result);
             }
         }
-        op.leave_tree(node, children)
+        op.post_descend(node, children)
     } else {
-        op.visit_leaf(node)
+        op.no_descend(node)
     }
 }
 
@@ -98,19 +89,6 @@ mod tests {
                 children: children,
             }
         }
-    }
-
-    impl<C, L, T> Walkable for DeepNode<C, L, T> {
-        fn is_tree(&self) -> bool {
-            match self {
-                &DeepNode::Leaf { .. } => false,
-                &DeepNode::Tree { .. } => true,
-            }
-        }
-    }
-
-    impl<'a, C, L, T> Walkable for &'a DeepNode<C, L, T> {
-        fn is_tree(&self) -> bool { self.is_tree() }
     }
 
     type DummyDeepNode = DeepNode<String, (), ()>;
