@@ -4,10 +4,8 @@ use std::collections::BTreeMap;
 type ChildMap<N> = BTreeMap<String, N>;
 
 pub trait ReadWalkable<H, N> {
-    type Iter: Iterator<Item = Result<(String, N)>>;
-
     fn read_shallow(&mut self, handle: H) -> Result<N>;
-    fn read_children(&mut self, node: &N) -> Result<Self::Iter>;
+    fn read_children(&mut self, node: &N) -> Result<ChildMap<N>>;
 }
 
 pub trait WalkOp<N> {
@@ -41,8 +39,7 @@ fn walk_inner<H, N, R, O>(reader: &mut R,
 {
     if op.should_descend(&node)? {
         let mut children = ChildMap::new();
-        for child in reader.read_children(&node)? {
-            let (name, node) = child?;
+        for (name, node) in reader.read_children(&node)? {
             if let Some(result) = walk_inner(reader, op, node)? {
                 children.insert(name, result);
             }
@@ -94,8 +91,6 @@ mod tests {
     }
 
     impl<'a,C,L,T> ReadWalkable<&'a DeepNode<C, L, T>, &'a DeepNode<C, L, T>> for () {
-        type Iter = Box<Iterator<Item = Result<(String, &'a DeepNode<C,L,T>)>>+'a>;
-
         fn read_shallow(&mut self,
                         handle: &'a DeepNode<C, L, T>)
                         -> Result<&'a DeepNode<C, L, T>> {
@@ -103,12 +98,13 @@ mod tests {
         }
         fn read_children(&mut self,
                          node: &&'a DeepNode<C, L, T>)
-                         -> Result<Self::Iter> {
+                         -> Result<ChildMap<&'a DeepNode<C,L,T>>> {
             match *node {
                 &DeepNode::Leaf { .. } => Err("not a tree".into()),
                 &DeepNode::Tree { ref children, .. } => {
-                    Ok(Box::new(children.into_iter()
-                        .map(|(s, n)| Ok((s.clone(), n)))))
+                    let children = children.into_iter()
+                        .map(|(s,n)| (s.clone(), n)).collect();
+                    Ok(children)
                 }
             }
         }

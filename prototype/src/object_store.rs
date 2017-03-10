@@ -1,11 +1,4 @@
-use dag::Commit;
-use dag::KEY_SHORT_LEN;
-use dag::KEY_SIZE_HEX_DIGITS;
-use dag::OBJECT_KEY_PAT;
-use dag::ObjectCommon;
-use dag::ObjectHandle;
-use dag::ObjectKey;
-use dag::Tree;
+use dag::*;
 use disk_backed::DiskBacked;
 use error::*;
 use fsutil;
@@ -18,6 +11,7 @@ use std::iter::Iterator;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
+use walker::ReadWalkable;
 
 type RefMap = BTreeMap<String, ObjectKey>;
 
@@ -280,6 +274,30 @@ lazy_static!{
 
     pub static ref REF_NAME_PAT:Regex = Regex::new("[[:word:]/-]+").unwrap();
 }
+
+
+type ObjectWalkNode = (ObjectKey, ObjectHeader);
+
+impl ReadWalkable<ObjectKey, ObjectWalkNode> for ObjectStore {
+    fn read_shallow(&mut self, handle: ObjectKey) -> Result<ObjectWalkNode> {
+        let header = self.open_object(&handle)?.header().clone();
+        Ok((handle, header))
+    }
+
+    fn read_children(&mut self,
+                     node: &ObjectWalkNode)
+                     -> Result<BTreeMap<String, ObjectWalkNode>> {
+        let mut children = BTreeMap::new();
+        for (name, hash) in self.open_tree(&node.0)? {
+            let name = name.into_string()
+                .map_err(|e| format!("Bad UTF-8 in name: {:?}", e))?;
+            let node = self.read_shallow(hash.clone())?;
+            children.insert(name, node);
+        }
+        Ok(children)
+    }
+}
+
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum RevSpec {
