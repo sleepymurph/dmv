@@ -278,22 +278,22 @@ lazy_static!{
 
 type ObjectWalkNode = (ObjectKey, ObjectHeader);
 
-impl HandleReader<ObjectKey, ObjectWalkNode> for ObjectStore {
-    fn read_shallow(&mut self, handle: ObjectKey) -> Result<ObjectWalkNode> {
+impl NodeLookup<ObjectKey, ObjectWalkNode> for ObjectStore {
+    fn lookup_node(&mut self, handle: ObjectKey) -> Result<ObjectWalkNode> {
         let header = self.open_object(&handle)?.header().clone();
         Ok((handle, header))
     }
 }
 
-impl ReadWalkable<ObjectWalkNode> for ObjectStore {
+impl NodeReader<ObjectWalkNode> for ObjectStore {
     fn read_children(&mut self,
                      node: &ObjectWalkNode)
-                     -> Result<BTreeMap<String, ObjectWalkNode>> {
+                     -> Result<ChildMap<ObjectWalkNode>> {
         let mut children = BTreeMap::new();
         for (name, hash) in self.open_tree(&node.0)? {
             let name = name.into_string()
                 .map_err(|e| format!("Bad UTF-8 in name: {:?}", e))?;
-            let node = self.read_shallow(hash.clone())?;
+            let node = self.lookup_node(hash.clone())?;
             children.insert(name, node);
         }
         Ok(children)

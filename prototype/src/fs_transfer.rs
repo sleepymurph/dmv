@@ -398,8 +398,8 @@ struct PathWalkNode {
     ignored: bool,
 }
 
-impl HandleReader<PathBuf, PathWalkNode> for FsTransfer {
-    fn read_shallow(&mut self, path: PathBuf) -> Result<PathWalkNode> {
+impl NodeLookup<PathBuf, PathWalkNode> for FsTransfer {
+    fn lookup_node(&mut self, path: PathBuf) -> Result<PathWalkNode> {
         let meta = path.metadata()?;
         let hash;
         if meta.is_file() {
@@ -420,10 +420,10 @@ impl HandleReader<PathBuf, PathWalkNode> for FsTransfer {
     }
 }
 
-impl ReadWalkable<PathWalkNode> for FsTransfer {
+impl NodeReader<PathWalkNode> for FsTransfer {
     fn read_children(&mut self,
                      node: &PathWalkNode)
-                     -> Result<BTreeMap<String, PathWalkNode>> {
+                     -> Result<ChildMap<PathWalkNode>> {
         let mut children = BTreeMap::new();
         for entry in read_dir(&node.path)? {
             let entry = entry?;
@@ -432,7 +432,7 @@ impl ReadWalkable<PathWalkNode> for FsTransfer {
                 .to_os_string()
                 .into_string()
                 .map_err(|e| format!("Bad UTF-8 in name: {:?}", e))?;
-            let node = self.read_shallow(path.clone())?;
+            let node = self.lookup_node(path.clone())?;
             children.insert(name, node);
         }
         Ok(children)
@@ -486,7 +486,7 @@ pub struct HashPlan {
     status: Status,
     hash: Option<ObjectKey>,
     size: ObjectSize,
-    children: BTreeMap<String, HashPlan>,
+    children: ChildMap<HashPlan>,
 }
 
 impl HashPlan {
@@ -504,10 +504,8 @@ impl HashPlan {
     }
 }
 
-impl HasChildMap for HashPlan {
-    fn child_map(&self) -> Option<&BTreeMap<String, Self>> {
-        Some(&self.children)
-    }
+impl NodeWithChildren for HashPlan {
+    fn children(&self) -> Option<&ChildMap<Self>> { Some(&self.children) }
 }
 
 struct FsOnlyPlanBuilder {}
@@ -541,7 +539,7 @@ impl WalkOp<PathWalkNode> for FsOnlyPlanBuilder {
     }
     fn post_descend(&mut self,
                     node: PathWalkNode,
-                    children: BTreeMap<String, Self::VisitResult>)
+                    children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
         Ok(Some(HashPlan {
             status: self.status(&node),
@@ -581,7 +579,7 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
 
     fn post_descend(&mut self,
                     _node: &HashPlan,
-                    children: BTreeMap<String, Self::VisitResult>)
+                    children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
         if children.is_empty() {
             return Ok(None);
