@@ -59,12 +59,14 @@ impl FsTransfer {
 
     /// Check, hash, and store a file or directory
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
-        let status = self.check_status(path)?;
-        if status.unhashed_size() > 0 {
+        debug!("Hashing object, with framework");
+        let hash_plan = walk(self, &mut FsOnlyPlanBuilder {}, path.to_owned())?;
+        if hash_plan.unhashed_size() > 0 {
             stderrln!("{} to hash. Hashing...",
-                      human_bytes(status.unhashed_size()));
+                      human_bytes(hash_plan.unhashed_size()));
         }
-        self.hash_object(&path, &status)
+        hash_plan.walk(&mut HashAndStoreOp { fs_transfer: self })?
+            .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
     }
 }
 
@@ -398,12 +400,18 @@ struct PathWalkNode {
 impl ReadWalkable<PathBuf, PathWalkNode> for FsTransfer {
     fn read_shallow(&mut self, path: PathBuf) -> Result<PathWalkNode> {
         let meta = path.metadata()?;
-        Ok(PathWalkNode {
-            hash: match self.cache
+        let hash;
+        if meta.is_file() {
+            hash = match self.cache
                 .check_with(&path, &meta.clone().into())? {
                 CacheStatus::Cached { hash } => Some(hash),
                 _ => None,
-            },
+            };
+        } else {
+            hash = None;
+        }
+        Ok(PathWalkNode {
+            hash: hash,
             ignored: self.ignored.ignores(path.as_path()),
             path: path,
             metadata: meta,
@@ -436,6 +444,27 @@ pub struct HashPlan {
     hash: Option<ObjectKey>,
     size: ObjectSize,
     children: BTreeMap<String, HashPlan>,
+}
+
+impl HashPlan {
+    fn unhashed_size(&self) -> ObjectSize {
+        match self {
+            &HashPlan { is_ignored: true, .. } => 0,
+            &HashPlan { is_dir: false, hash: None, size, .. } => size,
+            _ => {
+                self.children
+                    .iter()
+                    .map(|(_, plan)| plan.unhashed_size())
+                    .sum()
+            }
+        }
+    }
+}
+
+impl HasChildMap for HashPlan {
+    fn child_map(&self) -> Option<&BTreeMap<String, Self>> {
+        Some(&self.children)
+    }
 }
 
 struct FsOnlyPlanBuilder {}
@@ -478,15 +507,15 @@ struct HashAndStoreOp<'a> {
     fs_transfer: &'a mut FsTransfer,
 }
 
-impl<'a> WalkOp<HashPlan> for HashAndStoreOp<'a> {
+impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
     type VisitResult = ObjectKey;
 
-    fn should_descend(&mut self, node: &HashPlan) -> bool {
+    fn should_descend(&mut self, node: &&HashPlan) -> bool {
         node.is_dir && !node.is_ignored
     }
 
     fn no_descend(&mut self,
-                  node: HashPlan)
+                  node: &HashPlan)
                   -> Result<Option<Self::VisitResult>> {
         match (node.is_ignored, node.hash) {
             (true, _) => Ok(None),
@@ -499,9 +528,12 @@ impl<'a> WalkOp<HashPlan> for HashAndStoreOp<'a> {
     }
 
     fn post_descend(&mut self,
-                    node: HashPlan,
+                    node: &HashPlan,
                     children: BTreeMap<String, Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
+        if children.is_empty() {
+            return Ok(None);
+        }
         let mut tree = Tree::new();
         for (name, hash) in children {
             tree.insert(name, hash);

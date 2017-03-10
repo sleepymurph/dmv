@@ -8,6 +8,45 @@ pub trait ReadWalkable<H, N> {
     fn read_children(&mut self, node: &N) -> Result<ChildMap<N>>;
 }
 
+pub trait HasChildMap: Sized {
+    fn child_map(&self) -> Option<&ChildMap<Self>>;
+
+    fn walk<'s, 'o, O>(&'s self,
+                       op: &'o mut O)
+                       -> Result<Option<O::VisitResult>>
+        where O: WalkOp<&'s Self>
+    {
+        if op.should_descend(&self) {
+            let mut children = ChildMap::new();
+            if let Some(mykids) = self.child_map() {
+                for (name, node) in mykids {
+                    if let Some(result) = node.walk(op)? {
+                        children.insert(name.to_owned(), result);
+                    }
+                }
+            }
+            op.post_descend(self, children)
+        } else {
+            op.no_descend(self)
+        }
+    }
+}
+
+impl<'a, N> ReadWalkable<&'a N, &'a N> for ()
+    where N: HasChildMap
+{
+    fn read_shallow(&mut self, handle: &'a N) -> Result<&'a N> { Ok(handle) }
+    fn read_children(&mut self, node: &&'a N) -> Result<ChildMap<&'a N>> {
+        let mut translated = ChildMap::new();
+        if let Some(map) = node.child_map() {
+            for (name, child) in map {
+                translated.insert(name.to_owned(), child);
+            }
+        }
+        Ok(translated)
+    }
+}
+
 pub trait WalkOp<N> {
     type VisitResult;
 
@@ -90,22 +129,11 @@ mod tests {
         }
     }
 
-    impl<'a,C,L,T> ReadWalkable<&'a DeepNode<C, L, T>, &'a DeepNode<C, L, T>> for () {
-        fn read_shallow(&mut self,
-                        handle: &'a DeepNode<C, L, T>)
-                        -> Result<&'a DeepNode<C, L, T>> {
-            Ok(handle)
-        }
-        fn read_children(&mut self,
-                         node: &&'a DeepNode<C, L, T>)
-                         -> Result<ChildMap<&'a DeepNode<C,L,T>>> {
-            match *node {
-                &DeepNode::Leaf { .. } => Err("not a tree".into()),
-                &DeepNode::Tree { ref children, .. } => {
-                    let children = children.into_iter()
-                        .map(|(s,n)| (s.clone(), n)).collect();
-                    Ok(children)
-                }
+    impl<C, L, T> HasChildMap for DeepNode<C, L, T> {
+        fn child_map(&self) -> Option<&ChildMap<Self>> {
+            match self {
+                &DeepNode::Leaf { .. } => None,
+                &DeepNode::Tree { ref children, .. } => Some(children),
             }
         }
     }
