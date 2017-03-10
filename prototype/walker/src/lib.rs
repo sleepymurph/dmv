@@ -12,20 +12,20 @@ pub trait ReadWalkable<H, N> {
 }
 
 pub trait WalkOp<N> {
-    type PostResult;
+    type VisitResult;
 
     fn should_descend(&mut self, node: &N) -> Result<bool>;
-    fn no_descend(&mut self, node: N) -> Result<Option<Self::PostResult>>;
+    fn no_descend(&mut self, node: N) -> Result<Option<Self::VisitResult>>;
     fn post_descend(&mut self,
                     node: N,
-                    children: ChildMap<Self::PostResult>)
-                    -> Result<Option<Self::PostResult>>;
+                    children: ChildMap<Self::VisitResult>)
+                    -> Result<Option<Self::VisitResult>>;
 }
 
 pub fn walk<H, N, R, O>(reader: &mut R,
                         op: &mut O,
                         start: H)
-                        -> Result<O::PostResult>
+                        -> Result<O::VisitResult>
     where R: ReadWalkable<H, N>,
           O: WalkOp<N>
 {
@@ -36,7 +36,7 @@ pub fn walk<H, N, R, O>(reader: &mut R,
 fn walk_inner<H, N, R, O>(reader: &mut R,
                           op: &mut O,
                           node: N)
-                          -> Result<Option<O::PostResult>>
+                          -> Result<Option<O::VisitResult>>
     where R: ReadWalkable<H, N>,
           O: WalkOp<N>
 {
