@@ -236,6 +236,29 @@ impl ObjectStore {
     }
 
 
+    /// Extract binary content from a Blob or ChunkedBlob to a Write stream
+    pub fn copy_blob_content(&self,
+                             hash: &ObjectKey,
+                             writer: &mut io::Write)
+                             -> Result<()> {
+        match self.open_object(hash)? {
+            ObjectHandle::Blob(blob) => {
+                trace!("Extracting blob {}", hash);
+                blob.copy_content(writer)?;
+            }
+            ObjectHandle::ChunkedBlob(index) => {
+                debug!("Reading ChunkedBlob {}", hash);
+                let index = index.read_content()?;
+                for offset in index.chunks {
+                    debug!("{}", offset);
+                    self.copy_blob_content(&offset.hash, writer)?;
+                }
+            }
+            other => bail!("Expected a Blob or ChunkedBlob, got: {:?}", other),
+        };
+        Ok(())
+    }
+
     /// Get all refs
     pub fn refs(&self) -> &RefMap { &self.refs }
 

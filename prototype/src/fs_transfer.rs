@@ -220,6 +220,31 @@ impl FileLookup {
             ignored: IgnoreList::default(),
         }
     }
+
+    fn extract_file(&mut self,
+                    object_store: &ObjectStore,
+                    hash: &ObjectKey,
+                    path: &Path)
+                    -> Result<()> {
+        return_if_cache_matches!(self.cache, path, hash);
+
+        if path.is_dir() {
+            remove_dir_all(path)?;
+        }
+
+        let mut out_file = OpenOptions::new().write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)?;
+
+        object_store.copy_blob_content(hash, &mut out_file)?;
+        out_file.flush()?;
+
+        let file_stats = FileStats::from(out_file.metadata()?);
+        self.cache.insert(path.to_owned(), file_stats, hash.to_owned())?;
+
+        Ok(())
+    }
 }
 
 impl NodeLookup<PathBuf, PathWalkNode> for FileLookup {
