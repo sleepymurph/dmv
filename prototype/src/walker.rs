@@ -98,7 +98,8 @@ pub trait WalkOp<N> {
 }
 
 
-impl<A, B, RA, RB> NodeReader<(Option<A>, Option<B>)> for (RA, RB)
+impl<'a, A, B, RA, RB> NodeReader<(Option<A>, Option<B>)>
+    for (&'a mut RA, &'a mut RB)
     where RA: NodeReader<A>,
           RB: NodeReader<B>
 {

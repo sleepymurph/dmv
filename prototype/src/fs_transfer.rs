@@ -62,7 +62,7 @@ impl FsTransfer {
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
         debug!("Hashing object, with framework");
         let hash_plan =
-            self.walk_handle(&mut FsOnlyPlanBuilder {}, path.to_owned())?;
+            self.walk_handle(&mut FsOnlyPlanBuilder, path.to_owned())?;
         if hash_plan.unhashed_size() > 0 {
             stderrln!("{} to hash. Hashing...",
                       human_bytes(hash_plan.unhashed_size()));
@@ -441,6 +441,61 @@ impl NodeReader<PathWalkNode> for FsTransfer {
 }
 
 
+pub struct FileLookup {
+    cache: AllCaches,
+    ignored: IgnoreList,
+}
+
+impl FileLookup {
+    pub fn new() -> Self {
+        FileLookup {
+            cache: AllCaches::new(),
+            ignored: IgnoreList::default(),
+        }
+    }
+}
+
+impl NodeLookup<PathBuf, PathWalkNode> for FileLookup {
+    fn lookup_node(&mut self, path: PathBuf) -> Result<PathWalkNode> {
+        let meta = path.metadata()?;
+        let hash;
+        if meta.is_file() {
+            hash = match self.cache
+                .check_with(&path, &meta.clone().into())? {
+                CacheStatus::Cached { hash } => Some(hash),
+                _ => None,
+            };
+        } else {
+            hash = None;
+        }
+        Ok(PathWalkNode {
+            hash: hash,
+            ignored: self.ignored.ignores(path.as_path()),
+            path: path,
+            metadata: meta,
+        })
+    }
+}
+
+impl NodeReader<PathWalkNode> for FileLookup {
+    fn read_children(&mut self,
+                     node: &PathWalkNode)
+                     -> Result<ChildMap<PathWalkNode>> {
+        let mut children = BTreeMap::new();
+        for entry in read_dir(&node.path)? {
+            let entry = entry?;
+            let path = entry.path();
+            let name = path.file_name_or_err()?
+                .to_os_string()
+                .into_string()
+                .map_err(|e| format!("Bad UTF-8 in name: {:?}", e))?;
+            let node = self.lookup_node(path.clone())?;
+            children.insert(name, node);
+        }
+        Ok(children)
+    }
+}
+
 #[derive(Clone,Copy,Eq,PartialEq,Debug)]
 pub enum Status {
     Untracked,
@@ -509,6 +564,28 @@ impl NodeWithChildren for HashPlan {
     fn children(&self) -> Option<&ChildMap<Self>> { Some(&self.children) }
 }
 
+use std::fmt;
+
+struct HashPlanDisplayOp<'a> {
+    f: &'a mut fmt::Formatter<'a>,
+}
+
+impl<'a> fmt::Display for HashPlan {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.is_dir && self.status.is_included_in_commit() {
+            for (_, child) in &self.children {
+                child.fmt(f)?;
+            }
+        } else {
+            if self.status != Status::Unchanged {
+                writeln!(f, "{} {}", self.status.code(), self.path.display())?
+            }
+        }
+        Ok(())
+    }
+}
+
+
 struct FsOnlyPlanBuilder;
 
 impl FsOnlyPlanBuilder {
@@ -551,7 +628,7 @@ impl WalkOp<PathWalkNode> for FsOnlyPlanBuilder {
     }
 }
 
-struct FsObjComparePlanBuilder;
+pub struct FsObjComparePlanBuilder;
 
 type CompareNode = (Option<PathWalkNode>, Option<ObjectWalkNode>);
 
@@ -631,7 +708,7 @@ impl WalkOp<(CompareNode)> for FsObjComparePlanBuilder {
     }
 }
 
-struct HashAndStoreOp<'a> {
+pub struct HashAndStoreOp<'a> {
     fs_transfer: &'a mut FsTransfer,
 }
 

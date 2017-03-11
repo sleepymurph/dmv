@@ -8,17 +8,22 @@ use disk_backed::DiskBacked;
 use encodable;
 use error::*;
 use find_repo::RepoLayout;
+use fs_transfer::FileLookup;
+use fs_transfer::FsObjComparePlanBuilder;
 use fs_transfer::FsTransfer;
+use fs_transfer::HashPlan;
 use item::*;
 use item::ItemClass::*;
 use item::LoadItems::*;
 use maputil::mux;
 use object_store::ObjectStore;
+use object_store::ObjectWalkNode;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt;
 use std::path::Path;
 use std::path::PathBuf;
+use walker::*;
 
 #[derive(Debug,Clone,Hash,PartialEq,Eq)]
 pub enum LeafStatus {
@@ -122,6 +127,7 @@ impl Default for WorkDirState {
 }
 
 pub struct WorkDir {
+    file_lookup: FileLookup,
     fs_transfer: FsTransfer,
     path: PathBuf,
     state: DiskBacked<WorkDirState>,
@@ -138,6 +144,7 @@ impl WorkDir {
         let state = DiskBacked::new("work dir state",
                                     work_dir_state_path(&layout.wd));
         Ok(WorkDir {
+            file_lookup: FileLookup::new(),
             fs_transfer: FsTransfer::with_object_store(os),
             path: layout.wd,
             state: state,
@@ -145,6 +152,7 @@ impl WorkDir {
     }
     pub fn open(layout: RepoLayout) -> Result<Self> {
         Ok(WorkDir {
+            file_lookup: FileLookup::new(),
             fs_transfer: FsTransfer::with_repo_path(layout.osd)?,
             state:
                 DiskBacked::read_or_default("work dir state",
@@ -174,6 +182,28 @@ impl WorkDir {
             .iter()
             .map(|h| h.to_short())
             .collect::<Vec<String>>()
+    }
+
+    pub fn status2(&mut self) -> Result<HashPlan> {
+        let abs_path = self.path().to_owned();
+        let rel_path = PathBuf::from("");
+        let parent = match self.parents().to_owned() {
+            ref v if v.len() == 1 => {
+                self.try_find_tree_path(&v[0], &rel_path)?
+                    .and_then_try(|hash| {
+                        self.fs_transfer
+                            .object_store
+                            .lookup_node(hash)
+                    })?
+            }
+            ref v if v.len() == 0 => None,
+            _ => unimplemented!(),
+        };
+        let path = Some(self.lookup_node(abs_path)?);
+        let mut combo = (&mut self.file_lookup,
+                         &mut self.fs_transfer.object_store);
+        combo.walk_node(&mut FsObjComparePlanBuilder, (path, parent))?
+            .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
     }
 
     pub fn status(&mut self) -> Result<Status> {
