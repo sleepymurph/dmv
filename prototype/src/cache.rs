@@ -5,7 +5,7 @@ use disk_backed::DiskBacked;
 use encodable;
 use error::*;
 use rustc_serialize;
-use std::collections;
+use std::collections::HashMap;
 use std::fs;
 use std::hash::Hash;
 use std::hash::Hasher;
@@ -71,7 +71,7 @@ macro_rules! return_if_cache_matches {
     };
 }
 
-type CacheMap = collections::HashMap<encodable::PathBuf, CacheEntry>;
+type CacheMap = HashMap<encodable::PathBuf, CacheEntry>;
 
 wrapper_struct!{
 /// A cache of known file hashes
@@ -94,11 +94,8 @@ pub struct FileStats {
 }
 
 /// Cache of caches
-pub struct AllCaches {
-    // TODO: Use an actual cache that can purge entries
-    directory_caches: collections::HashMap<path::PathBuf,
-                                           DiskBacked<HashCache>>,
-}
+pub struct AllCaches(// TODO: Use an actual cache that can purge entries
+                     HashMap<path::PathBuf, DiskBacked<HashCache>>);
 
 // HashCache
 
@@ -190,19 +187,17 @@ impl From<fs::Metadata> for FileStats {
 // AllCaches
 
 impl AllCaches {
-    pub fn new() -> Self {
-        AllCaches { directory_caches: collections::HashMap::new() }
-    }
+    pub fn new() -> Self { AllCaches(HashMap::new()) }
 
     fn cache_for_dir(&mut self,
                      dir_path: &path::Path)
                      -> Result<&mut DiskBacked<HashCache>> {
-        if self.directory_caches.get(dir_path).is_none() {
+        if self.0.get(dir_path).is_none() {
             let cache_path = dir_path.join(constants::CACHE_FILE_NAME);
             let cache_file = DiskBacked::read_or_default("cache", cache_path)?;
-            self.directory_caches.insert(dir_path.into(), cache_file);
+            self.0.insert(dir_path.into(), cache_file);
         }
-        Ok(self.directory_caches.get_mut(dir_path).expect("just inserted"))
+        Ok(self.0.get_mut(dir_path).expect("just inserted"))
     }
 
     pub fn check(&mut self, file_path: &path::Path) -> Result<CacheStatus> {
@@ -235,7 +230,7 @@ impl AllCaches {
         Ok(dir_cache.insert_entry(file_name.into(), stats, hash))
     }
 
-    pub fn flush(&mut self) { self.directory_caches.clear() }
+    pub fn flush(&mut self) { self.0.clear() }
 }
 
 #[cfg(test)]
