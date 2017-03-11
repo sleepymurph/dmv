@@ -8,7 +8,6 @@ use disk_backed::DiskBacked;
 use encodable;
 use error::*;
 use find_repo::RepoLayout;
-use fs_transfer::FileLookup;
 use fs_transfer::FsObjComparePlanBuilder;
 use fs_transfer::FsTransfer;
 use fs_transfer::HashPlan;
@@ -46,7 +45,6 @@ impl Default for WorkDirState {
 }
 
 pub struct WorkDir {
-    file_lookup: FileLookup,
     fs_transfer: FsTransfer,
     path: PathBuf,
     state: DiskBacked<WorkDirState>,
@@ -63,7 +61,6 @@ impl WorkDir {
         let state = DiskBacked::new("work dir state",
                                     work_dir_state_path(&layout.wd));
         Ok(WorkDir {
-            file_lookup: FileLookup::new(),
             fs_transfer: FsTransfer::with_object_store(os),
             path: layout.wd,
             state: state,
@@ -71,7 +68,6 @@ impl WorkDir {
     }
     pub fn open(layout: RepoLayout) -> Result<Self> {
         Ok(WorkDir {
-            file_lookup: FileLookup::new(),
             fs_transfer: FsTransfer::with_repo_path(layout.osd)?,
             state:
                 DiskBacked::read_or_default("work dir state",
@@ -118,8 +114,8 @@ impl WorkDir {
             ref v if v.len() == 0 => None,
             _ => unimplemented!(),
         };
-        let path = Some(self.lookup_node(abs_path)?);
-        let mut combo = (&mut self.file_lookup,
+        let path = Some(self.fs_transfer.fs_lookup.lookup_node(abs_path)?);
+        let mut combo = (&mut self.fs_transfer.fs_lookup,
                          &mut self.fs_transfer.object_store);
         combo.walk_node(&mut FsObjComparePlanBuilder, (path, parent))?
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))

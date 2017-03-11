@@ -54,8 +54,8 @@ impl FsTransfer {
     /// Check, hash, and store a file or directory
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
         debug!("Hashing object, with framework");
-        let hash_plan =
-            self.walk_handle(&mut FsOnlyPlanBuilder, path.to_owned())?;
+        let hash_plan = self.fs_lookup
+            .walk_handle(&mut FsOnlyPlanBuilder, path.to_owned())?;
         if hash_plan.unhashed_size() > 0 {
             stderrln!("{} to hash. Hashing...",
                       human_bytes(hash_plan.unhashed_size()));
@@ -205,20 +205,6 @@ struct PathWalkNode {
     metadata: Metadata,
     hash: Option<ObjectKey>,
     ignored: bool,
-}
-
-impl NodeLookup<PathBuf, PathWalkNode> for FsTransfer {
-    fn lookup_node(&mut self, path: PathBuf) -> Result<PathWalkNode> {
-        self.fs_lookup.lookup_node(path)
-    }
-}
-
-impl NodeReader<PathWalkNode> for FsTransfer {
-    fn read_children(&mut self,
-                     node: &PathWalkNode)
-                     -> Result<ChildMap<PathWalkNode>> {
-        self.fs_lookup.read_children(node)
-    }
 }
 
 
