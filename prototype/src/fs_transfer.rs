@@ -10,9 +10,6 @@ use dag::Tree;
 use error::*;
 use human_readable::human_bytes;
 use ignore::IgnoreList;
-use item::*;
-use item::ItemClass::*;
-use item::LoadItems::*;
 use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
 use rolling_hash::read_file_objects;
@@ -26,7 +23,6 @@ use std::fs::remove_dir_all;
 use std::fs::remove_file;
 use std::io::BufReader;
 use std::io::Write;
-use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 use walker::*;
@@ -73,20 +69,6 @@ impl FsTransfer {
 
 /// Methods for hashing and storing files
 impl FsTransfer {
-    pub fn hash_object(&mut self,
-                       path: &Path,
-                       status: &PartialItem)
-                       -> Result<ObjectKey> {
-        match status {
-            &PartialItem { hash: Some(hash), .. } => Ok(hash.to_owned()),
-            &PartialItem { class: BlobLike(_), .. } => self.hash_file(path),
-            &PartialItem { class: TreeLike(Loaded(ref subtree)), .. } => {
-                self.hash_partial_tree(&path, subtree)
-            }
-            _ => bail!("Can't hash: {:?}", status),
-        }
-    }
-
     fn hash_file(&mut self, file_path: &Path) -> Result<ObjectKey> {
         let file = File::open(&file_path)?;
         let file_stats = FileStats::from(file.metadata()?);
@@ -107,29 +89,6 @@ impl FsTransfer {
             .insert(file_path.to_owned(), file_stats, last_hash.to_owned())?;
 
         Ok(last_hash)
-    }
-
-    fn hash_partial_tree(&mut self,
-                         dir_path: &Path,
-                         partial: &PartialTree)
-                         -> Result<ObjectKey> {
-        if partial.is_vacant() {
-            bail!("No children to hash (all empty dirs or ignored) in \
-                   directory: {}",
-                  dir_path.display());
-        }
-
-        let mut tree = Tree::new();
-
-        for (ch_name, item) in partial.iter() {
-            if item.is_vacant() {
-                continue;
-            }
-            let ch_path = dir_path.join(&ch_name);
-            tree.insert(ch_name, self.hash_object(&ch_path, item)?);
-        }
-
-        self.store_object(&tree)
     }
 }
 
@@ -237,116 +196,6 @@ impl FsTransfer {
             _ => bail!("Expected a Blob or ChunkedBlob, got: {:?}", handle),
         };
         Ok(())
-    }
-}
-
-/// Methods for loading PartialItem objects either from disk or object store
-impl FsTransfer {
-    pub fn load_shallow<H>(&mut self, handle: H) -> Result<PartialItem>
-        where H: Into<ItemHandle>
-    {
-        let handle = handle.into();
-        debug!("Loading shallow:    {}", handle);
-        match handle.into() {
-            ItemHandle::Path(ref path) => {
-                self.load_path_shallow(path, path.metadata()?)
-            }
-            ItemHandle::Object(ref hash) => {
-                self.load_object_shallow(hash.to_owned())
-            }
-        }
-    }
-
-    fn load_children(&mut self, handle: &ItemHandle) -> Result<PartialTree> {
-        debug!("Loading children:   {}", handle);
-        match handle {
-            &ItemHandle::Path(ref path) => self.load_dir(path),
-            &ItemHandle::Object(ref hash) => self.load_tree(hash.to_owned()),
-        }
-    }
-
-    pub fn load_if_needed(&mut self, load: LoadItems) -> Result<PartialTree> {
-        match load {
-            Loaded(p) => Ok(p),
-            NotLoaded(handle) => self.load_children(&handle),
-        }
-    }
-
-    pub fn load_children_in_place<'a>(&mut self,
-                                      load: &'a mut LoadItems)
-                                      -> Result<&'a mut PartialTree> {
-        let to_load = match load {
-            &mut NotLoaded(ref handle) => Some(handle.to_owned()),
-            &mut Loaded(_) => None,
-        };
-        if let Some(handle) = to_load {
-            let children = self.load_children(&handle)?;
-            mem::replace(load, Loaded(children));
-        }
-        match load {
-            &mut Loaded(ref mut p) => Ok(p),
-            &mut NotLoaded(_) => unreachable!(),
-        }
-    }
-
-    fn load_path_shallow(&mut self,
-                         path: &Path,
-                         meta: Metadata)
-                         -> Result<PartialItem> {
-        Ok(PartialItem {
-            class: ItemClass::for_path(path, &meta)?,
-            hash: match self.cache
-                .check_with(&path, &meta.into())? {
-                CacheStatus::Cached { hash } => Some(hash),
-                _ => None,
-            },
-            mark_ignore: self.ignored.ignores(path),
-        })
-    }
-
-    fn load_dir(&mut self, path: &Path) -> Result<PartialTree> {
-        let mut partial = PartialTree::new();
-        for entry in read_dir(path)? {
-            let entry = entry?;
-            let ch_path = entry.path();
-            let ch_name = ch_path.file_name_or_err()?;
-            let ch =
-                self.load_path_shallow(ch_path.as_path(), entry.metadata()?)?;
-            partial.insert(ch_name, ch);
-        }
-        Ok(partial)
-    }
-
-    fn load_object_shallow(&mut self, hash: ObjectKey) -> Result<PartialItem> {
-        let obj_handle = self.open_object(&hash)?;
-        let class = match obj_handle {
-            ObjectHandle::Blob(_) => {
-                ItemClass::BlobLike(obj_handle.header().content_size)
-            }
-            ObjectHandle::ChunkedBlob(raw) => {
-                let index = raw.read_content()?;
-                ItemClass::BlobLike(index.total_size)
-            }
-            ObjectHandle::Tree(_) |
-            ObjectHandle::Commit(_) => {
-                ItemClass::TreeLike(
-                    LoadItems::NotLoaded(ItemHandle::Object(hash.to_owned())))
-            }
-        };
-        Ok(PartialItem {
-            class: class,
-            hash: Some(hash),
-            mark_ignore: false,
-        })
-    }
-
-    fn load_tree(&mut self, hash: ObjectKey) -> Result<PartialTree> {
-        let tree = self.open_tree(&hash)?;
-        let mut partial = PartialTree::new();
-        for (name, hash) in tree {
-            partial.insert(name, self.load_object_shallow(hash)?);
-        }
-        Ok(partial)
     }
 }
 
