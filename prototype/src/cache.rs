@@ -4,7 +4,7 @@ use dag::ObjectSize;
 use disk_backed::DiskBacked;
 use encodable;
 use error::*;
-use rustc_serialize;
+use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -114,20 +114,17 @@ impl HashCache {
     }
 }
 
-impl rustc_serialize::Encodable for HashCache {
-    fn encode<S: rustc_serialize::Encoder>
-        (&self,
-         s: &mut S)
-         -> ::std::result::Result<(), S::Error> {
-        rustc_serialize::Encodable::encode(&self.0, s)
+impl Encodable for HashCache {
+    fn encode<S: Encoder>(&self,
+                          s: &mut S)
+                          -> ::std::result::Result<(), S::Error> {
+        Encodable::encode(&self.0, s)
     }
 }
 
-impl rustc_serialize::Decodable for HashCache {
-    fn decode<D: rustc_serialize::Decoder>
-        (d: &mut D)
-         -> ::std::result::Result<Self, D::Error> {
-        let cache_map = <HashMap<_,_> as rustc_serialize::Decodable>::decode(d)?;
+impl Decodable for HashCache {
+    fn decode<D: Decoder>(d: &mut D) -> ::std::result::Result<Self, D::Error> {
+        let cache_map = <HashMap<_,_> as Decodable>::decode(d)?;
         Ok(HashCache(cache_map))
     }
 }
