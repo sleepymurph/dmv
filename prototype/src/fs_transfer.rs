@@ -160,16 +160,11 @@ impl FileLookup {
 impl NodeLookup<PathBuf, PathWalkNode> for FileLookup {
     fn lookup_node(&self, path: PathBuf) -> Result<PathWalkNode> {
         let meta = path.metadata()?;
-        let hash;
-        if meta.is_file() {
-            hash = match self.cache
-                .check_with(&path, &meta.clone().into())? {
-                CacheStatus::Cached { hash } => Some(hash),
-                _ => None,
-            };
-        } else {
-            hash = None;
-        }
+        let hash = match self.cache
+            .check_with(&path, &meta.clone().into())? {
+            CacheStatus::Cached(hash) => Some(hash),
+            _ => None,
+        };
         Ok(PathWalkNode {
             hash: hash,
             ignored: self.ignored.ignores(path.as_path()),
@@ -552,7 +547,7 @@ mod test {
 
         // Make sure the output is cached
         assert_eq!(fs_transfer.fs_lookup.cache.check(&out_file).unwrap(),
-                   CacheStatus::Cached { hash: hash },
+                   CacheStatus::Cached(hash),
                    "Cache should be primed with extracted file's hash");
     }
 

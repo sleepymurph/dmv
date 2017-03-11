@@ -17,12 +17,9 @@ use std::path;
 /// Status of a file's cached hash
 #[derive(Clone,Eq,PartialEq,Debug)]
 pub enum CacheStatus {
-    /// File's hash is not cached
-    NotCached { size: ObjectSize },
-    /// File's hash is cached, but it has been modified since
-    Modified { size: ObjectSize },
-    /// File's hash is cached
-    Cached { hash: ObjectKey },
+    NotCached,
+    Modified,
+    Cached(ObjectKey),
 }
 
 /// Does an early return with the cached hash value if it is present
@@ -31,7 +28,7 @@ pub enum CacheStatus {
 #[macro_export]
 macro_rules! return_if_cached {
     (do_check; $path:expr, $cache_check:expr) => {
-        if let Ok($crate::cache::CacheStatus::Cached{ hash }) = $cache_check {
+        if let Ok($crate::cache::CacheStatus::Cached(hash)) = $cache_check {
                 debug!("Already hashed: {} {}", hash, $path.display());
                 return Ok(hash);
         }
@@ -52,7 +49,7 @@ macro_rules! return_if_cache_matches {
     (do_check; $path:expr, $hash:expr, $cache_check:expr) => {
         if $path.exists() {
             match $cache_check {
-                Ok($crate::cache::CacheStatus::Cached { hash: ref cache_hash })
+                Ok($crate::cache::CacheStatus::Cached(ref cache_hash))
                     if cache_hash == $hash => {
                         debug!("Already at state: {} {}",
                                 cache_hash, $path.display());
@@ -127,14 +124,11 @@ impl HashCache {
                                                     file_stats: &FileStats)
                                                     -> CacheStatus {
         match self.0.get(file_path.as_ref()) {
-            Some(cache_entry) => {
-                if cache_entry.filestats == *file_stats {
-                    CacheStatus::Cached { hash: cache_entry.hash }
-                } else {
-                    CacheStatus::Modified { size: file_stats.size }
-                }
+            Some(entry) if entry.filestats == *file_stats => {
+                CacheStatus::Cached(entry.hash)
             }
-            None => CacheStatus::NotCached { size: file_stats.size },
+            Some(_) => CacheStatus::Modified,
+            None => CacheStatus::NotCached,
         }
     }
 }
