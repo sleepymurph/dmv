@@ -279,14 +279,14 @@ lazy_static!{
 pub type ObjectWalkNode = (ObjectKey, ObjectType);
 
 impl NodeLookup<ObjectKey, ObjectWalkNode> for ObjectStore {
-    fn lookup_node(&mut self, handle: ObjectKey) -> Result<ObjectWalkNode> {
+    fn lookup_node(&self, handle: ObjectKey) -> Result<ObjectWalkNode> {
         let object_type = self.open_object(&handle)?.header().object_type;
         Ok((handle, object_type))
     }
 }
 
 impl NodeReader<ObjectWalkNode> for ObjectStore {
-    fn read_children(&mut self,
+    fn read_children(&self,
                      node: &ObjectWalkNode)
                      -> Result<ChildMap<ObjectWalkNode>> {
         let mut children = BTreeMap::new();

@@ -14,10 +14,10 @@ pub type PathStack = Vec<String>;
 /// A repository that can look up nodes by some handle
 pub trait NodeLookup<H, N>: NodeReader<N> {
     /// Given a handlem, read in the appropriate node
-    fn lookup_node(&mut self, handle: H) -> Result<N>;
+    fn lookup_node(&self, handle: H) -> Result<N>;
 
     /// Do a walk operation, starting with the given node handle
-    fn walk_handle<O>(&mut self, op: &mut O, start: H) -> Result<O::VisitResult>
+    fn walk_handle<O>(&self, op: &mut O, start: H) -> Result<O::VisitResult>
         where O: WalkOp<N>
     {
         let first = self.lookup_node(start)?;
@@ -29,10 +29,10 @@ pub trait NodeLookup<H, N>: NodeReader<N> {
 /// A repository that can follow from one node to get its children
 pub trait NodeReader<N> {
     /// Given a node, read its children
-    fn read_children(&mut self, node: &N) -> Result<ChildMap<N>>;
+    fn read_children(&self, node: &N) -> Result<ChildMap<N>>;
 
     /// Do a walk operation, starting with the given node
-    fn walk_node<O>(&mut self,
+    fn walk_node<O>(&self,
                     op: &mut O,
                     node: N)
                     -> Result<Option<O::VisitResult>>
@@ -41,7 +41,7 @@ pub trait NodeReader<N> {
         self.walk_node_stack(op, node, &mut PathStack::new())
     }
 
-    fn walk_node_stack<O>(&mut self,
+    fn walk_node_stack<O>(&self,
                           op: &mut O,
                           node: N,
                           path_stack: &mut PathStack)
@@ -88,7 +88,7 @@ pub trait NodeWithChildren: Sized {
 impl<'a, N: 'a> NodeReader<&'a N> for ()
     where N: NodeWithChildren
 {
-    fn read_children(&mut self, node: &&'a N) -> Result<ChildMap<&'a N>> {
+    fn read_children(&self, node: &&'a N) -> Result<ChildMap<&'a N>> {
         let mut children = ChildMap::new();
         if let Some(mykids) = node.children() {
             for (name, node) in mykids {
@@ -125,12 +125,11 @@ pub trait WalkOp<N> {
 }
 
 
-impl<'a, A, B, RA, RB> NodeReader<(Option<A>, Option<B>)>
-    for (&'a mut RA, &'a mut RB)
+impl<'a, A, B, RA, RB> NodeReader<(Option<A>, Option<B>)> for (&'a RA, &'a RB)
     where RA: NodeReader<A>,
           RB: NodeReader<B>
 {
-    fn read_children(&mut self,
+    fn read_children(&self,
                      node: &(Option<A>, Option<B>))
                      -> Result<ChildMap<(Option<A>, Option<B>)>> {
         let mut children = ChildMap::new();

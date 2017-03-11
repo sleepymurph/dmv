@@ -115,8 +115,8 @@ impl WorkDir {
             _ => unimplemented!(),
         };
         let path = Some(self.fs_transfer.fs_lookup.lookup_node(abs_path)?);
-        let mut combo = (&mut self.fs_transfer.fs_lookup,
-                         &mut self.fs_transfer.object_store);
+        let combo = (&self.fs_transfer.fs_lookup,
+                     &self.fs_transfer.object_store);
         combo.walk_node(&mut FsObjComparePlanBuilder, (path, parent))?
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
     }

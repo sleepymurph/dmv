@@ -223,7 +223,7 @@ impl FileLookup {
 }
 
 impl NodeLookup<PathBuf, PathWalkNode> for FileLookup {
-    fn lookup_node(&mut self, path: PathBuf) -> Result<PathWalkNode> {
+    fn lookup_node(&self, path: PathBuf) -> Result<PathWalkNode> {
         let meta = path.metadata()?;
         let hash;
         if meta.is_file() {
@@ -245,7 +245,7 @@ impl NodeLookup<PathBuf, PathWalkNode> for FileLookup {
 }
 
 impl NodeReader<PathWalkNode> for FileLookup {
-    fn read_children(&mut self,
+    fn read_children(&self,
                      node: &PathWalkNode)
                      -> Result<ChildMap<PathWalkNode>> {
         let mut children = BTreeMap::new();
