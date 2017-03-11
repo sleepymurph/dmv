@@ -12,92 +12,11 @@ use fs_transfer::FileLookup;
 use fs_transfer::FsObjComparePlanBuilder;
 use fs_transfer::FsTransfer;
 use fs_transfer::HashPlan;
-use item::*;
-use item::ItemClass::*;
-use item::LoadItems::*;
-use maputil::mux;
 use object_store::ObjectStore;
-use object_store::ObjectWalkNode;
 use std::collections::BTreeMap;
-use std::ffi::OsString;
-use std::fmt;
 use std::path::Path;
 use std::path::PathBuf;
 use walker::*;
-
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
-pub enum LeafStatus {
-    /// Path is new and untracked
-    Untracked,
-
-    /// Path is untracked and ignored
-    Ignored,
-
-    /// Path is new and marked for addition
-    Add,
-
-    /// Path is missing because it is not checked out
-    Offline,
-
-    /// Path is missing because it is marked for deletion
-    Delete,
-
-    /// Path exists and matches cache
-    Unchanged,
-
-    /// Path exists and is newer than cache
-    Modified,
-
-    /// Path exists but is not cached, so modified status is unknown
-    MaybeModified,
-}
-
-impl LeafStatus {
-    fn code(&self) -> &'static str {
-        match self {
-            &LeafStatus::Untracked => "?",
-            &LeafStatus::Ignored => "i",
-            &LeafStatus::Add => "a",
-            &LeafStatus::Offline => "o",
-            &LeafStatus::Delete => "d",
-            &LeafStatus::Unchanged => " ",
-            &LeafStatus::Modified => "M",
-            &LeafStatus::MaybeModified => "m",
-        }
-    }
-}
-
-#[derive(Debug,Clone,Hash,PartialEq,Eq)]
-pub enum Status {
-    Leaf(LeafStatus),
-    Tree(StatusTree),
-}
-
-type StatusTree = BTreeMap<OsString, Status>;
-
-impl Status {
-    fn write(&self, f: &mut fmt::Formatter, prefix: &PathBuf) -> fmt::Result {
-        match self {
-            &Status::Leaf(LeafStatus::Ignored) => Ok(()),
-            &Status::Leaf(LeafStatus::Unchanged) => Ok(()),
-            &Status::Leaf(ref leaf) => {
-                write!(f, "{} {}\n", leaf.code(), prefix.display())
-            }
-            &Status::Tree(ref tree) => {
-                for (path, status) in tree {
-                    status.write(f, &prefix.join(path))?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-impl fmt::Display for Status {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.write(f, &PathBuf::from(""))
-    }
-}
 
 #[derive(Debug,Clone,Copy,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
 pub enum FileMark {
@@ -206,89 +125,6 @@ impl WorkDir {
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
     }
 
-    pub fn status(&mut self) -> Result<Status> {
-
-        let abs_path = self.path().to_owned();
-        let rel_path = PathBuf::from("");
-        let a = match self.parents().to_owned() {
-            ref v if v.len() == 1 => self.try_find_tree_path(&v[0], &rel_path)?,
-            ref v if v.len() == 0 => None,
-            _ => unimplemented!(),
-        };
-        let mut a = a.and_then_try(|a| self.load_shallow(a))?;
-        let mut b = Some(self.load_shallow(abs_path)?);
-        self.compare_option_items(rel_path.as_ref(), a.as_mut(), b.as_mut())
-    }
-
-
-    fn compare_option_items(&mut self,
-                            rel_path: &Path,
-                            a: Option<&mut PartialItem>,
-                            b: Option<&mut PartialItem>)
-                            -> Result<Status> {
-        use self::Status::*;
-        use self::LeafStatus::*;
-        let mark = self.state.marks.get(rel_path).map(ToOwned::to_owned);
-        match (a, b, mark) {
-            (Some(a), Some(b), _) => self.compare_items(rel_path, a, b),
-            (None, Some(&mut PartialItem { mark_ignore: true, .. }), _) => {
-                Ok(Leaf(Ignored))
-            }
-            (None, Some(_), Some(FileMark::Add)) => Ok(Leaf(Add)),
-            (None, Some(_), _) => Ok(Leaf(Untracked)),
-            (Some(_), None, Some(FileMark::Delete)) => Ok(Leaf(Delete)),
-            (Some(_), None, _) => Ok(Leaf(Offline)),
-            (None, None, _) => bail!("Nothing to compare"),
-        }
-    }
-
-    fn compare_items(&mut self,
-                     rel_path: &Path,
-                     a: &mut PartialItem,
-                     b: &mut PartialItem)
-                     -> Result<Status> {
-        use self::Status::*;
-        use self::LeafStatus::*;
-        match (a, b) {
-            (&mut PartialItem { hash: Some(a), .. },
-             &mut PartialItem { hash: Some(b), .. }) if a == b => {
-                Ok(Leaf(Unchanged))
-            }
-
-            (&mut PartialItem { class: BlobLike(_), .. },
-             &mut PartialItem { class: BlobLike(_), .. }) => {
-                Ok(Leaf(MaybeModified))
-            }
-
-            (&mut PartialItem { class: TreeLike(ref mut a), .. },
-             &mut PartialItem { class: TreeLike(ref mut b), .. }) => {
-                Ok(Status::Tree(self.compare_children(rel_path, a, b)?))
-            }
-
-            (&mut PartialItem { hash: Some(_), .. },
-             &mut PartialItem { hash: Some(_), .. }) => Ok(Leaf(Modified)),
-
-            _ => Ok(Leaf(MaybeModified)),
-        }
-    }
-
-    fn compare_children(&mut self,
-                        rel_path: &Path,
-                        a: &mut LoadItems,
-                        b: &mut LoadItems)
-                        -> Result<StatusTree> {
-        let a = self.load_children_in_place(a)?;
-        let b = self.load_children_in_place(b)?;
-
-        let mut statuses = StatusTree::new();
-        for (name, a, b) in mux(a.iter_mut(), b.iter_mut()) {
-            let rel_path = rel_path.join(&name);
-            let status = self.compare_option_items(&rel_path, a, b)?;
-            statuses.insert(name.to_owned(), status);
-        }
-        Ok(statuses)
-    }
-
     pub fn mark_for_add(&mut self, path: PathBuf) -> Result<()> {
         if !path.exists() {
             bail!("Path does not exist: {}", path.display());
@@ -298,37 +134,6 @@ impl WorkDir {
         Ok(())
     }
 
-    fn build_index(&mut self,
-                   mut item: PartialItem,
-                   parent: Option<PartialItem>)
-                   -> Result<PartialItem> {
-        match item {
-            PartialItem { class: TreeLike(load), mark_ignore: false, .. } => {
-                let children = self.load_if_needed(load)?
-                    .into_iter();
-                let compare = parent.and_then(|p| p.take_load())
-                    .and_then_try(|load| self.load_if_needed(load))?
-                    .into_iter()
-                    .flat_map(|pt| pt.into_iter());
-
-                let mut new = PartialTree::new();
-                for (name, child, compare) in mux(children, compare) {
-                    match (child, compare) {
-                        (Some(child), compare) => {
-                            new.insert(name, self.build_index(child, compare)?);
-                        }
-                        (None, Some(compare)) => {
-                            new.insert(name, compare.to_owned());
-                        }
-                        (None, None) => unreachable!(),
-                    }
-                }
-                item.class = TreeLike(Loaded(new));
-            }
-            _ => (),
-        };
-        Ok(item)
-    }
     pub fn commit(&mut self,
                   message: String)
                   -> Result<(Option<&str>, ObjectKey)> {

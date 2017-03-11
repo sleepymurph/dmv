@@ -13,7 +13,6 @@ use ignore::IgnoreList;
 use item::*;
 use item::ItemClass::*;
 use item::LoadItems::*;
-use maputil::mux;
 use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
 use rolling_hash::read_file_objects;
@@ -69,47 +68,6 @@ impl FsTransfer {
         }
         hash_plan.walk(&mut HashAndStoreOp { fs_transfer: self })?
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
-    }
-}
-
-/// Methods for building the index of files to hash
-impl FsTransfer {
-    // Moved to WorkDir. TODO: Delete
-    fn check_status(&mut self, path: &Path) -> Result<PartialItem> {
-        let status = self.load_shallow(path)?;
-        self.build_index(status, None)
-    }
-
-    fn build_index(&mut self,
-                   mut item: PartialItem,
-                   parent: Option<PartialItem>)
-                   -> Result<PartialItem> {
-        match item {
-            PartialItem { class: TreeLike(load), mark_ignore: false, .. } => {
-                let children = self.load_if_needed(load)?
-                    .into_iter();
-                let compare = parent.and_then(|p| p.take_load())
-                    .and_then_try(|load| self.load_if_needed(load))?
-                    .into_iter()
-                    .flat_map(|pt| pt.into_iter());
-
-                let mut new = PartialTree::new();
-                for (name, child, compare) in mux(children, compare) {
-                    match (child, compare) {
-                        (Some(child), compare) => {
-                            new.insert(name, self.build_index(child, compare)?);
-                        }
-                        (None, Some(compare)) => {
-                            new.insert(name, compare.to_owned());
-                        }
-                        (None, None) => unreachable!(),
-                    }
-                }
-                item.class = TreeLike(Loaded(new));
-            }
-            _ => (),
-        };
-        Ok(item)
     }
 }
 
@@ -566,10 +524,6 @@ impl NodeWithChildren for HashPlan {
 
 use std::fmt;
 
-struct HashPlanDisplayOp<'a> {
-    f: &'a mut fmt::Formatter<'a>,
-}
-
 impl<'a> fmt::Display for HashPlan {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.is_dir && self.status.is_included_in_commit() {
@@ -753,7 +707,6 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
 mod test {
     use cache::CacheStatus;
     use dag::Blob;
-    use dag::Object;
     use dag::ObjectCommon;
     use dag::ObjectType;
     use hamcrest::prelude::*;
@@ -828,249 +781,6 @@ mod test {
         let result = fs_transfer.extract_object(&hash, &out_file);
         assert!(result.is_err());
     }
-
-    use dag::Tree;
-    fn do_store_directory_test<WF>(workdir_name: &str,
-                                   write_files: WF,
-                                   expected_partial: PartialTree,
-                                   expected_tree: Tree,
-                                   expected_cached_partial: PartialTree)
-        where WF: FnOnce(&Path)
-    {
-
-        let (temp, mut fs_transfer) = create_temp_repo("object_store");
-
-        let wd_path = temp.path().join(workdir_name);
-        write_files(&wd_path);
-
-        // Build partial tree
-
-        let partial = fs_transfer.check_status(&wd_path).unwrap();
-        assert_eq!(partial, PartialItem::from(expected_partial));
-
-        // Hash and store files
-
-        let hash = fs_transfer.hash_object(&wd_path, &partial).unwrap();
-
-        let obj = fs_transfer.open_object(&hash).unwrap();
-        let obj = obj.read_content().unwrap();
-
-        assert_eq!(obj, Object::Tree(expected_tree.clone()));
-
-        // Flush cache files
-        fs_transfer.cache.flush();
-
-        // Build partial tree again -- check how it handles the cache files
-
-        let partial = fs_transfer.check_status(&wd_path).unwrap();
-        assert_eq!(partial.prune_vacant(),
-                   PartialItem::from(expected_cached_partial.prune_vacant()));
-        let rehash = fs_transfer.hash_object(&wd_path, &partial).unwrap();
-        assert_eq!(rehash, hash);
-
-        // Extract and compare
-        let extract_path = temp.path().join("extract_dir");
-        fs_transfer.extract_object(&hash, &extract_path).unwrap();
-
-        let extract_partial = fs_transfer.check_status(&extract_path).unwrap();
-        assert_eq!(extract_partial.prune_vacant(),
-                   PartialItem::from(expected_cached_partial.prune_vacant()));
-
-        let rehash = fs_transfer.hash_object(&extract_path, &extract_partial)
-            .unwrap();
-        assert_eq!(rehash, hash);
-    }
-
-    #[test]
-    fn test_store_directory_shallow() {
-
-        let write_files = |wd_path: &Path| {
-            write_files!{
-                wd_path;
-                "foo" => "123",
-                "bar" => "1234",
-                "baz" => "12345",
-            };
-        };
-
-        let expected_partial = partial_tree!{
-            "foo" => PartialItem::unhashed_file(3),
-            "bar" => PartialItem::unhashed_file(4),
-            "baz" => PartialItem::unhashed_file(5),
-        };
-
-        let expected_tree = tree_object!{
-            "foo" => Blob::from("123").calculate_hash(),
-            "bar" => Blob::from("1234").calculate_hash(),
-            "baz" => Blob::from("12345").calculate_hash(),
-        };
-
-        let expected_cached_partial = partial_tree!{
-            "foo" => Blob::from("123"),
-            "bar" => Blob::from("1234"),
-            "baz" => Blob::from("12345"),
-        };
-
-        do_store_directory_test("work_dir",
-                                write_files,
-                                expected_partial,
-                                expected_tree.clone(),
-                                expected_cached_partial);
-    }
-
-    #[test]
-    fn test_store_directory_recursive() {
-
-        let write_files = |wd_path: &Path| {
-            write_files!{
-                wd_path;
-                "foo" => "123",
-                "level1/bar" => "1234",
-                "level1/level2/baz" => "12345",
-            };
-        };
-
-        let expected_partial = partial_tree!{
-            "foo" => PartialItem::unhashed_file(3),
-            "level1" => partial_tree!{
-                "bar" => PartialItem::unhashed_file(4),
-                "level2" => partial_tree!{
-                    "baz" => PartialItem::unhashed_file(5),
-                },
-            },
-        };
-
-        let expected_tree = tree_object!{
-            "foo" => Blob::from("123").calculate_hash(),
-            "level1" => tree_object!{
-                "bar" => Blob::from("1234").calculate_hash(),
-                "level2" => tree_object!{
-                    "baz" => Blob::from("12345").calculate_hash(),
-                }.calculate_hash(),
-            }.calculate_hash(),
-        };
-
-        let expected_cached_partial = partial_tree!{
-            "foo" => Blob::from("123"),
-            "level1" => partial_tree!{
-                "bar" => Blob::from("1234"),
-                "level2" => partial_tree!{
-                    "baz" => Blob::from("12345"),
-                },
-            },
-        };
-
-        do_store_directory_test("work_dir",
-                                write_files,
-                                expected_partial,
-                                expected_tree,
-                                expected_cached_partial);
-    }
-
-    #[test]
-    fn test_store_directory_ignore_objectstore_dir() {
-        let write_files = |wd_path: &Path| {
-            write_files!{
-                wd_path;
-                "foo" => "123",
-                "level1/bar" => "1234",
-                "level1/level2/baz" => "12345",
-            };
-        };
-
-        let expected_partial = partial_tree!{
-            "foo" => PartialItem::unhashed_file(3),
-            "level1" => partial_tree!{
-                "bar" => PartialItem::unhashed_file(4),
-                "level2" => partial_tree!{
-                    "baz" => PartialItem::unhashed_file(5),
-                },
-            },
-        };
-
-        let expected_tree = tree_object!{
-            "foo" => Blob::from("123").calculate_hash(),
-            "level1" => tree_object!{
-                "bar" => Blob::from("1234").calculate_hash(),
-                "level2" => tree_object!{
-                    "baz" => Blob::from("12345").calculate_hash(),
-                }.calculate_hash(),
-            }.calculate_hash(),
-        };
-
-        let expected_cached_partial = partial_tree!{
-            "foo" => Blob::from("123"),
-            "level1" => partial_tree!{
-                "bar" => Blob::from("1234"),
-                "level2" => partial_tree!{
-                    "baz" => Blob::from("12345"),
-                },
-            },
-        };
-
-        do_store_directory_test("",
-                                write_files,
-                                expected_partial,
-                                expected_tree,
-                                expected_cached_partial);
-    }
-
-    #[test]
-    fn test_store_directory_ignore_empty_dirs() {
-        let write_files = |wd_path: &Path| {
-            write_files!{
-                wd_path;
-                "foo" => "123",
-            };
-            create_dir_all(wd_path.join("empty1/empty2/empty3")).unwrap();
-        };
-
-        let expected_partial = partial_tree!{
-            "foo" => PartialItem::unhashed_file(3),
-            "empty1" => PartialItem::from(partial_tree!{
-                "empty2" => PartialItem::from(partial_tree!{
-                    "empty3" => PartialItem::from(PartialTree::new()),
-                }),
-            }),
-        };
-
-        let expected_tree = tree_object!{
-            "foo" => Blob::from("123").calculate_hash(),
-        };
-
-        let expected_cached_partial = partial_tree!{
-            "foo" => Blob::from("123"),
-            "empty1" => PartialItem::from(partial_tree!{
-                "empty2" => PartialItem::from(partial_tree!{
-                    "empty3" => PartialItem::from(PartialTree::new()),
-                }),
-            }),
-        };
-
-        do_store_directory_test("work_dir",
-                                write_files,
-                                expected_partial,
-                                expected_tree,
-                                expected_cached_partial);
-    }
-
-    #[test]
-    fn test_store_directory_error_if_empty() {
-        let (temp, mut fs_transfer) = create_temp_repo("object_store");
-        let wd_path = temp.path().join("work_dir");
-        create_dir_all(wd_path.join("empty1/empty2/empty3")).unwrap();
-
-        // Build partial tree
-
-        let partial = fs_transfer.check_status(&wd_path).unwrap();
-
-        // Hash and store files
-
-        let hash = fs_transfer.hash_object(&wd_path, &partial);
-        assert!(hash.is_err(), "Should refuse to hash an empty directory");
-        // hash.unwrap();
-    }
-
 
     #[test]
     fn test_default_overwrite_policy() {
