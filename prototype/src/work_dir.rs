@@ -99,7 +99,7 @@ impl WorkDir {
             .collect::<Vec<String>>()
     }
 
-    pub fn status2(&mut self) -> Result<HashPlan> {
+    pub fn status(&mut self) -> Result<HashPlan> {
         let abs_path = self.path().to_owned();
         let rel_path = PathBuf::from("");
         let parent = match self.parents().to_owned() {
