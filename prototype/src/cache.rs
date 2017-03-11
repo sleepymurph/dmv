@@ -5,6 +5,7 @@ use disk_backed::DiskBacked;
 use encodable;
 use error::*;
 use rustc_serialize;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::hash::Hash;
@@ -95,7 +96,7 @@ pub struct FileStats {
 
 /// Cache of caches
 pub struct AllCaches(// TODO: Use an actual cache that can purge entries
-                     HashMap<path::PathBuf, DiskBacked<HashCache>>);
+                     RefCell<HashMap<path::PathBuf, DiskBacked<HashCache>>>);
 
 // HashCache
 
@@ -187,17 +188,15 @@ impl From<fs::Metadata> for FileStats {
 // AllCaches
 
 impl AllCaches {
-    pub fn new() -> Self { AllCaches(HashMap::new()) }
+    pub fn new() -> Self { AllCaches(RefCell::new(HashMap::new())) }
 
-    fn cache_for_dir(&mut self,
-                     dir_path: &path::Path)
-                     -> Result<&mut DiskBacked<HashCache>> {
-        if self.0.get(dir_path).is_none() {
+    fn read_dir_cache(&self, dir_path: &path::Path) -> Result<()> {
+        if self.0.borrow().get(dir_path).is_none() {
             let cache_path = dir_path.join(constants::CACHE_FILE_NAME);
             let cache_file = DiskBacked::read_or_default("cache", cache_path)?;
-            self.0.insert(dir_path.into(), cache_file);
+            self.0.try_borrow_mut()?.insert(dir_path.into(), cache_file);
         }
-        Ok(self.0.get_mut(dir_path).expect("just inserted"))
+        Ok(())
     }
 
     pub fn check(&self, file_path: &path::Path) -> Result<CacheStatus> {
@@ -212,10 +211,10 @@ impl AllCaches {
 
         let dir_path = file_path.parent_or_err()?;
         let file_name = file_path.file_name_or_err()?;
-        match self.0.get(dir_path) {
-            Some(cache) => Ok(cache.check(file_name, stats)),
-            None => Ok(CacheStatus::NotCached { size: stats.size }),
-        }
+        self.read_dir_cache(dir_path)?;
+        let caches = self.0.try_borrow()?;
+        let cache = caches.get(dir_path).expect("just read cache");
+        Ok(cache.check(file_name, stats))
     }
 
     pub fn insert(&mut self,
@@ -226,11 +225,13 @@ impl AllCaches {
 
         let dir_path = file_path.parent_or_err()?;
         let file_name = file_path.file_name_or_err()?;
-        let dir_cache = self.cache_for_dir(dir_path)?;
-        Ok(dir_cache.insert_entry(file_name.into(), stats, hash))
+        self.read_dir_cache(dir_path)?;
+        let mut caches = self.0.try_borrow_mut()?;
+        let cache = caches.get_mut(dir_path).expect("just read cache");
+        Ok(cache.insert_entry(file_name.into(), stats, hash))
     }
 
-    pub fn flush(&mut self) { self.0.clear() }
+    pub fn flush(&mut self) { self.0.borrow_mut().clear() }
 }
 
 #[cfg(test)]

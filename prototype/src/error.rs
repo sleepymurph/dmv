@@ -5,6 +5,10 @@
 
 error_chain!{
     foreign_links {
+        BorrowError(::std::cell::BorrowError)
+            #[doc = "Error caused by a failed RefCell borrow"];
+        BorrowMutError(::std::cell::BorrowMutError)
+            #[doc = "Error caused by a failed RefCell borrow_mut"];
         IoError(::std::io::Error)
             #[doc = "Error caused by an underlying IO error"];
         StripPrefixError(::std::path::StripPrefixError)
