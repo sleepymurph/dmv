@@ -8,7 +8,7 @@ use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
-use std::fs;
+use std::fs::Metadata;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::path;
@@ -43,18 +43,18 @@ pub struct CacheEntry {
 }
 
 impl CacheEntry {
-    fn new(meta: &fs::Metadata, hash: ObjectKey) -> Self {
+    fn new(meta: &Metadata, hash: ObjectKey) -> Self {
         CacheEntry {
             mtime: meta.modified().expect("metadata has no mod time").into(),
             size: meta.len(),
             hash: hash,
         }
     }
-    fn meta_match(&self, meta: &fs::Metadata) -> bool {
+    fn meta_match(&self, meta: &Metadata) -> bool {
         self.size == meta.len() &&
         *self.mtime == meta.modified().expect("metadata has no mod time")
     }
-    fn status(entry: Option<&CacheEntry>, meta: &fs::Metadata) -> CacheStatus {
+    fn status(entry: Option<&CacheEntry>, meta: &Metadata) -> CacheStatus {
         match entry {
             Some(ref entry) if entry.meta_match(meta) => {
                 CacheStatus::Cached(entry.hash)
@@ -63,9 +63,7 @@ impl CacheEntry {
             None => CacheStatus::NotCached,
         }
     }
-    fn check(entry: Option<&CacheEntry>,
-             meta: &fs::Metadata)
-             -> Option<ObjectKey> {
+    fn check(entry: Option<&CacheEntry>, meta: &Metadata) -> Option<ObjectKey> {
         match entry {
             Some(ref entry) if entry.meta_match(meta) => Some(entry.hash),
             _ => None,
@@ -85,32 +83,35 @@ impl HashCache {
     pub fn new() -> Self { HashCache(HashMap::new()) }
 
     pub fn insert_entry(&mut self,
-                        file_path: path::PathBuf,
-                        meta: &fs::Metadata,
+                        path: path::PathBuf,
+                        meta: &Metadata,
                         hash: ObjectKey) {
-
-        debug!("Caching file hash: {} => {}", file_path.display(), hash);
-        self.0.insert(file_path.into(), CacheEntry::new(meta, hash));
+        debug!("Caching file hash: {} => {}", path.display(), hash);
+        self.0.insert(path.into(), CacheEntry::new(meta, hash));
     }
 
-    pub fn get<'a, P: ?Sized + AsRef<path::Path>>(&self,
-                                                  file_path: &'a P)
-                                                  -> Option<&CacheEntry> {
-        self.0.get(file_path.as_ref())
+    pub fn get<'a, P: ?Sized>(&self, path: &'a P) -> Option<&CacheEntry>
+        where P: AsRef<path::Path>
+    {
+        self.0.get(path.as_ref())
     }
 
-    pub fn check<'a, P: ?Sized + AsRef<path::Path>>(&self,
-                                                    file_path: &'a P,
-                                                    meta: &fs::Metadata)
-                                                    -> Option<ObjectKey> {
-        CacheEntry::check(self.0.get(file_path.as_ref()), meta)
+    pub fn check<'a, P: ?Sized>(&self,
+                                path: &'a P,
+                                meta: &Metadata)
+                                -> Option<ObjectKey>
+        where P: AsRef<path::Path>
+    {
+        CacheEntry::check(self.0.get(path.as_ref()), meta)
     }
 
-    pub fn status<'a, P: ?Sized + AsRef<path::Path>>(&self,
-                                                     file_path: &'a P,
-                                                     meta: &fs::Metadata)
-                                                     -> CacheStatus {
-        CacheEntry::status(self.0.get(file_path.as_ref()), meta)
+    pub fn status<'a, P: ?Sized>(&self,
+                                 path: &'a P,
+                                 meta: &Metadata)
+                                 -> CacheStatus
+        where P: AsRef<path::Path>
+    {
+        CacheEntry::status(self.0.get(path.as_ref()), meta)
     }
 }
 
@@ -166,7 +167,7 @@ impl AllCaches {
 
     pub fn status(&self,
                   file_path: &path::Path,
-                  meta: &fs::Metadata)
+                  meta: &Metadata)
                   -> Result<CacheStatus> {
         let entry = self.get(file_path)?;
         Ok(CacheEntry::status(entry.as_ref(), meta))
@@ -174,7 +175,7 @@ impl AllCaches {
 
     pub fn check(&self,
                  file_path: &path::Path,
-                 meta: &fs::Metadata)
+                 meta: &Metadata)
                  -> Result<Option<ObjectKey>> {
         let entry = self.get(file_path)?;
         Ok(CacheEntry::check(entry.as_ref(), meta))
@@ -182,7 +183,7 @@ impl AllCaches {
 
     pub fn insert(&mut self,
                   file_path: path::PathBuf,
-                  meta: &fs::Metadata,
+                  meta: &Metadata,
                   hash: ObjectKey)
                   -> Result<()> {
 
