@@ -10,7 +10,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::hash::Hash;
 use std::hash::Hasher;
-use std::io;
 use std::path;
 
 
@@ -80,16 +79,36 @@ pub struct HashCache(CacheMap);
 /// Data stored in the cache for each file
 #[derive(Clone,Hash,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
 pub struct CacheEntry {
-    pub filestats: FileStats,
+    pub mtime: encodable::SystemTime,
+    pub size: ObjectSize,
     pub hash: ObjectKey,
 }
 
-/// Subset of file metadata used to determine if file has been modified
-#[derive(Clone,Hash,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
-pub struct FileStats {
-    size: ObjectSize,
-    mtime: encodable::SystemTime,
+impl CacheEntry {
+    fn new(meta: &fs::Metadata, hash: ObjectKey) -> Self {
+        CacheEntry {
+            mtime: meta.modified().expect("metadata has no mod time").into(),
+            size: meta.len(),
+            hash: hash,
+        }
+    }
+    fn meta_match(&self, meta: &fs::Metadata) -> bool {
+        self.size == meta.len() &&
+        *self.mtime == meta.modified().expect("metadata has no mod time")
+    }
+    fn status(entry: Option<&CacheEntry>, meta: &fs::Metadata) -> CacheStatus {
+        match entry {
+            Some(ref entry) if entry.meta_match(meta) => {
+                CacheStatus::Cached(entry.hash)
+            }
+            Some(_) => CacheStatus::Modified,
+            None => CacheStatus::NotCached,
+        }
+    }
 }
+
+
+
 
 /// Cache of caches
 pub struct AllCaches(// TODO: Use an actual cache that can purge entries
@@ -102,15 +121,11 @@ impl HashCache {
 
     pub fn insert_entry(&mut self,
                         file_path: path::PathBuf,
-                        file_stats: FileStats,
+                        meta: &fs::Metadata,
                         hash: ObjectKey) {
 
         debug!("Caching file hash: {} => {}", file_path.display(), hash);
-        self.0.insert(file_path.into(),
-                      CacheEntry {
-                          filestats: file_stats,
-                          hash: hash,
-                      });
+        self.0.insert(file_path.into(), CacheEntry::new(meta, hash));
     }
 
     pub fn get<'a, P: ?Sized + AsRef<path::Path>>(&self,
@@ -121,15 +136,9 @@ impl HashCache {
 
     pub fn check<'a, P: ?Sized + AsRef<path::Path>>(&self,
                                                     file_path: &'a P,
-                                                    file_stats: &FileStats)
+                                                    meta: &fs::Metadata)
                                                     -> CacheStatus {
-        match self.0.get(file_path.as_ref()) {
-            Some(entry) if entry.filestats == *file_stats => {
-                CacheStatus::Cached(entry.hash)
-            }
-            Some(_) => CacheStatus::Modified,
-            None => CacheStatus::NotCached,
-        }
+        CacheEntry::status(self.0.get(file_path.as_ref()), meta)
     }
 }
 
@@ -160,24 +169,7 @@ impl Hash for HashCache {
     }
 }
 
-// FileStats
 
-impl FileStats {
-    pub fn read(file_path: &path::Path) -> io::Result<Self> {
-        fs::metadata(file_path).map(|x| x.into())
-    }
-}
-
-impl From<fs::Metadata> for FileStats {
-    fn from(metadata: fs::Metadata) -> FileStats {
-        FileStats {
-            size: metadata.len(),
-            mtime: metadata.modified()
-                .expect("system has no mod time in file stats")
-                .into(),
-        }
-    }
-}
 
 // AllCaches
 
@@ -200,7 +192,7 @@ impl AllCaches {
 
     pub fn check_with(&self,
                       file_path: &path::Path,
-                      stats: &FileStats)
+                      meta: &fs::Metadata)
                       -> Result<CacheStatus> {
 
         let dir_path = file_path.parent_or_err()?;
@@ -208,12 +200,12 @@ impl AllCaches {
         self.read_dir_cache(dir_path)?;
         let caches = self.0.try_borrow()?;
         let cache = caches.get(dir_path).expect("just read cache");
-        Ok(cache.check(file_name, stats))
+        Ok(cache.check(file_name, meta))
     }
 
     pub fn insert(&mut self,
                   file_path: path::PathBuf,
-                  stats: FileStats,
+                  meta: &fs::Metadata,
                   hash: ObjectKey)
                   -> Result<()> {
 
@@ -222,7 +214,7 @@ impl AllCaches {
         self.read_dir_cache(dir_path)?;
         let mut caches = self.0.try_borrow_mut()?;
         let cache = caches.get_mut(dir_path).expect("just read cache");
-        Ok(cache.insert_entry(file_name.into(), stats, hash))
+        Ok(cache.insert_entry(file_name.into(), meta, hash))
     }
 
     pub fn flush(&mut self) { self.0.borrow_mut().clear() }
@@ -239,10 +231,8 @@ mod test {
     fn test_serialize_filecache() {
         let mut obj = HashCache::new();
         obj.insert(encodable::PathBuf::from("patha/x"), CacheEntry{
-            filestats: FileStats{
                 mtime: encodable::SystemTime::unix_epoch_plus(120, 55),
                 size: 12345,
-            },
             hash: ObjectKey::from("d3486ae9136e7856bc42212385ea797094475802"),
         });
         let encoded = json::encode(&obj).unwrap();

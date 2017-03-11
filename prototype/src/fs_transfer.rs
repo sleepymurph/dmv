@@ -2,7 +2,6 @@
 
 use cache::AllCaches;
 use cache::CacheStatus;
-use cache::FileStats;
 use dag::ObjectKey;
 use dag::ObjectSize;
 use dag::Tree;
@@ -87,10 +86,10 @@ impl FsTransfer {
 
     fn hash_file(&mut self, file_path: &Path) -> Result<ObjectKey> {
         let file = File::open(&file_path)?;
-        let file_stats = FileStats::from(file.metadata()?);
+        let meta = file.metadata()?;
         let file = BufReader::new(file);
 
-        return_if_cached!(self.fs_lookup.cache, &file_path, &file_stats);
+        return_if_cached!(self.fs_lookup.cache, &file_path, &meta);
         debug!("Hashing {}", file_path.display());
 
         let mut last_hash = None;
@@ -103,7 +102,7 @@ impl FsTransfer {
 
         self.fs_lookup
             .cache
-            .insert(file_path.to_owned(), file_stats, last_hash.to_owned())?;
+            .insert(file_path.to_owned(), &meta, last_hash.to_owned())?;
 
         Ok(last_hash)
     }
@@ -150,8 +149,7 @@ impl FileLookup {
         object_store.copy_blob_content(hash, &mut out_file)?;
         out_file.flush()?;
 
-        let file_stats = FileStats::from(out_file.metadata()?);
-        self.cache.insert(path.to_owned(), file_stats, hash.to_owned())?;
+        self.cache.insert(path.to_owned(), &out_file.metadata()?, *hash)?;
 
         Ok(())
     }
