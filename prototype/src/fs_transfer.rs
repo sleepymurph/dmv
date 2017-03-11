@@ -1,7 +1,6 @@
 //! Functionality for transfering files between filesystem and object store
 
 use cache::AllCaches;
-use cache::CacheStatus;
 use dag::ObjectKey;
 use dag::ObjectSize;
 use dag::Tree;
@@ -89,7 +88,10 @@ impl FsTransfer {
         let meta = file.metadata()?;
         let file = BufReader::new(file);
 
-        return_if_cached!(self.fs_lookup.cache, &file_path, &meta);
+        if let Ok(Some(hash)) = self.fs_lookup.cache.check(file_path, &meta) {
+            debug!("Already hashed: {} {}", hash, file_path.display());
+            return Ok(hash);
+        }
         debug!("Hashing {}", file_path.display());
 
         let mut last_hash = None;
@@ -135,9 +137,16 @@ impl FileLookup {
                     hash: &ObjectKey,
                     path: &Path)
                     -> Result<()> {
-        return_if_cache_matches!(self.cache, path, hash);
 
-        if path.is_dir() {
+        if path.is_file() {
+            if let Some(ref c) = self.cache.check(path, &path.metadata()?)? {
+                if c == hash {
+                    debug!("Already at state: {} {}", hash, path.display());
+                    return Ok(());
+                }
+            }
+        } else if path.is_dir() {
+            info!("Removing dir to extract file {} {}", hash, path.display());
             remove_dir_all(path)?;
         }
 
@@ -158,13 +167,8 @@ impl FileLookup {
 impl NodeLookup<PathBuf, PathWalkNode> for FileLookup {
     fn lookup_node(&self, path: PathBuf) -> Result<PathWalkNode> {
         let meta = path.metadata()?;
-        let hash = match self.cache
-            .check_with(&path, &meta.clone().into())? {
-            CacheStatus::Cached(hash) => Some(hash),
-            _ => None,
-        };
         Ok(PathWalkNode {
-            hash: hash,
+            hash: self.cache.check(&path, &meta)?,
             ignored: self.ignored.ignores(path.as_path()),
             path: path,
             metadata: meta,
@@ -544,7 +548,10 @@ mod test {
         assert!(out_content.as_slice() == in_file, "file contents differ");
 
         // Make sure the output is cached
-        assert_eq!(fs_transfer.fs_lookup.cache.check(&out_file).unwrap(),
+        assert_eq!(fs_transfer.fs_lookup
+                       .cache
+                       .status(&out_file, &out_file.metadata().unwrap())
+                       .unwrap(),
                    CacheStatus::Cached(hash),
                    "Cache should be primed with extracted file's hash");
     }

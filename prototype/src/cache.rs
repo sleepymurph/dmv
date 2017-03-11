@@ -7,6 +7,7 @@ use error::*;
 use rustc_serialize;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt;
 use std::fs;
 use std::hash::Hash;
 use std::hash::Hasher;
@@ -21,52 +22,16 @@ pub enum CacheStatus {
     Cached(ObjectKey),
 }
 
-/// Does an early return with the cached hash value if it is present
-///
-/// Like a `try!` for caching.
-#[macro_export]
-macro_rules! return_if_cached {
-    (do_check; $path:expr, $cache_check:expr) => {
-        if let Ok($crate::cache::CacheStatus::Cached(hash)) = $cache_check {
-                debug!("Already hashed: {} {}", hash, $path.display());
-                return Ok(hash);
+impl fmt::Display for CacheStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &CacheStatus::Cached(ref hash) => write!(f, "{}", hash),
+            &CacheStatus::Modified => write!(f, "modified"),
+            &CacheStatus::NotCached => write!(f, "        "),
         }
-    };
-    ($cache:expr, $path:expr) => {
-        return_if_cached!{do_check; $path, $cache.check($path)};
-    };
-    ($cache:expr, $path:expr, $metadata:expr) => {
-        return_if_cached!{do_check; $path, $cache.check_with($path, $metadata)};
-    };
+    }
 }
 
-/// Does an early return if the cached value matches
-///
-/// Like a `try!` for caching.
-#[macro_export]
-macro_rules! return_if_cache_matches {
-    (do_check; $path:expr, $hash:expr, $cache_check:expr) => {
-        if $path.exists() {
-            match $cache_check {
-                Ok($crate::cache::CacheStatus::Cached(ref cache_hash))
-                    if cache_hash == $hash => {
-                        debug!("Already at state: {} {}",
-                                cache_hash, $path.display());
-                        return Ok(());
-                }
-                _ => {}
-            }
-        }
-    };
-    ($cache:expr, $path:expr, $hash:expr) => {
-        return_if_cache_matches!{do_check; $path, $hash,
-                                    $cache.check($path)};
-    };
-    ($cache:expr, $path:expr, $metadata:expr, $hash:expr) => {
-        return_if_cache_matches!{do_check; $path, $hash,
-                                    $cache.check_with($path, $metadata)};
-    };
-}
 
 type CacheMap = HashMap<encodable::PathBuf, CacheEntry>;
 
@@ -105,6 +70,14 @@ impl CacheEntry {
             None => CacheStatus::NotCached,
         }
     }
+    fn check(entry: Option<&CacheEntry>,
+             meta: &fs::Metadata)
+             -> Option<ObjectKey> {
+        match entry {
+            Some(ref entry) if entry.meta_match(meta) => Some(entry.hash),
+            _ => None,
+        }
+    }
 }
 
 
@@ -137,7 +110,14 @@ impl HashCache {
     pub fn check<'a, P: ?Sized + AsRef<path::Path>>(&self,
                                                     file_path: &'a P,
                                                     meta: &fs::Metadata)
-                                                    -> CacheStatus {
+                                                    -> Option<ObjectKey> {
+        CacheEntry::check(self.0.get(file_path.as_ref()), meta)
+    }
+
+    pub fn status<'a, P: ?Sized + AsRef<path::Path>>(&self,
+                                                     file_path: &'a P,
+                                                     meta: &fs::Metadata)
+                                                     -> CacheStatus {
         CacheEntry::status(self.0.get(file_path.as_ref()), meta)
     }
 }
@@ -185,22 +165,29 @@ impl AllCaches {
         Ok(())
     }
 
-    pub fn check(&self, file_path: &path::Path) -> Result<CacheStatus> {
-        let metadata = file_path.metadata()?;
-        self.check_with(file_path, &metadata.into())
-    }
-
-    pub fn check_with(&self,
-                      file_path: &path::Path,
-                      meta: &fs::Metadata)
-                      -> Result<CacheStatus> {
-
+    fn get(&self, file_path: &path::Path) -> Result<Option<CacheEntry>> {
         let dir_path = file_path.parent_or_err()?;
         let file_name = file_path.file_name_or_err()?;
         self.read_dir_cache(dir_path)?;
         let caches = self.0.try_borrow()?;
         let cache = caches.get(dir_path).expect("just read cache");
-        Ok(cache.check(file_name, meta))
+        Ok(cache.get(file_name).cloned())
+    }
+
+    pub fn status(&self,
+                  file_path: &path::Path,
+                  meta: &fs::Metadata)
+                  -> Result<CacheStatus> {
+        let entry = self.get(file_path)?;
+        Ok(CacheEntry::status(entry.as_ref(), meta))
+    }
+
+    pub fn check(&self,
+                 file_path: &path::Path,
+                 meta: &fs::Metadata)
+                 -> Result<Option<ObjectKey>> {
+        let entry = self.get(file_path)?;
+        Ok(CacheEntry::check(entry.as_ref(), meta))
     }
 
     pub fn insert(&mut self,
