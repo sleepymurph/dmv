@@ -54,14 +54,16 @@ impl FsTransfer {
     /// Check, hash, and store a file or directory
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
         debug!("Hashing object, with framework");
+        let no_answer_err = || Error::from("Nothing to hash (all ignored?)");
         let hash_plan = self.fs_lookup
-            .walk_handle(&mut FsOnlyPlanBuilder, path.to_owned())?;
+            .walk_handle(&mut FsOnlyPlanBuilder, path.to_owned())?
+            .ok_or_else(&no_answer_err)?;
         if hash_plan.unhashed_size() > 0 {
             stderrln!("{} to hash. Hashing...",
                       human_bytes(hash_plan.unhashed_size()));
         }
         hash_plan.walk(&mut HashAndStoreOp { fs_transfer: self })?
-            .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
+            .ok_or_else(&no_answer_err)
     }
 }
 
@@ -98,11 +100,18 @@ impl FsTransfer {
                           path: &Path)
                           -> Result<()> {
 
-        self.open_object(hash)
-            .and_then(|handle| self.extract_object_open(handle, hash, path))
+        let mut op = ExtractObjectOp {
+            fs_lookup: &mut self.fs_lookup,
+            object_store: &self.object_store,
+            extract_root: path,
+        };
+
+        self.object_store
+            .walk_handle(&mut op, *hash)
             .chain_err(|| {
                 format!("Could not extract {} to {}", hash, path.display())
-            })
+            })?;
+        Ok(())
     }
 
     fn extract_object_open(&mut self,
@@ -542,6 +551,57 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
     }
 }
 
+
+pub struct ExtractObjectOp<'a> {
+    fs_lookup: &'a mut FileLookup,
+    object_store: &'a ObjectStore,
+    extract_root: &'a Path,
+}
+
+impl<'a> ExtractObjectOp<'a> {
+    fn abs_path(&self, ps: &PathStack) -> PathBuf {
+        let mut abs_path = self.extract_root.to_path_buf();
+        for path in ps {
+            abs_path.push(path);
+        }
+        abs_path
+    }
+}
+
+impl<'a> WalkOp<ObjectWalkNode> for ExtractObjectOp<'a> {
+    type VisitResult = ();
+
+    fn should_descend(&mut self,
+                      _ps: &PathStack,
+                      node: &ObjectWalkNode)
+                      -> bool {
+        node.1.is_treeish()
+    }
+
+    fn pre_descend(&mut self,
+                   ps: &PathStack,
+                   node: &ObjectWalkNode)
+                   -> Result<()> {
+        let dir_path = self.abs_path(ps);
+        if !dir_path.is_dir() {
+            if dir_path.exists() {
+                remove_file(&dir_path)?;
+            }
+            create_dir(&dir_path)?;
+        }
+        Ok(())
+    }
+
+    fn no_descend(&mut self,
+                  ps: &PathStack,
+                  node: ObjectWalkNode)
+                  -> Result<Option<Self::VisitResult>> {
+        let abs_path = self.abs_path(ps);
+        self.fs_lookup
+            .extract_file(self.object_store, &node.0, abs_path.as_path())?;
+        Ok(None)
+    }
+}
 
 #[cfg(test)]
 mod test {

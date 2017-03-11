@@ -17,11 +17,14 @@ pub trait NodeLookup<H, N>: NodeReader<N> {
     fn lookup_node(&self, handle: H) -> Result<N>;
 
     /// Do a walk operation, starting with the given node handle
-    fn walk_handle<O>(&self, op: &mut O, start: H) -> Result<O::VisitResult>
+    fn walk_handle<O>(&self,
+                      op: &mut O,
+                      start: H)
+                      -> Result<Option<O::VisitResult>>
         where O: WalkOp<N>
     {
         let first = self.lookup_node(start)?;
-        self.walk_node(op, first)?.ok_or("No answer".into())
+        self.walk_node(op, first)
     }
 }
 
@@ -50,6 +53,7 @@ pub trait NodeReader<N> {
     {
         if op.should_descend(path_stack, &node) {
             trace!("-> {}", path_stack.join("/"));
+            op.pre_descend(path_stack, &node)?;
             let mut children = ChildMap::new();
             for (name, node) in self.read_children(&node)? {
                 path_stack.push(name.to_owned());
@@ -111,17 +115,33 @@ pub trait WalkOp<N> {
     /// Called before visiting a node that was not descended into
     ///
     /// Return None to not include the result in the list of children
+    ///
+    /// Default implementation is a no-op
     fn no_descend(&mut self,
-                  path_stack: &PathStack,
-                  node: N)
-                  -> Result<Option<Self::VisitResult>>;
+                  _ps: &PathStack,
+                  _node: N)
+                  -> Result<Option<Self::VisitResult>> {
+        Ok(None)
+    }
+
+
+    /// Called before descending in to tree node to gather its child results
+    ///
+    /// Default implementation is a no-op
+    fn pre_descend(&mut self, _ps: &PathStack, _node: &N) -> Result<()> {
+        Ok(())
+    }
 
     /// Called after descending in to tree node and gathering its child results
+    ///
+    /// Default implementation is a no-op
     fn post_descend(&mut self,
-                    path_stack: &PathStack,
-                    node: N,
-                    children: ChildMap<Self::VisitResult>)
-                    -> Result<Option<Self::VisitResult>>;
+                    _ps: &PathStack,
+                    _node: N,
+                    _children: ChildMap<Self::VisitResult>)
+                    -> Result<Option<Self::VisitResult>> {
+        Ok(None)
+    }
 }
 
 
