@@ -56,12 +56,21 @@ pub fn object_size_from_bytes(buf: &[u8]) -> ObjectSize {
 }
 
 /// Simple enum to represent the available object types
-#[derive(Clone,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
+#[derive(Clone,Copy,Eq,PartialEq,Ord,PartialOrd,Hash,Debug)]
 pub enum ObjectType {
     Blob,
     ChunkedBlob,
     Tree,
     Commit,
+}
+
+impl ObjectType {
+    pub fn is_treeish(&self) -> bool {
+        self == &ObjectType::Tree || self == &ObjectType::Commit
+    }
+    pub fn is_blobish(&self) -> bool {
+        self == &ObjectType::Blob || self == &ObjectType::ChunkedBlob
+    }
 }
 
 impl fmt::Display for ObjectType {

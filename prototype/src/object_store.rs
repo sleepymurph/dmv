@@ -276,12 +276,12 @@ lazy_static!{
 }
 
 
-type ObjectWalkNode = (ObjectKey, ObjectHeader);
+pub type ObjectWalkNode = (ObjectKey, ObjectType);
 
 impl NodeLookup<ObjectKey, ObjectWalkNode> for ObjectStore {
     fn lookup_node(&mut self, handle: ObjectKey) -> Result<ObjectWalkNode> {
-        let header = self.open_object(&handle)?.header().clone();
-        Ok((handle, header))
+        let object_type = self.open_object(&handle)?.header().object_type;
+        Ok((handle, object_type))
     }
 }
 
