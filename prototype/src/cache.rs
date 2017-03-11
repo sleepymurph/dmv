@@ -200,21 +200,22 @@ impl AllCaches {
         Ok(self.0.get_mut(dir_path).expect("just inserted"))
     }
 
-    pub fn check(&mut self, file_path: &path::Path) -> Result<CacheStatus> {
-        let metadata = try!(file_path.metadata());
+    pub fn check(&self, file_path: &path::Path) -> Result<CacheStatus> {
+        let metadata = file_path.metadata()?;
         self.check_with(file_path, &metadata.into())
     }
 
-    pub fn check_with(&mut self,
+    pub fn check_with(&self,
                       file_path: &path::Path,
                       stats: &FileStats)
                       -> Result<CacheStatus> {
 
-        let dir_path = try!(file_path.parent_or_err());
-        let dir_cache = try!(self.cache_for_dir(dir_path));
-
-        let file_name = try!(file_path.file_name_or_err());
-        Ok(dir_cache.check(file_name, stats))
+        let dir_path = file_path.parent_or_err()?;
+        let file_name = file_path.file_name_or_err()?;
+        match self.0.get(dir_path) {
+            Some(cache) => Ok(cache.check(file_name, stats)),
+            None => Ok(CacheStatus::NotCached { size: stats.size }),
+        }
     }
 
     pub fn insert(&mut self,
@@ -223,10 +224,9 @@ impl AllCaches {
                   hash: ObjectKey)
                   -> Result<()> {
 
-        let dir_path = try!(file_path.parent_or_err());
-        let dir_cache = try!(self.cache_for_dir(dir_path));
-
-        let file_name = try!(file_path.file_name_or_err());
+        let dir_path = file_path.parent_or_err()?;
+        let file_name = file_path.file_name_or_err()?;
+        let dir_cache = self.cache_for_dir(dir_path)?;
         Ok(dir_cache.insert_entry(file_name.into(), stats, hash))
     }
 

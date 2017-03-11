@@ -57,7 +57,7 @@ pub fn extract_object(obj_spec: &RevSpec, file_path: &Path) -> Result<()> {
 }
 
 pub fn cache_status(file_path: PathBuf) -> Result<()> {
-    let mut cache = AllCaches::new();
+    let cache = AllCaches::new();
     let cache_status = try!(cache.check(&file_path));
     println!("{:?}", cache_status);
     Ok(())
