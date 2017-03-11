@@ -33,13 +33,6 @@ impl fmt::Display for CacheStatus {
 }
 
 
-type CacheMap = HashMap<encodable::PathBuf, CacheEntry>;
-
-wrapper_struct!{
-/// A cache of known file hashes
-#[derive(Clone,Eq,PartialEq,Debug,Default)]
-pub struct HashCache(CacheMap);
-}
 
 /// Data stored in the cache for each file
 #[derive(Clone,Hash,Eq,PartialEq,Debug,RustcEncodable,RustcDecodable)]
@@ -82,15 +75,14 @@ impl CacheEntry {
 
 
 
-
-/// Cache of caches
-pub struct AllCaches(// TODO: Use an actual cache that can purge entries
-                     RefCell<HashMap<path::PathBuf, DiskBacked<HashCache>>>);
-
-// HashCache
+wrapper_struct!{
+    /// A cache of known file hashes
+    #[derive(Clone,Eq,PartialEq,Debug,Default)]
+    pub struct HashCache(HashMap<encodable::PathBuf, CacheEntry>);
+}
 
 impl HashCache {
-    pub fn new() -> Self { HashCache(CacheMap::new()) }
+    pub fn new() -> Self { HashCache(HashMap::new()) }
 
     pub fn insert_entry(&mut self,
                         file_path: path::PathBuf,
@@ -135,8 +127,7 @@ impl rustc_serialize::Decodable for HashCache {
     fn decode<D: rustc_serialize::Decoder>
         (d: &mut D)
          -> ::std::result::Result<Self, D::Error> {
-        let cache_map =
-            try!(<CacheMap as rustc_serialize::Decodable>::decode(d));
+        let cache_map = <HashMap<_,_> as rustc_serialize::Decodable>::decode(d)?;
         Ok(HashCache(cache_map))
     }
 }
@@ -151,7 +142,9 @@ impl Hash for HashCache {
 
 
 
-// AllCaches
+/// Cache of caches
+pub struct AllCaches(// TODO: Use an actual cache that can purge entries
+                     RefCell<HashMap<path::PathBuf, DiskBacked<HashCache>>>);
 
 impl AllCaches {
     pub fn new() -> Self { AllCaches(RefCell::new(HashMap::new())) }
@@ -206,6 +199,8 @@ impl AllCaches {
 
     pub fn flush(&mut self) { self.0.borrow_mut().clear() }
 }
+
+
 
 #[cfg(test)]
 mod test {
