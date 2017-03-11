@@ -30,8 +30,7 @@ use walker::*;
 
 pub struct FsTransfer {
     pub object_store: ObjectStore,
-    pub cache: AllCaches,
-    pub ignored: IgnoreList,
+    pub fs_lookup: FileLookup,
 }
 
 impl_deref_mut!(FsTransfer => ObjectStore, object_store);
@@ -44,8 +43,7 @@ impl FsTransfer {
 
         FsTransfer {
             object_store: object_store,
-            ignored: ignored,
-            cache: AllCaches::new(),
+            fs_lookup: FileLookup::new(),
         }
     }
 
@@ -74,7 +72,7 @@ impl FsTransfer {
         let file_stats = FileStats::from(file.metadata()?);
         let file = BufReader::new(file);
 
-        return_if_cached!(self.cache, &file_path, &file_stats);
+        return_if_cached!(self.fs_lookup.cache, &file_path, &file_stats);
         debug!("Hashing {}", file_path.display());
 
         let mut last_hash = None;
@@ -85,7 +83,8 @@ impl FsTransfer {
         }
         let last_hash = last_hash.expect("Iterator always emits objects");
 
-        self.cache
+        self.fs_lookup
+            .cache
             .insert(file_path.to_owned(), file_stats, last_hash.to_owned())?;
 
         Ok(last_hash)
@@ -152,7 +151,7 @@ impl FsTransfer {
                          hash: &ObjectKey,
                          path: &Path)
                          -> Result<()> {
-        return_if_cache_matches!(self.cache, path, hash);
+        return_if_cache_matches!(self.fs_lookup.cache, path, hash);
 
         if path.is_dir() {
             remove_dir_all(path)?;
@@ -167,7 +166,9 @@ impl FsTransfer {
 
         out_file.flush()?;
         let file_stats = FileStats::from(out_file.metadata()?);
-        self.cache.insert(path.to_owned(), file_stats, hash.to_owned())?;
+        self.fs_lookup
+            .cache
+            .insert(path.to_owned(), file_stats, hash.to_owned())?;
 
         Ok(())
     }
@@ -208,23 +209,7 @@ struct PathWalkNode {
 
 impl NodeLookup<PathBuf, PathWalkNode> for FsTransfer {
     fn lookup_node(&mut self, path: PathBuf) -> Result<PathWalkNode> {
-        let meta = path.metadata()?;
-        let hash;
-        if meta.is_file() {
-            hash = match self.cache
-                .check_with(&path, &meta.clone().into())? {
-                CacheStatus::Cached { hash } => Some(hash),
-                _ => None,
-            };
-        } else {
-            hash = None;
-        }
-        Ok(PathWalkNode {
-            hash: hash,
-            ignored: self.ignored.ignores(path.as_path()),
-            path: path,
-            metadata: meta,
-        })
+        self.fs_lookup.lookup_node(path)
     }
 }
 
@@ -232,18 +217,7 @@ impl NodeReader<PathWalkNode> for FsTransfer {
     fn read_children(&mut self,
                      node: &PathWalkNode)
                      -> Result<ChildMap<PathWalkNode>> {
-        let mut children = BTreeMap::new();
-        for entry in read_dir(&node.path)? {
-            let entry = entry?;
-            let path = entry.path();
-            let name = path.file_name_or_err()?
-                .to_os_string()
-                .into_string()
-                .map_err(|e| format!("Bad UTF-8 in name: {:?}", e))?;
-            let node = self.lookup_node(path.clone())?;
-            children.insert(name, node);
-        }
-        Ok(children)
+        self.fs_lookup.read_children(node)
     }
 }
 
@@ -604,7 +578,7 @@ mod test {
         assert!(out_content.as_slice() == in_file, "file contents differ");
 
         // Make sure the output is cached
-        assert_eq!(fs_transfer.cache.check(&out_file).unwrap(),
+        assert_eq!(fs_transfer.fs_lookup.cache.check(&out_file).unwrap(),
                    CacheStatus::Cached { hash: hash },
                    "Cache should be primed with extracted file's hash");
     }
