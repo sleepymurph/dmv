@@ -51,8 +51,6 @@ pub mod error;
 pub mod constants;
 #[macro_use]
 pub mod dag;
-#[macro_use]
-pub mod item;
 pub mod rolling_hash;
 pub mod object_store;
 #[macro_use]
