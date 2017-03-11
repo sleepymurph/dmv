@@ -403,10 +403,11 @@ impl FsOnlyPlanBuilder {
 impl WalkOp<PathWalkNode> for FsOnlyPlanBuilder {
     type VisitResult = HashPlan;
 
-    fn should_descend(&mut self, node: &PathWalkNode) -> bool {
+    fn should_descend(&mut self, _ps: &PathStack, node: &PathWalkNode) -> bool {
         node.metadata.is_dir() && self.status(node).is_included_in_commit()
     }
     fn no_descend(&mut self,
+                  _ps: &PathStack,
                   node: PathWalkNode)
                   -> Result<Option<Self::VisitResult>> {
         Ok(Some(HashPlan {
@@ -419,10 +420,11 @@ impl WalkOp<PathWalkNode> for FsOnlyPlanBuilder {
         }))
     }
     fn post_descend(&mut self,
+                    ps: &PathStack,
                     node: PathWalkNode,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
-        self.no_descend(node).map(|result| {
+        self.no_descend(ps, node).map(|result| {
             result.map(|mut plan| {
                 plan.children = children;
                 plan
@@ -463,7 +465,7 @@ impl FsObjComparePlanBuilder {
 impl WalkOp<(CompareNode)> for FsObjComparePlanBuilder {
     type VisitResult = HashPlan;
 
-    fn should_descend(&mut self, node: &CompareNode) -> bool {
+    fn should_descend(&mut self, _ps: &PathStack, node: &CompareNode) -> bool {
         let path_is_dir = match node.0 {
             Some(ref pwn) => pwn.metadata.is_dir(),
             None => false,
@@ -471,6 +473,7 @@ impl WalkOp<(CompareNode)> for FsObjComparePlanBuilder {
         path_is_dir && Self::status(&node).is_included_in_commit()
     }
     fn no_descend(&mut self,
+                  _ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
         let status = Self::status(&node);
@@ -499,10 +502,11 @@ impl WalkOp<(CompareNode)> for FsObjComparePlanBuilder {
         }
     }
     fn post_descend(&mut self,
+                    ps: &PathStack,
                     node: CompareNode,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
-        self.no_descend(node).map(|result| {
+        self.no_descend(ps, node).map(|result| {
             result.map(|mut plan| {
                 plan.children = children;
                 plan
@@ -518,11 +522,12 @@ pub struct HashAndStoreOp<'a> {
 impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
     type VisitResult = ObjectKey;
 
-    fn should_descend(&mut self, node: &&HashPlan) -> bool {
+    fn should_descend(&mut self, _ps: &PathStack, node: &&HashPlan) -> bool {
         node.is_dir && node.status.is_included_in_commit()
     }
 
     fn no_descend(&mut self,
+                  _ps: &PathStack,
                   node: &HashPlan)
                   -> Result<Option<Self::VisitResult>> {
         match (node.status.is_included_in_commit(), node.hash) {
@@ -536,6 +541,7 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
     }
 
     fn post_descend(&mut self,
+                    _ps: &PathStack,
                     _node: &HashPlan,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {

@@ -7,6 +7,10 @@ use std::collections::BTreeMap;
 /// Type for reading and iterating over a node's children
 pub type ChildMap<N> = BTreeMap<String, N>;
 
+/// Tracks the position in the hierarchy during a walk
+pub type PathStack = Vec<String>;
+
+
 /// A repository that can look up nodes by some handle
 pub trait NodeLookup<H, N>: NodeReader<N> {
     /// Given a handlem, read in the appropriate node
@@ -21,6 +25,7 @@ pub trait NodeLookup<H, N>: NodeReader<N> {
     }
 }
 
+
 /// A repository that can follow from one node to get its children
 pub trait NodeReader<N> {
     /// Given a node, read its children
@@ -33,19 +38,36 @@ pub trait NodeReader<N> {
                     -> Result<Option<O::VisitResult>>
         where O: WalkOp<N>
     {
-        if op.should_descend(&node) {
+        self.walk_node_stack(op, node, &mut PathStack::new())
+    }
+
+    fn walk_node_stack<O>(&mut self,
+                          op: &mut O,
+                          node: N,
+                          path_stack: &mut PathStack)
+                          -> Result<Option<O::VisitResult>>
+        where O: WalkOp<N>
+    {
+        if op.should_descend(path_stack, &node) {
+            trace!("-> {}", path_stack.join("/"));
             let mut children = ChildMap::new();
             for (name, node) in self.read_children(&node)? {
-                if let Some(result) = self.walk_node(op, node)? {
+                path_stack.push(name.to_owned());
+                if let Some(result) =
+                       self.walk_node_stack(op, node, path_stack)? {
                     children.insert(name, result);
                 }
+                path_stack.pop();
             }
-            op.post_descend(node, children)
+            trace!("<- {}", path_stack.join("/"));
+            op.post_descend(path_stack, node, children)
         } else {
-            op.no_descend(node)
+            trace!("** {}", path_stack.join("/"));
+            op.no_descend(path_stack, node)
         }
     }
 }
+
 
 /// A node type that has its children in memory, can be walked directly
 pub trait NodeWithChildren: Sized {
@@ -77,21 +99,26 @@ impl<'a, N: 'a> NodeReader<&'a N> for ()
     }
 }
 
+
 /// An operation that takes place by walking over nodes
 pub trait WalkOp<N> {
     /// The result of this operation
     type VisitResult;
 
     /// Called before descending into a tree node, return false to stop descent
-    fn should_descend(&mut self, node: &N) -> bool;
+    fn should_descend(&mut self, path_stack: &PathStack, node: &N) -> bool;
 
     /// Called before visiting a node that was not descended into
     ///
     /// Return None to not include the result in the list of children
-    fn no_descend(&mut self, node: N) -> Result<Option<Self::VisitResult>>;
+    fn no_descend(&mut self,
+                  path_stack: &PathStack,
+                  node: N)
+                  -> Result<Option<Self::VisitResult>>;
 
     /// Called after descending in to tree node and gathering its child results
     fn post_descend(&mut self,
+                    path_stack: &PathStack,
                     node: N,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>>;
