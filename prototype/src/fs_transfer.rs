@@ -3,7 +3,6 @@
 use cache::AllCaches;
 use cache::CacheStatus;
 use cache::FileStats;
-use dag::ObjectHandle;
 use dag::ObjectKey;
 use dag::ObjectSize;
 use dag::Tree;
@@ -14,6 +13,7 @@ use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
 use rolling_hash::read_file_objects;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::fs::File;
 use std::fs::Metadata;
 use std::fs::OpenOptions;
@@ -65,10 +65,26 @@ impl FsTransfer {
         hash_plan.walk(&mut HashAndStoreOp { fs_transfer: self })?
             .ok_or_else(&no_answer_err)
     }
-}
 
-/// Methods for hashing and storing files
-impl FsTransfer {
+    pub fn extract_object(&mut self,
+                          hash: &ObjectKey,
+                          path: &Path)
+                          -> Result<()> {
+
+        let mut op = ExtractObjectOp {
+            fs_lookup: &mut self.fs_lookup,
+            object_store: &self.object_store,
+            extract_root: path,
+        };
+
+        self.object_store
+            .walk_handle(&mut op, *hash)
+            .chain_err(|| {
+                format!("Could not extract {} to {}", hash, path.display())
+            })?;
+        Ok(())
+    }
+
     fn hash_file(&mut self, file_path: &Path) -> Result<ObjectKey> {
         let file = File::open(&file_path)?;
         let file_stats = FileStats::from(file.metadata()?);
@@ -93,121 +109,6 @@ impl FsTransfer {
     }
 }
 
-/// Methods for extracting objects back onto disk
-impl FsTransfer {
-    pub fn extract_object(&mut self,
-                          hash: &ObjectKey,
-                          path: &Path)
-                          -> Result<()> {
-
-        let mut op = ExtractObjectOp {
-            fs_lookup: &mut self.fs_lookup,
-            object_store: &self.object_store,
-            extract_root: path,
-        };
-
-        self.object_store
-            .walk_handle(&mut op, *hash)
-            .chain_err(|| {
-                format!("Could not extract {} to {}", hash, path.display())
-            })?;
-        Ok(())
-    }
-
-    fn extract_object_open(&mut self,
-                           handle: ObjectHandle,
-                           hash: &ObjectKey,
-                           path: &Path)
-                           -> Result<()> {
-        match handle {
-            ObjectHandle::Blob(_) |
-            ObjectHandle::ChunkedBlob(_) => {
-                debug!("Extracting file {} to {}", hash, path.display());
-                self.extract_file_open(handle, hash, path)
-            }
-            ObjectHandle::Tree(raw) => {
-                debug!("Extracting tree {} to {}", hash, path.display());
-                let tree = raw.read_content()?;
-                self.extract_tree_open(tree, path)
-            }
-            ObjectHandle::Commit(raw) => {
-                debug!("Extracting commit {} to {}", hash, path.display());
-                let tree = raw.read_content()
-                    .and_then(|commit| self.open_tree(&commit.tree))?;
-                self.extract_tree_open(tree, path)
-            }
-        }
-    }
-
-    fn extract_tree_open(&mut self, tree: Tree, dir_path: &Path) -> Result<()> {
-
-        if !dir_path.is_dir() {
-            if dir_path.exists() {
-                remove_file(&dir_path)?;
-            }
-            create_dir(&dir_path)?;
-        }
-
-        for (ref name, ref hash) in tree.iter() {
-            self.extract_object(hash, &dir_path.join(name))?;
-        }
-
-        Ok(())
-    }
-
-    fn extract_file_open(&mut self,
-                         handle: ObjectHandle,
-                         hash: &ObjectKey,
-                         path: &Path)
-                         -> Result<()> {
-        return_if_cache_matches!(self.fs_lookup.cache, path, hash);
-
-        if path.is_dir() {
-            remove_dir_all(path)?;
-        }
-
-        let mut out_file = OpenOptions::new().write(true)
-            .create(true)
-            .truncate(true)
-            .open(path)?;
-
-        self.copy_blob_content_open(handle, hash, &mut out_file)?;
-
-        out_file.flush()?;
-        let file_stats = FileStats::from(out_file.metadata()?);
-        self.fs_lookup
-            .cache
-            .insert(path.to_owned(), file_stats, hash.to_owned())?;
-
-        Ok(())
-    }
-
-    fn copy_blob_content_open(&mut self,
-                              handle: ObjectHandle,
-                              hash: &ObjectKey,
-                              writer: &mut Write)
-                              -> Result<()> {
-        match handle {
-            ObjectHandle::Blob(blob) => {
-                trace!("Extracting blob {}", hash);
-                blob.copy_content(writer)?;
-            }
-            ObjectHandle::ChunkedBlob(index) => {
-                debug!("Reading ChunkedBlob {}", hash);
-                let index = index.read_content()?;
-                for offset in index.chunks {
-                    debug!("{}", offset);
-                    let ch_handle = self.open_object(&offset.hash)?;
-                    self.copy_blob_content_open(ch_handle,
-                                                &offset.hash,
-                                                writer)?;
-                }
-            }
-            _ => bail!("Expected a Blob or ChunkedBlob, got: {:?}", handle),
-        };
-        Ok(())
-    }
-}
 
 struct PathWalkNode {
     path: PathBuf,
@@ -297,6 +198,8 @@ impl NodeReader<PathWalkNode> for FileLookup {
     }
 }
 
+
+
 #[derive(Clone,Copy,Eq,PartialEq,Debug)]
 pub enum Status {
     Untracked,
@@ -337,6 +240,7 @@ impl Status {
     }
 }
 
+
 pub struct HashPlan {
     path: PathBuf,
     is_dir: bool,
@@ -364,8 +268,6 @@ impl HashPlan {
 impl NodeWithChildren for HashPlan {
     fn children(&self) -> Option<&ChildMap<Self>> { Some(&self.children) }
 }
-
-use std::fmt;
 
 impl<'a> fmt::Display for HashPlan {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -580,7 +482,7 @@ impl<'a> WalkOp<ObjectWalkNode> for ExtractObjectOp<'a> {
 
     fn pre_descend(&mut self,
                    ps: &PathStack,
-                   node: &ObjectWalkNode)
+                   _node: &ObjectWalkNode)
                    -> Result<()> {
         let dir_path = self.abs_path(ps);
         if !dir_path.is_dir() {
