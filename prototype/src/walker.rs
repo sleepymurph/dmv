@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::Component;
 use std::path::Path;
+use std::path::PathBuf;
 
 /// Type for reading and iterating over a node's children
 pub type ChildMap<N> = BTreeMap<String, N>;
@@ -49,6 +50,14 @@ impl PathStack {
             }
         }
         Ok(stack)
+    }
+
+    pub fn to_path_buf(&self) -> PathBuf {
+        let mut path = PathBuf::new();
+        for c in self {
+            path.push(c);
+        }
+        path
     }
 }
 impl IntoIterator for PathStack {

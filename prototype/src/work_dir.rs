@@ -267,7 +267,7 @@ impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
                 Ok(Some(HashPlan {
                     status: status,
                     hash: Some(obj.0),
-                    path: "".into(),
+                    path: ps.to_path_buf(),
                     is_dir: false,
                     size: 0,
                     children: BTreeMap::new(),
