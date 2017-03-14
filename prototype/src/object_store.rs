@@ -426,7 +426,7 @@ impl<'a, 'b> TreeDisplayOp<'a, 'b> {
                   ps: &PathStack,
                   node: &ObjectWalkNode)
                   -> fmt::Result {
-        writeln!(self.formatter, "{} {} {}", node.0, node.1, ps)
+        writeln!(self.formatter, "{} {} {}", node.0, node.1.code(), ps)
     }
 }
 impl<'a, 'b> WalkOp<ObjectWalkNode> for TreeDisplayOp<'a, 'b> {

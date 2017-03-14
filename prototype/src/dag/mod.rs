@@ -71,6 +71,14 @@ impl ObjectType {
     pub fn is_blobish(&self) -> bool {
         self == &ObjectType::Blob || self == &ObjectType::ChunkedBlob
     }
+    pub fn code(&self) -> &'static str {
+        match self {
+            &ObjectType::Blob => "blob",
+            &ObjectType::ChunkedBlob => "chbl",
+            &ObjectType::Tree => "tree",
+            &ObjectType::Commit => "cmmt",
+        }
+    }
 }
 
 impl fmt::Display for ObjectType {
