@@ -6,11 +6,13 @@ use dag::Commit;
 use dag::ObjectKey;
 use disk_backed::DiskBacked;
 use error::*;
+use file_store::FileWalkNode;
 use find_repo::RepoLayout;
-use fs_transfer::FsObjComparePlanBuilder;
 use fs_transfer::FsTransfer;
 use object_store::ObjectStore;
+use object_store::ObjectWalkNode;
 use status::HashPlan;
+use status::Status;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::path::PathBuf;
@@ -169,6 +171,95 @@ impl WorkDir {
                       ref_name)
             }
         }
+    }
+}
+
+
+
+/// An operation that compares files to a previous commit to build a HashPlan
+///
+/// Walks a filesystem tree and a Tree object in parallel, comparing them and
+/// building a HashPlan. This is the basis of the status command and the first
+/// step of a commit.
+pub struct FsObjComparePlanBuilder;
+
+type CompareNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
+
+impl FsObjComparePlanBuilder {
+    fn status(node: &CompareNode) -> Status {
+        let (path_exists, path_hash, path_is_ignored) = match node.0 {
+            Some(ref p) => (true, p.hash, p.ignored),
+            None => (false, None, true),
+        };
+        let (obj_exists, obj_hash) = match node.1 {
+            Some(ref o) => (true, Some(o.0)),
+            None => (false, None),
+        };
+        match (path_exists, obj_exists, path_hash, obj_hash) {
+            (true, true, Some(a), Some(b)) if a == b => Status::Unchanged,
+            (true, true, Some(_), Some(_)) => Status::Modified,
+            (true, true, _, _) => Status::MaybeModified,
+
+            (true, false, _, _) if path_is_ignored => Status::Ignored,
+            (true, false, _, _) => Status::Untracked,
+
+            (false, true, _, _) => Status::Offline,
+
+            (false, false, _, _) => unreachable!(),
+        }
+    }
+}
+
+impl WalkOp<CompareNode> for FsObjComparePlanBuilder {
+    type VisitResult = HashPlan;
+
+    fn should_descend(&mut self, _ps: &PathStack, node: &CompareNode) -> bool {
+        let path_is_dir = match node.0 {
+            Some(ref pwn) => pwn.metadata.is_dir(),
+            None => false,
+        };
+        path_is_dir && Self::status(&node).is_included()
+    }
+    fn no_descend(&mut self,
+                  _ps: &PathStack,
+                  node: CompareNode)
+                  -> Result<Option<Self::VisitResult>> {
+        let status = Self::status(&node);
+        match node {
+            (Some(path), _) => {
+                Ok(Some(HashPlan {
+                    status: status,
+                    path: path.path,
+                    is_dir: path.metadata.is_dir(),
+                    hash: path.hash,
+                    size: path.metadata.len(),
+                    children: BTreeMap::new(),
+                }))
+            }
+            (None, Some(obj)) => {
+                Ok(Some(HashPlan {
+                    status: status,
+                    hash: Some(obj.0),
+                    path: "".into(),
+                    is_dir: false,
+                    size: 0,
+                    children: BTreeMap::new(),
+                }))
+            }
+            (None, None) => unreachable!(),
+        }
+    }
+    fn post_descend(&mut self,
+                    ps: &PathStack,
+                    node: CompareNode,
+                    children: ChildMap<Self::VisitResult>)
+                    -> Result<Option<Self::VisitResult>> {
+        self.no_descend(ps, node).map(|result| {
+            result.map(|mut plan| {
+                plan.children = children;
+                plan
+            })
+        })
     }
 }
 
