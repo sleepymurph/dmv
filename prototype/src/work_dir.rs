@@ -28,7 +28,13 @@ pub enum FileMark {
     Delete,
 }
 
-type FileMarkMap = BTreeMap<PathStack, FileMark>;
+wrapper_struct!(
+#[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
+struct FileMarkMap(BTreeMap<PathStack, FileMark>);
+);
+impl FileMarkMap {
+    fn new() -> Self { FileMarkMap(BTreeMap::new()) }
+}
 
 
 
