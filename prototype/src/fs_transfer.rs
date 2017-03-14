@@ -118,7 +118,7 @@ impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
                   -> Result<Option<Self::VisitResult>> {
         Ok(Some(HashPlan {
             status: self.status(&node),
-            path: node.path,
+            fs_path: Some(node.path),
             is_dir: node.metadata.is_dir(),
             hash: node.hash,
             size: node.metadata.len(),
@@ -157,22 +157,27 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
                   ps: &PathStack,
                   node: &HashPlan)
                   -> Result<Option<Self::VisitResult>> {
-        match (node.status.is_included(), node.hash) {
-            (false, _) => {
+        match (node.status.is_included(), node.hash, &node.fs_path) {
+            (false, _, _) => {
                 debug!("{} {} - skipping", node.status.code(), ps);
                 Ok(None)
             }
-            (true, Some(hash)) => {
+            (true, Some(hash), _) => {
                 debug!("{} {} - including with known hash {}",
                        node.status.code(),
                        ps,
                        hash);
                 Ok(Some(hash))
             }
-            (true, None) => {
+            (true, None, &Some(ref fs_path)) => {
                 debug!("{} {} - hashing", node.status.code(), ps);
-                let hash = self.fs_transfer.hash_file(node.path.as_path())?;
+                let hash = self.fs_transfer.hash_file(fs_path.as_path())?;
                 Ok(Some(hash))
+            }
+            (true, None, &None) => {
+                bail!("{} {} - Node has neither known hash nor fs_path",
+                      node.status.code(),
+                      ps);
             }
         }
     }

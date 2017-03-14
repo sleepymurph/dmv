@@ -54,7 +54,7 @@ impl Status {
 
 /// A hierarchy of paths and their statuses, describing a potential commit
 pub struct HashPlan {
-    pub path: PathBuf,
+    pub fs_path: Option<PathBuf>,
     pub is_dir: bool,
     pub status: Status,
     pub hash: Option<ObjectKey>,
@@ -129,16 +129,13 @@ impl<'a, 'b> WalkOp<&'a HashPlan> for HashPlanDisplayOp<'a, 'b> {
     }
 
     fn no_descend(&mut self,
-                  _ps: &PathStack,
+                  ps: &PathStack,
                   node: &HashPlan)
                   -> Result<Option<Self::VisitResult>> {
         let show = node.status != Status::Unchanged &&
                    (node.status != Status::Ignored || self.show_ignored);
         if show {
-            writeln!(self.formatter,
-                     "{} {}",
-                     node.status.code(),
-                     node.path.display())?;
+            writeln!(self.formatter, "{} {}", node.status.code(), ps)?;
         }
         Ok(None)
     }
