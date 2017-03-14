@@ -44,6 +44,9 @@ pub trait NodeReader<N> {
         self.walk_node_stack(op, node, &mut PathStack::new())
     }
 
+    /// Do a walk operation, tracking the path stack
+    ///
+    /// This is the inner function of the recursion
     fn walk_node_stack<O>(&self,
                           op: &mut O,
                           node: N,
