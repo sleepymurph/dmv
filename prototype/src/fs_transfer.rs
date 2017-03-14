@@ -1,7 +1,6 @@
 //! Functionality for transfering files between filesystem and object store
 
 use dag::ObjectKey;
-use dag::ObjectSize;
 use dag::Tree;
 use error::*;
 use file_store::FileStore;
@@ -10,8 +9,9 @@ use human_readable::human_bytes;
 use ignore::IgnoreList;
 use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
+use status::HashPlan;
+use status::Status;
 use std::collections::BTreeMap;
-use std::fmt;
 use std::fs::create_dir;
 use std::fs::remove_file;
 use std::path::Path;
@@ -84,89 +84,6 @@ impl FsTransfer {
 }
 
 
-#[derive(Clone,Copy,Eq,PartialEq,Debug)]
-pub enum Status {
-    Untracked,
-    Ignored,
-    Add,
-    Offline,
-    Delete,
-    Unchanged,
-    Modified,
-    MaybeModified,
-}
-
-impl Status {
-    fn code(&self) -> &'static str {
-        match self {
-            &Status::Untracked => "?",
-            &Status::Ignored => "i",
-            &Status::Add => "a",
-            &Status::Offline => "o",
-            &Status::Delete => "d",
-            &Status::Unchanged => " ",
-            &Status::Modified => "M",
-            &Status::MaybeModified => "m",
-        }
-    }
-
-    fn is_included_in_commit(&self) -> bool {
-        match self {
-            &Status::Add |
-            &Status::Offline |
-            &Status::Unchanged |
-            &Status::Modified |
-            &Status::MaybeModified => true,
-            &Status::Untracked |
-            &Status::Ignored |
-            &Status::Delete => false,
-        }
-    }
-}
-
-
-pub struct HashPlan {
-    path: PathBuf,
-    is_dir: bool,
-    status: Status,
-    hash: Option<ObjectKey>,
-    size: ObjectSize,
-    children: ChildMap<HashPlan>,
-}
-
-impl HashPlan {
-    fn unhashed_size(&self) -> ObjectSize {
-        match self {
-            &HashPlan { status, .. } if !status.is_included_in_commit() => 0,
-            &HashPlan { is_dir: false, hash: None, size, .. } => size,
-            _ => {
-                self.children
-                    .iter()
-                    .map(|(_, plan)| plan.unhashed_size())
-                    .sum()
-            }
-        }
-    }
-}
-
-impl NodeWithChildren for HashPlan {
-    fn children(&self) -> Option<&ChildMap<Self>> { Some(&self.children) }
-}
-
-impl<'a> fmt::Display for HashPlan {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.is_dir && self.status.is_included_in_commit() {
-            for (_, child) in &self.children {
-                child.fmt(f)?;
-            }
-        } else {
-            if self.status != Status::Unchanged {
-                writeln!(f, "{} {}", self.status.code(), self.path.display())?
-            }
-        }
-        Ok(())
-    }
-}
 
 
 struct FsOnlyPlanBuilder;
@@ -184,7 +101,7 @@ impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
     type VisitResult = HashPlan;
 
     fn should_descend(&mut self, _ps: &PathStack, node: &FileWalkNode) -> bool {
-        node.metadata.is_dir() && self.status(node).is_included_in_commit()
+        node.metadata.is_dir() && self.status(node).is_included()
     }
     fn no_descend(&mut self,
                   _ps: &PathStack,
@@ -250,7 +167,7 @@ impl WalkOp<(CompareNode)> for FsObjComparePlanBuilder {
             Some(ref pwn) => pwn.metadata.is_dir(),
             None => false,
         };
-        path_is_dir && Self::status(&node).is_included_in_commit()
+        path_is_dir && Self::status(&node).is_included()
     }
     fn no_descend(&mut self,
                   _ps: &PathStack,
@@ -303,14 +220,14 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
     type VisitResult = ObjectKey;
 
     fn should_descend(&mut self, _ps: &PathStack, node: &&HashPlan) -> bool {
-        node.is_dir && node.status.is_included_in_commit()
+        node.is_dir && node.status.is_included()
     }
 
     fn no_descend(&mut self,
                   _ps: &PathStack,
                   node: &HashPlan)
                   -> Result<Option<Self::VisitResult>> {
-        match (node.status.is_included_in_commit(), node.hash) {
+        match (node.status.is_included(), node.hash) {
             (false, _) => Ok(None),
             (true, Some(hash)) => Ok(Some(hash)),
             (true, None) => {

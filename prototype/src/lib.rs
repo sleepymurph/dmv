@@ -53,10 +53,10 @@ pub mod constants;
 pub mod dag;
 pub mod rolling_hash;
 pub mod object_store;
-pub mod file_store;
-#[macro_use]
 pub mod cache;
 pub mod ignore;
+pub mod file_store;
+pub mod status;
 pub mod fs_transfer;
 pub mod work_dir;
 pub mod find_repo;
