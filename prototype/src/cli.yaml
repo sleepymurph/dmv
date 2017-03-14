@@ -49,6 +49,12 @@ subcommands:
                 required: true
                 index: 1
 
+    - rm:
+        args:
+            - path:
+                required: true
+                index: 1
+
     - commit:
         args:
             - message:

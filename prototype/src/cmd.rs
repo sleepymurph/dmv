@@ -76,6 +76,11 @@ pub fn add(path: PathBuf) -> Result<()> {
     work_dir.mark(path.as_path(), FileMark::Add)
 }
 
+pub fn rm(path: PathBuf) -> Result<()> {
+    let mut work_dir = find_work_dir()?;
+    work_dir.mark(path.as_path(), FileMark::Delete)
+}
+
 pub fn commit(message: String) -> Result<()> {
     let mut work_dir = find_work_dir()?;
     let (branch, hash) = work_dir.commit(message)?;

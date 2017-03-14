@@ -33,6 +33,7 @@ fn run() -> Result<()> {
                 "cache-status" => cmd_cache_status,
                 "status" => cmd_status,
                 "add" => cmd_add,
+                "rm" => cmd_rm,
                 "commit" => cmd_commit,
                 "log" => cmd_log,
                 "branch" => cmd_branch,
@@ -105,6 +106,15 @@ fn cmd_add(_argmatch: &clap::ArgMatches,
     let file_path = PathBuf::from(file_path);
 
     cmd::add(file_path)
+}
+
+fn cmd_rm(_argmatch: &clap::ArgMatches,
+          submatch: &clap::ArgMatches)
+          -> Result<()> {
+    let file_path = submatch.value_of("path").expect("required");
+    let file_path = PathBuf::from(file_path);
+
+    cmd::rm(file_path)
 }
 
 fn cmd_commit(_argmatch: &clap::ArgMatches,
