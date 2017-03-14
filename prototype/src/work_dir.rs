@@ -34,6 +34,20 @@ struct FileMarkMap(BTreeMap<PathStack, FileMark>);
 );
 impl FileMarkMap {
     fn new() -> Self { FileMarkMap(BTreeMap::new()) }
+
+    fn get_self_or_parent(&self, ps: &PathStack) -> Option<FileMark> {
+        if let Some(mark) = self.get(ps) {
+            return Some(*mark);
+        }
+        let mut ps = ps.clone();
+        while ps.len() > 0 {
+            if let Some(mark) = self.get(&ps) {
+                return Some(*mark);
+            }
+            ps.pop();
+        }
+        None
+    }
 }
 
 
@@ -131,7 +145,8 @@ impl WorkDir {
         let path = Some(self.fs_transfer.file_store.lookup_node(abs_path)?);
         let combo = (&self.fs_transfer.file_store,
                      &self.fs_transfer.object_store);
-        combo.walk_node(&mut FsObjComparePlanBuilder, (path, parent))?
+        let mut op = FsObjComparePlanBuilder { marks: &self.state.marks };
+        combo.walk_node(&mut op, (path, parent))?
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
     }
 
@@ -187,12 +202,14 @@ impl WorkDir {
 /// Walks a filesystem tree and a Tree object in parallel, comparing them and
 /// building a HashPlan. This is the basis of the status command and the first
 /// step of a commit.
-pub struct FsObjComparePlanBuilder;
+pub struct FsObjComparePlanBuilder<'a> {
+    marks: &'a FileMarkMap,
+}
 
 type CompareNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
 
-impl FsObjComparePlanBuilder {
-    fn status(node: &CompareNode) -> Status {
+impl<'a> FsObjComparePlanBuilder<'a> {
+    fn status(node: &CompareNode, mark: Option<FileMark>) -> Status {
         let (path_exists, path_hash, path_is_ignored) = match node.0 {
             Some(ref p) => (true, p.hash, p.ignored),
             None => (false, None, true),
@@ -202,10 +219,12 @@ impl FsObjComparePlanBuilder {
             None => (false, None),
         };
         match (path_exists, obj_exists, path_hash, obj_hash) {
+            (_, _, _, _) if mark == Some(FileMark::Delete) => Status::Delete,
             (true, true, Some(a), Some(b)) if a == b => Status::Unchanged,
             (true, true, Some(_), Some(_)) => Status::Modified,
             (true, true, _, _) => Status::MaybeModified,
 
+            (true, false, _, _) if mark == Some(FileMark::Add) => Status::Add,
             (true, false, _, _) if path_is_ignored => Status::Ignored,
             (true, false, _, _) => Status::Untracked,
 
@@ -216,21 +235,23 @@ impl FsObjComparePlanBuilder {
     }
 }
 
-impl WalkOp<CompareNode> for FsObjComparePlanBuilder {
+impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
     type VisitResult = HashPlan;
 
-    fn should_descend(&mut self, _ps: &PathStack, node: &CompareNode) -> bool {
+    fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
         let path_is_dir = match node.0 {
             Some(ref pwn) => pwn.metadata.is_dir(),
             None => false,
         };
-        path_is_dir && Self::status(&node).is_included()
+        let mark = self.marks.get_self_or_parent(ps);
+        path_is_dir && Self::status(&node, mark).is_included()
     }
     fn no_descend(&mut self,
-                  _ps: &PathStack,
+                  ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
-        let status = Self::status(&node);
+        let mark = self.marks.get_self_or_parent(ps);
+        let status = Self::status(&node, mark);
         match node {
             (Some(path), _) => {
                 Ok(Some(HashPlan {
