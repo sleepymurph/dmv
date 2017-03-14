@@ -27,7 +27,6 @@ pub struct FsTransfer {
 
 impl_deref_mut!(FsTransfer => ObjectStore, object_store);
 
-/// Constructors and high-level methods
 impl FsTransfer {
     pub fn with_object_store(object_store: ObjectStore) -> Self {
         let mut ignored = IgnoreList::default();
@@ -85,8 +84,11 @@ impl FsTransfer {
 
 
 
-
-struct FsOnlyPlanBuilder;
+/// An operation that walks files to build a HashPlan
+///
+/// Only considers ignore and cache status. See FsObjComparePlanBuilder for an
+/// operation that compares to a previous commit/tree.
+pub struct FsOnlyPlanBuilder;
 
 impl FsOnlyPlanBuilder {
     fn status(&self, node: &FileWalkNode) -> Status {
@@ -130,6 +132,13 @@ impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
     }
 }
 
+
+
+/// An operation that compares files to a previous commit to build a HashPlan
+///
+/// Walks a filesystem tree and a Tree object in parallel, comparing them and
+/// building a HashPlan. This is the basis of the status command and the first
+/// step of a commit.
 pub struct FsObjComparePlanBuilder;
 
 type CompareNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
@@ -159,7 +168,7 @@ impl FsObjComparePlanBuilder {
     }
 }
 
-impl WalkOp<(CompareNode)> for FsObjComparePlanBuilder {
+impl WalkOp<CompareNode> for FsObjComparePlanBuilder {
     type VisitResult = HashPlan;
 
     fn should_descend(&mut self, _ps: &PathStack, node: &CompareNode) -> bool {
@@ -212,6 +221,9 @@ impl WalkOp<(CompareNode)> for FsObjComparePlanBuilder {
     }
 }
 
+
+
+/// An operation that walks a HashPlan to hash and store the files as a Tree
 pub struct HashAndStoreOp<'a> {
     fs_transfer: &'a mut FsTransfer,
 }
@@ -255,6 +267,8 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
 }
 
 
+
+/// An operation that walks a Tree (or Commit) object to extract it to disk
 pub struct ExtractObjectOp<'a> {
     file_store: &'a mut FileStore,
     object_store: &'a ObjectStore,
@@ -305,6 +319,8 @@ impl<'a> WalkOp<ObjectWalkNode> for ExtractObjectOp<'a> {
         Ok(None)
     }
 }
+
+
 
 #[cfg(test)]
 mod test {
