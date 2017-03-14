@@ -128,6 +128,10 @@ impl WorkDir {
     }
 
     pub fn status(&mut self) -> Result<HashPlan> {
+        debug!("Current branch: {}. Parents: {}",
+               self.branch().unwrap_or("<detached head>"),
+               self.parents_short_hashes().join(","));
+
         let abs_path = self.path().to_owned();
         let rel_path = PathBuf::from("");
         let parent = match self.parents().to_owned() {
@@ -160,12 +164,10 @@ impl WorkDir {
     pub fn commit(&mut self,
                   message: String)
                   -> Result<(Option<&str>, ObjectKey)> {
-        debug!("Current branch: {}. Parents: {}",
-               self.branch().unwrap_or("<detached head>"),
-               self.parents_short_hashes().join(","));
 
-        let path = self.path().to_owned();
-        let tree_hash = self.hash_path(&path)?;
+        let hash_plan = self.status()?;
+        let tree_hash = self.hash_plan(&hash_plan)?;
+
         let commit = Commit {
             tree: tree_hash,
             parents: self.parents().to_owned(),

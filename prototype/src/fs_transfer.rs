@@ -44,16 +44,24 @@ impl FsTransfer {
     /// Check, hash, and store a file or directory
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
         debug!("Hashing object, with framework");
-        let no_answer_err = || Error::from("Nothing to hash (all ignored?)");
         let hash_plan = self.file_store
             .walk_handle(&mut FsOnlyPlanBuilder, path.to_owned())?
-            .ok_or_else(&no_answer_err)?;
+            .ok_or_else(&Self::no_answer_err)?;
+
+        self.hash_plan(&hash_plan)
+    }
+
+    pub fn hash_plan(&mut self, hash_plan: &HashPlan) -> Result<ObjectKey> {
         if hash_plan.unhashed_size() > 0 {
             stderrln!("{} to hash. Hashing...",
                       human_bytes(hash_plan.unhashed_size()));
         }
         hash_plan.walk(&mut HashAndStoreOp { fs_transfer: self })?
-            .ok_or_else(&no_answer_err)
+            .ok_or_else(&Self::no_answer_err)
+    }
+
+    fn no_answer_err() -> Error {
+        Error::from("Nothing to hash (all ignored?)")
     }
 
     /// Extract a file or directory from the object store to the filesystem
@@ -146,13 +154,23 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
     }
 
     fn no_descend(&mut self,
-                  _ps: &PathStack,
+                  ps: &PathStack,
                   node: &HashPlan)
                   -> Result<Option<Self::VisitResult>> {
         match (node.status.is_included(), node.hash) {
-            (false, _) => Ok(None),
-            (true, Some(hash)) => Ok(Some(hash)),
+            (false, _) => {
+                debug!("{} {} - skipping", node.status.code(), ps);
+                Ok(None)
+            }
+            (true, Some(hash)) => {
+                debug!("{} {} - including with known hash {}",
+                       node.status.code(),
+                       ps,
+                       hash);
+                Ok(Some(hash))
+            }
             (true, None) => {
+                debug!("{} {} - hashing", node.status.code(), ps);
                 let hash = self.fs_transfer.hash_file(node.path.as_path())?;
                 Ok(Some(hash))
             }
