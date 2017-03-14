@@ -2,6 +2,7 @@
 
 use dag::ObjectKey;
 use dag::ObjectSize;
+use error::*;
 use std::fmt;
 use std::path::PathBuf;
 use walker::*;
@@ -75,23 +76,70 @@ impl HashPlan {
             }
         }
     }
+
+    pub fn display(&self) -> HashPlanDisplay { HashPlanDisplay::new(self) }
 }
 
 impl NodeWithChildren for HashPlan {
     fn children(&self) -> Option<&ChildMap<Self>> { Some(&self.children) }
 }
 
-impl<'a> fmt::Display for HashPlan {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.is_dir && self.status.is_included() {
-            for (_, child) in &self.children {
-                child.fmt(f)?;
-            }
-        } else {
-            if self.status != Status::Unchanged {
-                writeln!(f, "{} {}", self.status.code(), self.path.display())?
-            }
+
+/// A wrapper to Display a HashPlan, with options
+pub struct HashPlanDisplay<'a> {
+    hash_plan: &'a HashPlan,
+    show_ignored: bool,
+}
+impl<'a> HashPlanDisplay<'a> {
+    fn new(hp: &'a HashPlan) -> Self {
+        HashPlanDisplay {
+            hash_plan: hp,
+            show_ignored: false,
         }
-        Ok(())
+    }
+    pub fn show_ignored(mut self, si: bool) -> Self {
+        self.show_ignored = si;
+        self
+    }
+}
+impl<'a> fmt::Display for HashPlanDisplay<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut op = HashPlanDisplayOp {
+            show_ignored: self.show_ignored,
+            formatter: f,
+        };
+        match self.hash_plan.walk(&mut op) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(fmt::Error),
+        }
+    }
+}
+
+
+/// An operation that walks a HashPlan to Display it
+struct HashPlanDisplayOp<'s, 'f: 's> {
+    show_ignored: bool,
+    formatter: &'s mut fmt::Formatter<'f>,
+}
+impl<'a, 'b> WalkOp<&'a HashPlan> for HashPlanDisplayOp<'a, 'b> {
+    type VisitResult = ();
+
+    fn should_descend(&mut self, _ps: &PathStack, node: &&HashPlan) -> bool {
+        node.is_dir && node.status.is_included()
+    }
+
+    fn no_descend(&mut self,
+                  _ps: &PathStack,
+                  node: &HashPlan)
+                  -> Result<Option<Self::VisitResult>> {
+        let show = node.status != Status::Unchanged &&
+                   (node.status != Status::Ignored || self.show_ignored);
+        if show {
+            writeln!(self.formatter,
+                     "{} {}",
+                     node.status.code(),
+                     node.path.display())?;
+        }
+        Ok(None)
     }
 }

@@ -92,9 +92,10 @@ fn cmd_cache_status(_argmatch: &clap::ArgMatches,
 }
 
 fn cmd_status(_argmatch: &clap::ArgMatches,
-              _submatch: &clap::ArgMatches)
+              submatch: &clap::ArgMatches)
               -> Result<()> {
-    cmd::status()
+    let show_ignored = submatch.is_present("ignored");
+    cmd::status(show_ignored)
 }
 
 fn cmd_add(_argmatch: &clap::ArgMatches,

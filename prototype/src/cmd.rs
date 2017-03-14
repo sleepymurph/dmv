@@ -63,10 +63,10 @@ pub fn cache_status(file_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn status() -> Result<()> {
+pub fn status(show_ignored: bool) -> Result<()> {
     let mut work_dir = find_work_dir()?;
     let status = work_dir.status()?;
-    println!("{}", status);
+    print!("{}", status.display().show_ignored(show_ignored));
     Ok(())
 }
 

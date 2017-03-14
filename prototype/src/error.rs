@@ -9,6 +9,8 @@ error_chain!{
             #[doc = "Error caused by a failed RefCell borrow"];
         BorrowMutError(::std::cell::BorrowMutError)
             #[doc = "Error caused by a failed RefCell borrow_mut"];
+        FmtError(::std::fmt::Error)
+            #[doc = "Error while formatting"];
         IoError(::std::io::Error)
             #[doc = "Error caused by an underlying IO error"];
         StripPrefixError(::std::path::StripPrefixError)

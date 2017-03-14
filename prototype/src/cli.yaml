@@ -37,6 +37,11 @@ subcommands:
                 index: 1
 
     - status:
+        args:
+            - ignored:
+                short: i
+                long: ignored
+                help: show ignored files
 
     - add:
         args:
