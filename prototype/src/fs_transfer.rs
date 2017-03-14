@@ -183,11 +183,12 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
     }
 
     fn post_descend(&mut self,
-                    _ps: &PathStack,
+                    ps: &PathStack,
                     _node: &HashPlan,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
         if children.is_empty() {
+            debug!("  {} - dropping empty dir", ps);
             return Ok(None);
         }
         let mut tree = Tree::new();
@@ -195,6 +196,7 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
             tree.insert(name, hash);
         }
         let hash = self.fs_transfer.store_object(&tree)?;
+        debug!("  {} - storing tree {}", ps, hash);
         Ok(Some(hash))
     }
 }
