@@ -284,12 +284,16 @@ impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
                     node: CompareNode,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
-        self.no_descend(ps, node).map(|result| {
-            result.map(|mut plan| {
+
+        // Convert dir node to HashPlan according to normal rules
+        match self.no_descend(ps, node)? {
+            Some(mut plan) => {
+                // Then add children
                 plan.children = children;
-                plan
-            })
-        })
+                Ok(Some(plan))
+            }
+            None => Ok(None),
+        }
     }
 }
 
