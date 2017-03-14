@@ -24,7 +24,6 @@ pub struct FsTransfer {
     pub object_store: ObjectStore,
     pub file_store: FileStore,
 }
-
 impl_deref_mut!(FsTransfer => ObjectStore, object_store);
 
 impl FsTransfer {

@@ -17,6 +17,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use walker::*;
 
+
+/// Certain operations that a file can be marked for, such as add or delete
 #[derive(Debug,Clone,Copy,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
 pub enum FileMark {
     /// Mark this file for addition
@@ -27,6 +29,9 @@ pub enum FileMark {
 
 type FileMarkMap = BTreeMap<encodable::PathBuf, FileMark>;
 
+
+
+/// State stored in a file in the WorkDir, including current branch
 #[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
 pub struct WorkDirState {
     parents: Vec<ObjectKey>,
@@ -44,22 +49,25 @@ impl Default for WorkDirState {
     }
 }
 
+
+
+/// The working directory, an ObjectStore plus FileStore plus state of branches
 pub struct WorkDir {
     fs_transfer: FsTransfer,
     path: PathBuf,
     state: DiskBacked<WorkDirState>,
 }
-
-fn work_dir_state_path(wd_path: &Path) -> PathBuf {
-    wd_path.join(HIDDEN_DIR_NAME).join("work_dir_state")
-}
-
+impl_deref_mut!(WorkDir => FsTransfer, fs_transfer);
 
 impl WorkDir {
+    fn state_path(wd_path: &Path) -> PathBuf {
+        wd_path.join(HIDDEN_DIR_NAME).join("work_dir_state")
+    }
+
     pub fn init(layout: RepoLayout) -> Result<Self> {
         let os = ObjectStore::init(layout.osd)?;
         let state = DiskBacked::new("work dir state",
-                                    work_dir_state_path(&layout.wd));
+                                    Self::state_path(&layout.wd));
         Ok(WorkDir {
             fs_transfer: FsTransfer::with_object_store(os),
             path: layout.wd,
@@ -69,9 +77,8 @@ impl WorkDir {
     pub fn open(layout: RepoLayout) -> Result<Self> {
         Ok(WorkDir {
             fs_transfer: FsTransfer::with_repo_path(layout.osd)?,
-            state:
-                DiskBacked::read_or_default("work dir state",
-                                            work_dir_state_path(&layout.wd))?,
+            state: DiskBacked::read_or_default("work dir state",
+                                               Self::state_path(&layout.wd))?,
             path: layout.wd,
         })
     }
@@ -168,7 +175,7 @@ impl WorkDir {
     }
 }
 
-impl_deref_mut!(WorkDir => FsTransfer, fs_transfer);
+
 
 #[cfg(test)]
 mod test {
