@@ -2,13 +2,85 @@
 
 use error::*;
 use maputil::mux;
+use rustc_serialize::Decodable;
+use rustc_serialize::Decoder;
+use rustc_serialize::Encodable;
+use rustc_serialize::Encoder;
 use std::collections::BTreeMap;
+use std::fmt;
+use std::path::Component;
+use std::path::Path;
 
 /// Type for reading and iterating over a node's children
 pub type ChildMap<N> = BTreeMap<String, N>;
 
 /// Tracks the position in the hierarchy during a walk
-pub type PathStack = Vec<String>;
+wrapper_struct!{
+pub struct PathStack(Vec<String>);
+}
+impl PathStack {
+    pub fn new() -> Self { PathStack(Vec::new()) }
+
+    pub fn from_path(path: &Path) -> Result<Self> {
+        let mut stack = PathStack::new();
+        for c in path.components() {
+            match c {
+                Component::Normal(ref os_str) => {
+                    let s = os_str.to_str()
+                        .ok_or_else(|| {
+                            format!("Bad utf8 in component '{:?}' of path: {}",
+                                    os_str,
+                                    path.display())
+                        })?;
+                    stack.push(s.to_owned());
+                }
+                _ => {
+                    bail!("Unknown component '{:?}' in path: {}",
+                          c,
+                          path.display())
+                }
+            }
+        }
+        Ok(stack)
+    }
+}
+impl IntoIterator for PathStack {
+    type Item = String;
+    type IntoIter = <Vec<String> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+}
+impl<'a> IntoIterator for &'a PathStack {
+    type Item = &'a String;
+    type IntoIter = <&'a Vec<String> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+}
+impl fmt::Display for PathStack {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.join("/"))
+    }
+}
+impl<'a> From<&'a str> for PathStack {
+    fn from(s: &'a str) -> Self {
+        PathStack(s.split("/").map(|s| s.to_owned()).collect::<Vec<String>>())
+    }
+}
+impl From<String> for PathStack {
+    fn from(s: String) -> Self { Self::from(s.as_str()) }
+}
+type StdResult<T, E> = ::std::result::Result<T, E>;
+impl Encodable for PathStack {
+    fn encode<S: Encoder>(&self, s: &mut S) -> StdResult<(), S::Error> {
+        self.to_string().encode(s)
+    }
+}
+impl Decodable for PathStack {
+    fn decode<D: Decoder>(d: &mut D) -> StdResult<Self, D::Error> {
+        let s = try!(String::decode(d));
+        Ok(PathStack::from(s))
+    }
+}
+
+
 
 
 /// A repository that can look up nodes by some handle
@@ -177,5 +249,19 @@ impl<'a, A, B, RA, RB> NodeReader<(Option<A>, Option<B>)> for (&'a RA, &'a RB)
             &(None, None) => {}
         }
         Ok(children)
+    }
+}
+
+
+
+#[cfg(test)]
+mod test_path_stack {
+    use std::path::Path;
+    use super::*;
+
+    #[test]
+    fn test_relative_path_stack() {
+        let stack = PathStack::from_path(Path::new("a/b/c")).unwrap();
+        assert_eq!(stack.to_string(), "a/b/c");
     }
 }
