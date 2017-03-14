@@ -176,6 +176,7 @@ impl WorkDir {
         if let Some(branch) = self.state.branch.clone() {
             self.update_ref(branch, hash)?;
         }
+        self.state.marks.clear();
         self.state.flush()?;
         Ok((self.branch(), hash))
     }
