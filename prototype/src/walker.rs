@@ -7,11 +7,8 @@ use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
 use std::borrow::Borrow;
-use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::hash::Hash;
-use std::hash::Hasher;
 use std::path::Component;
 use std::path::Path;
 
@@ -22,7 +19,7 @@ type StdResult<T, E> = ::std::result::Result<T, E>;
 
 /// Tracks the position in the hierarchy during a walk
 wrapper_struct!{
-#[derive(Clone,Debug)]
+#[derive(Debug,Clone,Hash,PartialEq,Eq,PartialOrd,Ord)]
 pub struct PathStack(Vec<String>);
 }
 impl PathStack {
@@ -88,26 +85,6 @@ impl Decodable for PathStack {
         Ok(PathStack::from(s))
     }
 }
-impl PartialEq for PathStack {
-    fn eq(&self, other: &Self) -> bool { self.0.eq(&other.0) }
-}
-impl Eq for PathStack {}
-impl PartialOrd for PathStack {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.partial_cmp(&other.0)
-    }
-}
-impl Ord for PathStack {
-    fn cmp(&self, other: &Self) -> Ordering { self.0.cmp(&other.0) }
-}
-impl Hash for PathStack {
-    fn hash<H>(&self, state: &mut H)
-        where H: Hasher
-    {
-        self.0.hash(state)
-    }
-}
-
 
 
 
