@@ -5,7 +5,6 @@ use constants::HIDDEN_DIR_NAME;
 use dag::Commit;
 use dag::ObjectKey;
 use disk_backed::DiskBacked;
-use encodable;
 use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::FsObjComparePlanBuilder;
@@ -27,7 +26,7 @@ pub enum FileMark {
     Delete,
 }
 
-type FileMarkMap = BTreeMap<encodable::PathBuf, FileMark>;
+type FileMarkMap = BTreeMap<PathStack, FileMark>;
 
 
 
@@ -128,11 +127,9 @@ impl WorkDir {
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
     }
 
-    pub fn mark_for_add(&mut self, path: PathBuf) -> Result<()> {
-        if !path.exists() {
-            bail!("Path does not exist: {}", path.display());
-        }
-        self.state.marks.insert(path.into(), FileMark::Add);
+    pub fn mark(&mut self, path: &Path, mark: FileMark) -> Result<()> {
+        let path = PathStack::from_path(path)?;
+        self.state.marks.insert(path, mark);
         self.state.flush()?;
         Ok(())
     }

@@ -6,22 +6,32 @@ use rustc_serialize::Decodable;
 use rustc_serialize::Decoder;
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
+use std::borrow::Borrow;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::path::Component;
 use std::path::Path;
 
 /// Type for reading and iterating over a node's children
 pub type ChildMap<N> = BTreeMap<String, N>;
 
+type StdResult<T, E> = ::std::result::Result<T, E>;
+
 /// Tracks the position in the hierarchy during a walk
 wrapper_struct!{
+#[derive(Clone,Debug)]
 pub struct PathStack(Vec<String>);
 }
 impl PathStack {
     pub fn new() -> Self { PathStack(Vec::new()) }
 
-    pub fn from_path(path: &Path) -> Result<Self> {
+    pub fn from_path<P: ?Sized>(path: &P) -> Result<Self>
+        where P: Borrow<Path>
+    {
+        let path = path.borrow();
         let mut stack = PathStack::new();
         for c in path.components() {
             match c {
@@ -67,7 +77,6 @@ impl<'a> From<&'a str> for PathStack {
 impl From<String> for PathStack {
     fn from(s: String) -> Self { Self::from(s.as_str()) }
 }
-type StdResult<T, E> = ::std::result::Result<T, E>;
 impl Encodable for PathStack {
     fn encode<S: Encoder>(&self, s: &mut S) -> StdResult<(), S::Error> {
         self.to_string().encode(s)
@@ -77,6 +86,25 @@ impl Decodable for PathStack {
     fn decode<D: Decoder>(d: &mut D) -> StdResult<Self, D::Error> {
         let s = try!(String::decode(d));
         Ok(PathStack::from(s))
+    }
+}
+impl PartialEq for PathStack {
+    fn eq(&self, other: &Self) -> bool { self.0.eq(&other.0) }
+}
+impl Eq for PathStack {}
+impl PartialOrd for PathStack {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+impl Ord for PathStack {
+    fn cmp(&self, other: &Self) -> Ordering { self.0.cmp(&other.0) }
+}
+impl Hash for PathStack {
+    fn hash<H>(&self, state: &mut H)
+        where H: Hasher
+    {
+        self.0.hash(state)
     }
 }
 

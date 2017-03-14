@@ -14,6 +14,7 @@ use std::env::current_dir;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
+use work_dir::FileMark;
 use work_dir::WorkDir;
 
 pub fn init() -> Result<()> {
@@ -72,7 +73,7 @@ pub fn status(show_ignored: bool) -> Result<()> {
 
 pub fn add(path: PathBuf) -> Result<()> {
     let mut work_dir = find_work_dir()?;
-    work_dir.mark_for_add(path)
+    work_dir.mark(path.as_path(), FileMark::Add)
 }
 
 pub fn commit(message: String) -> Result<()> {
