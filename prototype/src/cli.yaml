@@ -20,6 +20,13 @@ subcommands:
                 required: true
                 index: 1
 
+    - ls-files:
+        args:
+            - obj-spec:
+                help: "tree to look up"
+                required: false
+                index: 1
+
     - extract-object:
         help: "pull a file or tree out of repo and onto the disk"
         args:

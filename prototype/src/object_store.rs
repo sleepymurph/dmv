@@ -236,6 +236,15 @@ impl ObjectStore {
     }
 
 
+    /// Give a Display object that will walk the tree and list its contents
+    pub fn ls_files(&self, hash: ObjectKey) -> Result<TreeDisplay> {
+        Ok(TreeDisplay {
+            node: self.lookup_node(hash)?,
+            object_store: self,
+        })
+    }
+
+
     /// Extract binary content from a Blob or ChunkedBlob to a Write stream
     pub fn copy_blob_content(&self,
                              hash: &ObjectKey,
@@ -389,6 +398,64 @@ impl<'a> Iterator for Commits<'a> {
         })
     }
 }
+
+
+
+/// A wrapper to Display a LsTree, with options
+pub struct TreeDisplay<'a> {
+    object_store: &'a ObjectStore,
+    node: ObjectWalkNode,
+}
+impl<'a> fmt::Display for TreeDisplay<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut op = TreeDisplayOp { formatter: f };
+        match self.object_store.walk_node(&mut op, self.node) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(fmt::Error),
+        }
+    }
+}
+
+
+/// An operation that walks an Object Tree to Display it
+struct TreeDisplayOp<'s, 'f: 's> {
+    formatter: &'s mut fmt::Formatter<'f>,
+}
+impl<'a, 'b> TreeDisplayOp<'a, 'b> {
+    fn write_node(&mut self,
+                  ps: &PathStack,
+                  node: &ObjectWalkNode)
+                  -> fmt::Result {
+        writeln!(self.formatter, "{} {} {}", node.0, node.1, ps)
+    }
+}
+impl<'a, 'b> WalkOp<ObjectWalkNode> for TreeDisplayOp<'a, 'b> {
+    type VisitResult = ();
+
+    fn should_descend(&mut self,
+                      _ps: &PathStack,
+                      node: &ObjectWalkNode)
+                      -> bool {
+        node.1.is_treeish()
+    }
+
+    fn pre_descend(&mut self,
+                   ps: &PathStack,
+                   node: &ObjectWalkNode)
+                   -> Result<()> {
+        self.write_node(ps, node)?;
+        Ok(())
+    }
+
+    fn no_descend(&mut self,
+                  ps: &PathStack,
+                  node: ObjectWalkNode)
+                  -> Result<Option<Self::VisitResult>> {
+        self.write_node(ps, &node)?;
+        Ok(None)
+    }
+}
+
 
 #[cfg(test)]
 pub mod test {

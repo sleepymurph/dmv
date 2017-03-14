@@ -50,6 +50,24 @@ pub fn show_object(obj_spec: &RevSpec) -> Result<()> {
     Ok(())
 }
 
+pub fn ls_files(obj_spec: Option<RevSpec>) -> Result<()> {
+
+    match obj_spec {
+        Some(r) => {
+            let object_store = &find_object_store()?;
+            let hash = object_store.find_object(&r)?;
+            print!("{}", object_store.ls_files(hash)?);
+        }
+        None => {
+            let wd = find_work_dir()?;
+            let hash = wd.head()
+                .ok_or_else(|| "No commit specified and no parent commit")?;
+            print!("{}", wd.ls_files(hash)?);
+        }
+    };
+    Ok(())
+}
+
 pub fn extract_object(obj_spec: &RevSpec, file_path: &Path) -> Result<()> {
 
     let mut fs_transfer = find_fs_transfer()?;
