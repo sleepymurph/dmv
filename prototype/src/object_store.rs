@@ -421,14 +421,6 @@ impl<'a> fmt::Display for TreeDisplay<'a> {
 struct TreeDisplayOp<'s, 'f: 's> {
     formatter: &'s mut fmt::Formatter<'f>,
 }
-impl<'a, 'b> TreeDisplayOp<'a, 'b> {
-    fn write_node(&mut self,
-                  ps: &PathStack,
-                  node: &ObjectWalkNode)
-                  -> fmt::Result {
-        writeln!(self.formatter, "{} {} {}", node.0, node.1.code(), ps)
-    }
-}
 impl<'a, 'b> WalkOp<ObjectWalkNode> for TreeDisplayOp<'a, 'b> {
     type VisitResult = ();
 
@@ -439,19 +431,11 @@ impl<'a, 'b> WalkOp<ObjectWalkNode> for TreeDisplayOp<'a, 'b> {
         node.1.is_treeish()
     }
 
-    fn pre_descend(&mut self,
-                   ps: &PathStack,
-                   node: &ObjectWalkNode)
-                   -> Result<()> {
-        self.write_node(ps, node)?;
-        Ok(())
-    }
-
     fn no_descend(&mut self,
                   ps: &PathStack,
                   node: ObjectWalkNode)
                   -> Result<Option<Self::VisitResult>> {
-        self.write_node(ps, &node)?;
+        writeln!(self.formatter, "{} {} {}", node.0, node.1.code(), ps)?;
         Ok(None)
     }
 }
