@@ -53,6 +53,7 @@ pub mod constants;
 pub mod dag;
 pub mod rolling_hash;
 pub mod object_store;
+pub mod file_store;
 #[macro_use]
 pub mod cache;
 pub mod ignore;

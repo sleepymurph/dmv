@@ -1,34 +1,28 @@
 //! Functionality for transfering files between filesystem and object store
 
-use cache::AllCaches;
 use dag::ObjectKey;
 use dag::ObjectSize;
 use dag::Tree;
 use error::*;
+use file_store::FileStore;
+use file_store::FileWalkNode;
 use human_readable::human_bytes;
 use ignore::IgnoreList;
 use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
-use rolling_hash::read_file_objects;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::fs::File;
-use std::fs::Metadata;
-use std::fs::OpenOptions;
 use std::fs::create_dir;
-use std::fs::read_dir;
-use std::fs::remove_dir_all;
 use std::fs::remove_file;
-use std::io::BufReader;
-use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use walker::*;
 
 
+/// Combine a FileStore and an ObjectStore to provide transfers between them
 pub struct FsTransfer {
     pub object_store: ObjectStore,
-    pub fs_lookup: FileLookup,
+    pub file_store: FileStore,
 }
 
 impl_deref_mut!(FsTransfer => ObjectStore, object_store);
@@ -41,7 +35,7 @@ impl FsTransfer {
 
         FsTransfer {
             object_store: object_store,
-            fs_lookup: FileLookup::new(),
+            file_store: FileStore::new(),
         }
     }
 
@@ -53,7 +47,7 @@ impl FsTransfer {
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
         debug!("Hashing object, with framework");
         let no_answer_err = || Error::from("Nothing to hash (all ignored?)");
-        let hash_plan = self.fs_lookup
+        let hash_plan = self.file_store
             .walk_handle(&mut FsOnlyPlanBuilder, path.to_owned())?
             .ok_or_else(&no_answer_err)?;
         if hash_plan.unhashed_size() > 0 {
@@ -64,13 +58,14 @@ impl FsTransfer {
             .ok_or_else(&no_answer_err)
     }
 
+    /// Extract a file or directory from the object store to the filesystem
     pub fn extract_object(&mut self,
                           hash: &ObjectKey,
                           path: &Path)
                           -> Result<()> {
 
         let mut op = ExtractObjectOp {
-            fs_lookup: &mut self.fs_lookup,
+            file_store: &mut self.file_store,
             object_store: &self.object_store,
             extract_root: path,
         };
@@ -84,117 +79,9 @@ impl FsTransfer {
     }
 
     fn hash_file(&mut self, file_path: &Path) -> Result<ObjectKey> {
-        let file = File::open(&file_path)?;
-        let meta = file.metadata()?;
-        let file = BufReader::new(file);
-
-        if let Ok(Some(hash)) = self.fs_lookup.cache.check(file_path, &meta) {
-            debug!("Already hashed: {} {}", hash, file_path.display());
-            return Ok(hash);
-        }
-        debug!("Hashing {}", file_path.display());
-
-        let mut last_hash = None;
-        for object in read_file_objects(file) {
-            let object = object?;
-            self.store_object(&object)?;
-            last_hash = Some(object.hash().to_owned());
-        }
-        let last_hash = last_hash.expect("Iterator always emits objects");
-
-        self.fs_lookup
-            .cache
-            .insert(file_path.to_owned(), &meta, last_hash.to_owned())?;
-
-        Ok(last_hash)
+        self.file_store.hash_file(file_path, &mut self.object_store)
     }
 }
-
-
-struct PathWalkNode {
-    path: PathBuf,
-    metadata: Metadata,
-    hash: Option<ObjectKey>,
-    ignored: bool,
-}
-
-
-pub struct FileLookup {
-    cache: AllCaches,
-    ignored: IgnoreList,
-}
-
-impl FileLookup {
-    pub fn new() -> Self {
-        FileLookup {
-            cache: AllCaches::new(),
-            ignored: IgnoreList::default(),
-        }
-    }
-
-    fn extract_file(&mut self,
-                    object_store: &ObjectStore,
-                    hash: &ObjectKey,
-                    path: &Path)
-                    -> Result<()> {
-
-        if path.is_file() {
-            if let Some(ref c) = self.cache.check(path, &path.metadata()?)? {
-                if c == hash {
-                    debug!("Already at state: {} {}", hash, path.display());
-                    return Ok(());
-                }
-            }
-        } else if path.is_dir() {
-            info!("Removing dir to extract file {} {}", hash, path.display());
-            remove_dir_all(path)?;
-        }
-
-        let mut out_file = OpenOptions::new().write(true)
-            .create(true)
-            .truncate(true)
-            .open(path)?;
-
-        object_store.copy_blob_content(hash, &mut out_file)?;
-        out_file.flush()?;
-
-        self.cache.insert(path.to_owned(), &out_file.metadata()?, *hash)?;
-
-        Ok(())
-    }
-}
-
-impl NodeLookup<PathBuf, PathWalkNode> for FileLookup {
-    fn lookup_node(&self, path: PathBuf) -> Result<PathWalkNode> {
-        let meta = path.metadata()?;
-        Ok(PathWalkNode {
-            hash: self.cache.check(&path, &meta)?,
-            ignored: self.ignored.ignores(path.as_path()),
-            path: path,
-            metadata: meta,
-        })
-    }
-}
-
-impl NodeReader<PathWalkNode> for FileLookup {
-    fn read_children(&self,
-                     node: &PathWalkNode)
-                     -> Result<ChildMap<PathWalkNode>> {
-        let mut children = BTreeMap::new();
-        for entry in read_dir(&node.path)? {
-            let entry = entry?;
-            let path = entry.path();
-            let name = path.file_name_or_err()?
-                .to_os_string()
-                .into_string()
-                .map_err(|e| format!("Bad UTF-8 in name: {:?}", e))?;
-            let node = self.lookup_node(path.clone())?;
-            children.insert(name, node);
-        }
-        Ok(children)
-    }
-}
-
 
 
 #[derive(Clone,Copy,Eq,PartialEq,Debug)]
@@ -285,23 +172,23 @@ impl<'a> fmt::Display for HashPlan {
 struct FsOnlyPlanBuilder;
 
 impl FsOnlyPlanBuilder {
-    fn status(&self, node: &PathWalkNode) -> Status {
+    fn status(&self, node: &FileWalkNode) -> Status {
         match node {
-            &PathWalkNode { ignored: true, .. } => Status::Ignored,
+            &FileWalkNode { ignored: true, .. } => Status::Ignored,
             _ => Status::Add,
         }
     }
 }
 
-impl WalkOp<PathWalkNode> for FsOnlyPlanBuilder {
+impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
     type VisitResult = HashPlan;
 
-    fn should_descend(&mut self, _ps: &PathStack, node: &PathWalkNode) -> bool {
+    fn should_descend(&mut self, _ps: &PathStack, node: &FileWalkNode) -> bool {
         node.metadata.is_dir() && self.status(node).is_included_in_commit()
     }
     fn no_descend(&mut self,
                   _ps: &PathStack,
-                  node: PathWalkNode)
+                  node: FileWalkNode)
                   -> Result<Option<Self::VisitResult>> {
         Ok(Some(HashPlan {
             status: self.status(&node),
@@ -314,7 +201,7 @@ impl WalkOp<PathWalkNode> for FsOnlyPlanBuilder {
     }
     fn post_descend(&mut self,
                     ps: &PathStack,
-                    node: PathWalkNode,
+                    node: FileWalkNode,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
         self.no_descend(ps, node).map(|result| {
@@ -328,7 +215,7 @@ impl WalkOp<PathWalkNode> for FsOnlyPlanBuilder {
 
 pub struct FsObjComparePlanBuilder;
 
-type CompareNode = (Option<PathWalkNode>, Option<ObjectWalkNode>);
+type CompareNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
 
 impl FsObjComparePlanBuilder {
     fn status(node: &CompareNode) -> Status {
@@ -452,7 +339,7 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
 
 
 pub struct ExtractObjectOp<'a> {
-    fs_lookup: &'a mut FileLookup,
+    file_store: &'a mut FileStore,
     object_store: &'a ObjectStore,
     extract_root: &'a Path,
 }
@@ -496,7 +383,7 @@ impl<'a> WalkOp<ObjectWalkNode> for ExtractObjectOp<'a> {
                   node: ObjectWalkNode)
                   -> Result<Option<Self::VisitResult>> {
         let abs_path = self.abs_path(ps);
-        self.fs_lookup
+        self.file_store
             .extract_file(self.object_store, &node.0, abs_path.as_path())?;
         Ok(None)
     }
@@ -548,7 +435,7 @@ mod test {
         assert!(out_content.as_slice() == in_file, "file contents differ");
 
         // Make sure the output is cached
-        assert_eq!(fs_transfer.fs_lookup
+        assert_eq!(fs_transfer.file_store
                        .cache
                        .status(&out_file, &out_file.metadata().unwrap())
                        .unwrap(),
