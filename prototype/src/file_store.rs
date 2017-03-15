@@ -5,6 +5,8 @@ use dag::ObjectKey;
 use error::*;
 use ignore::IgnoreList;
 use object_store::ObjectStore;
+use progress::ProgressCounter;
+use progress::ProgressReader;
 use rolling_hash::read_file_objects;
 use std::fs::*;
 use std::io::BufReader;
@@ -38,11 +40,12 @@ impl FileStore {
     /// Store a single file and cache and return its hash
     pub fn hash_file(&mut self,
                      file_path: &Path,
-                     object_store: &mut ObjectStore)
+                     object_store: &mut ObjectStore,
+                     progress: &ProgressCounter)
                      -> Result<ObjectKey> {
         let file = File::open(&file_path)?;
         let meta = file.metadata()?;
-        let file = BufReader::new(file);
+        let file = BufReader::new(ProgressReader::new(file, progress));
 
         if let Ok(Some(hash)) = self.cache.check(file_path, &meta) {
             debug!("Already hashed: {} {}", hash, file_path.display());

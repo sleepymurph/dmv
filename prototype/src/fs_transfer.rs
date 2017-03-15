@@ -9,6 +9,8 @@ use human_readable::human_bytes;
 use ignore::IgnoreList;
 use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
+use progress::ProgressCounter;
+use progress::std_err_watch;
 use status::HashPlan;
 use status::Status;
 use std::collections::BTreeMap;
@@ -16,6 +18,8 @@ use std::fs::create_dir;
 use std::fs::remove_file;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::thread;
 use walker::*;
 
 
@@ -52,11 +56,21 @@ impl FsTransfer {
     }
 
     pub fn hash_plan(&mut self, hash_plan: &HashPlan) -> Result<ObjectKey> {
+        let progress =
+            Arc::new(ProgressCounter::new(hash_plan.unhashed_size()));
         if hash_plan.unhashed_size() > 0 {
             stderrln!("{} to hash. Hashing...",
                       human_bytes(hash_plan.unhashed_size()));
+            let progress = progress.clone();
+            thread::spawn(move || {
+                std_err_watch(progress);
+            });
         }
-        hash_plan.walk(&mut HashAndStoreOp { fs_transfer: self })?
+        let mut op = HashAndStoreOp {
+            fs_transfer: self,
+            progress: &*progress,
+        };
+        hash_plan.walk(&mut op)?
             .ok_or_else(&Self::no_answer_err)
     }
 
@@ -84,8 +98,11 @@ impl FsTransfer {
         Ok(())
     }
 
-    fn hash_file(&mut self, file_path: &Path) -> Result<ObjectKey> {
-        self.file_store.hash_file(file_path, &mut self.object_store)
+    fn hash_file(&mut self,
+                 file_path: &Path,
+                 progress: &ProgressCounter)
+                 -> Result<ObjectKey> {
+        self.file_store.hash_file(file_path, &mut self.object_store, progress)
     }
 }
 
@@ -142,11 +159,12 @@ impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
 
 
 /// An operation that walks a HashPlan to hash and store the files as a Tree
-pub struct HashAndStoreOp<'a> {
+pub struct HashAndStoreOp<'a, 'b> {
     fs_transfer: &'a mut FsTransfer,
+    progress: &'b ProgressCounter,
 }
 
-impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
+impl<'a, 'b> WalkOp<&'a HashPlan> for HashAndStoreOp<'a, 'b> {
     type VisitResult = ObjectKey;
 
     fn should_descend(&mut self, _ps: &PathStack, node: &&HashPlan) -> bool {
@@ -171,7 +189,8 @@ impl<'a> WalkOp<&'a HashPlan> for HashAndStoreOp<'a> {
             }
             (true, None, &Some(ref fs_path)) => {
                 debug!("{} {} - hashing", node.status.code(), ps);
-                let hash = self.fs_transfer.hash_file(fs_path.as_path())?;
+                let hash = self.fs_transfer
+                    .hash_file(fs_path.as_path(), self.progress)?;
                 Ok(Some(hash))
             }
             (true, None, &None) => {
@@ -263,9 +282,7 @@ mod test {
     use dag::Blob;
     use dag::ObjectCommon;
     use dag::ObjectType;
-    use hamcrest::prelude::*;
     use rolling_hash::CHUNK_TARGET_SIZE;
-    use std::fs::create_dir_all;
     use super::*;
     use testutil;
     use testutil::tempdir::TempDir;
@@ -337,110 +354,5 @@ mod test {
 
         let result = fs_transfer.extract_object(&hash, &out_file);
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_default_overwrite_policy() {
-        let (temp, mut fs_transfer) = create_temp_repo("object_store");
-        let wd_path = temp.path().join("work_dir");
-
-        let source = wd_path.join("in_file");
-        testutil::write_file(&source, "in_file content").unwrap();
-        let hash = fs_transfer.hash_file(source.as_path()).unwrap();
-
-
-        // File vs cached file
-        let target = wd_path.join("cached_file");
-        testutil::write_file(&target, "cached_file content").unwrap();
-        fs_transfer.hash_file(target.as_path()).unwrap();
-
-        fs_transfer.extract_object(&hash, &target).unwrap();
-        let content = testutil::read_file_to_string(&target).unwrap();
-        assert_that!(&content, equal_to("in_file content"));
-
-
-        // File vs uncached file
-        let target = wd_path.join("uncached_file");
-        testutil::write_file(&target, "uncached_file content").unwrap();
-
-        fs_transfer.extract_object(&hash, &target).unwrap();
-        let content = testutil::read_file_to_string(&target).unwrap();
-        assert_that!(&content, equal_to("in_file content"));
-
-
-        // File vs empty dir
-        let target = wd_path.join("empty_dir");
-        create_dir_all(&target).unwrap();
-
-        fs_transfer.extract_object(&hash, &target).unwrap();
-        let content = testutil::read_file_to_string(&target).unwrap();
-        assert_that!(&content, equal_to("in_file content"));
-
-
-        // File vs non-empty dir
-        let target = wd_path.join("dir");
-        write_files!{
-            &target;
-            "dir_file" => "dir_file content",
-        };
-
-        fs_transfer.extract_object(&hash, &target).unwrap();
-        let content = testutil::read_file_to_string(&target).unwrap();
-        assert_that!(&content, equal_to("in_file content"));
-    }
-
-    #[test]
-    fn test_extract_directory_clobber_file() {
-        let (temp, mut fs_transfer) = create_temp_repo("object_store");
-        let wd_path = temp.path().join("work_dir");
-
-        let source = wd_path.join("in_dir");
-        write_files!{
-                source;
-                "file1" => "dir/file1 content",
-                "file2" => "dir/file2 content",
-        };
-
-        let hash = fs_transfer.hash_path(&source).unwrap();
-
-        // Dir vs cached file
-        let target = wd_path.join("cached_file");
-        testutil::write_file(&target, "cached_file content").unwrap();
-        fs_transfer.hash_file(target.as_path()).unwrap();
-
-        fs_transfer.extract_object(&hash, &target).unwrap();
-        assert_that!(&target, existing_dir());
-
-
-        // Dir vs uncached file
-        let target = wd_path.join("uncached_file");
-        testutil::write_file(&target, "uncached_file content").unwrap();
-        fs_transfer.hash_file(target.as_path()).unwrap();
-
-        fs_transfer.extract_object(&hash, &target).unwrap();
-        assert_that!(&target, existing_dir());
-
-
-        // Dir vs empty dir
-        let target = wd_path.join("empty_dir");
-        create_dir_all(&target).unwrap();
-
-        fs_transfer.extract_object(&hash, &target).unwrap();
-        assert_that!(&target, existing_dir());
-        assert_that!(&target.join("file1"), existing_file());
-
-
-        // Dir vs non-empty dir
-        let target = wd_path.join("non_empty_dir");
-        write_files!{
-            target;
-            "target_file1" => "target_file1 content",
-        };
-
-        fs_transfer.extract_object(&hash, &target).unwrap();
-        assert_that!(&target, existing_dir());
-        assert_that!(&target.join("file1"), existing_file());
-        assert_that!(&target.join("file2"), existing_file());
-        assert_that!(&target.join("target_file1"), existing_file());
     }
 }

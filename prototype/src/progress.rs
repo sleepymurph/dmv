@@ -1,4 +1,6 @@
 use std::fmt;
+use std::io;
+use std::io::Read;
 use std::io::Write;
 use std::io::stderr;
 use std::sync::*;
@@ -75,5 +77,23 @@ pub fn std_err_watch(p: Arc<ProgressCounter>) {
             write!(stderr(), "{}", ansi_up_lines(1)).unwrap();
             thread::sleep(sleep);
         }
+    }
+}
+
+
+pub struct ProgressReader<'a, R: Read> {
+    p: &'a ProgressCounter,
+    r: R,
+}
+impl<'a, R: Read> ProgressReader<'a, R> {
+    pub fn new(r: R, p: &'a ProgressCounter) -> Self {
+        ProgressReader { r: r, p: p }
+    }
+}
+impl<'a, R: Read> Read for ProgressReader<'a, R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let count = self.r.read(buf)?;
+        self.p.add(count as u64);
+        Ok(count)
     }
 }
