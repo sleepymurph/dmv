@@ -77,21 +77,3 @@ pub fn std_err_watch(p: Arc<ProgressCounter>) {
         }
     }
 }
-
-
-fn main() {
-    let progress = Arc::new(ProgressCounter::new(2000));
-    let p2 = progress.clone();
-
-    let worker = thread::spawn(move || {
-        while !progress.read().finished {
-            progress.add(20);
-            thread::sleep(Duration::from_millis(20));
-        }
-    });
-
-    let reporter = thread::spawn(move || std_err_watch(p2));
-
-    worker.join().unwrap();
-    reporter.join().unwrap();
-}

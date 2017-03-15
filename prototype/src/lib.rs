@@ -44,6 +44,7 @@ macro_rules! stderrln {
 pub mod maputil;
 pub mod encodable;
 pub mod fsutil;
+pub mod progress;
 pub mod walker;
 
 // Project-specific code
