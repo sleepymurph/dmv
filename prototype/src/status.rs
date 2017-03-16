@@ -92,27 +92,34 @@ impl Status {
 }
 
 
-pub struct StatusCompare {
-    pub src_exists: bool,
-    pub src_hash: Option<ObjectKey>,
-
-    pub targ_exists: bool,
-    pub targ_hash: Option<ObjectKey>,
-    pub targ_is_ignored: bool,
-
-    pub exact_mark: Option<FileMark>,
-    pub ancestor_mark: Option<FileMark>,
+pub struct ComparableNode {
+    pub is_treeish: bool,
+    pub file_size: ObjectSize,
+    pub hash: Option<ObjectKey>,
+    pub fs_path: Option<PathBuf>,
+    pub is_ignored: bool,
 }
 
-impl StatusCompare {
-    pub fn compare(&self) -> Status {
-        let an_mk = self.ancestor_mark;
-        let ex_mk = self.exact_mark;
+impl ComparableNode {
+    pub fn compare(src: &Option<ComparableNode>,
+                   targ: &Option<ComparableNode>,
+                   exact_mark: Option<FileMark>,
+                   ancestor_mark: Option<FileMark>)
+                   -> Status {
 
-        match (self.src_exists,
-               self.targ_exists,
-               self.src_hash,
-               self.targ_hash) {
+        let src = src.as_ref();
+        let targ = targ.as_ref();
+
+        let src_exists = src.is_some();
+        let targ_exists = targ.is_some();
+        let src_hash = src.and_then(|n| n.hash);
+        let targ_hash = targ.and_then(|n| n.hash);
+        let targ_is_ignored = targ.map(|n| n.is_ignored).unwrap_or(false);
+
+        let ex_mk = exact_mark;
+        let an_mk = ancestor_mark;
+
+        match (src_exists, targ_exists, src_hash, targ_hash) {
 
             (_, _, _, _) if an_mk == Some(FileMark::Delete) => Status::Delete,
 
@@ -121,7 +128,7 @@ impl StatusCompare {
             (true, true, _, _) => Status::MaybeModified,
 
             (false, true, _, _) if ex_mk == Some(FileMark::Add) => Status::Add,
-            (false, true, _, _) if self.targ_is_ignored => Status::Ignored,
+            (false, true, _, _) if targ_is_ignored => Status::Ignored,
             (false, true, _, _) if an_mk == Some(FileMark::Add) => Status::Add,
             (false, true, _, _) => Status::Untracked,
 
@@ -130,15 +137,6 @@ impl StatusCompare {
             (false, false, _, _) => unreachable!(),
         }
     }
-}
-
-
-pub struct ComparableNode {
-    pub is_treeish: bool,
-    pub file_size: ObjectSize,
-    pub hash: Option<ObjectKey>,
-    pub fs_path: Option<PathBuf>,
-    pub is_ignored: bool,
 }
 
 

@@ -117,20 +117,9 @@ pub struct CompareWalkOp<'a> {
 }
 impl<'a> CompareWalkOp<'a> {
     fn status(&self, node: &CompareNode, ps: &PathStack) -> Status {
-        let obj = node.0.as_ref();
-        let path = node.1.as_ref();
-        StatusCompare {
-                src_exists: obj.is_some(),
-                src_hash: obj.and_then(|n| n.hash),
-
-                targ_exists: path.is_some(),
-                targ_hash: path.and_then(|p| p.hash),
-                targ_is_ignored: path.map(|p| p.is_ignored).unwrap_or(false),
-
-                exact_mark: self.marks.get(ps).map(|m| *m),
-                ancestor_mark: self.marks.get_ancestor(ps),
-            }
-            .compare()
+        let exact_mark = self.marks.get(ps).map(|m| *m);
+        let ancestor_mark = self.marks.get_ancestor(ps);
+        ComparableNode::compare(&node.0, &node.1, exact_mark, ancestor_mark)
     }
 }
 impl<'a> WalkOp<CompareNode> for CompareWalkOp<'a> {
