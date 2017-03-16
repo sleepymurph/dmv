@@ -18,30 +18,6 @@ use std::path::PathBuf;
 use walker::*;
 
 
-wrapper_struct!(
-#[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
-struct FileMarkMap(BTreeMap<PathStack, FileMark>);
-);
-impl FileMarkMap {
-    fn new() -> Self { FileMarkMap(BTreeMap::new()) }
-
-    fn get_ancestor(&self, ps: &PathStack) -> Option<FileMark> {
-        let mut ps = ps.clone();
-        loop {
-            if let Some(mark) = self.get(&ps) {
-                return Some(*mark);
-            }
-            if ps.len() == 0 {
-                return None;
-            } else {
-                ps.pop();
-            }
-        }
-    }
-}
-
-
-
 /// State stored in a file in the WorkDir, including current branch
 #[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
 pub struct WorkDirState {

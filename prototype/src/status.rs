@@ -3,6 +3,7 @@
 use dag::ObjectKey;
 use dag::ObjectSize;
 use error::*;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
 use walker::*;
@@ -15,6 +16,30 @@ pub enum FileMark {
     /// Mark this file for deletion
     Delete,
 }
+
+
+wrapper_struct!(
+#[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
+pub struct FileMarkMap(BTreeMap<PathStack, FileMark>);
+);
+impl FileMarkMap {
+    pub fn new() -> Self { FileMarkMap(BTreeMap::new()) }
+
+    pub fn get_ancestor(&self, ps: &PathStack) -> Option<FileMark> {
+        let mut ps = ps.clone();
+        loop {
+            if let Some(mark) = self.get(&ps) {
+                return Some(*mark);
+            }
+            if ps.len() == 0 {
+                return None;
+            } else {
+                ps.pop();
+            }
+        }
+    }
+}
+
 
 /// Status of an individual file or dir, as compared to a commit
 #[derive(Clone,Copy,Eq,PartialEq,Debug)]
