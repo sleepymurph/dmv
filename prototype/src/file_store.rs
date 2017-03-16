@@ -8,6 +8,7 @@ use object_store::ObjectStore;
 use progress::ProgressCounter;
 use progress::ProgressReader;
 use rolling_hash::read_file_objects;
+use status::ComparableNode;
 use std::fs::*;
 use std::io::BufReader;
 use std::io::Write;
@@ -21,6 +22,18 @@ pub struct FileWalkNode {
     pub metadata: Metadata,
     pub hash: Option<ObjectKey>,
     pub ignored: bool,
+}
+
+impl Into<ComparableNode> for FileWalkNode {
+    fn into(self) -> ComparableNode {
+        ComparableNode {
+            is_treeish: self.metadata.is_dir(),
+            file_size: self.metadata.len(),
+            hash: self.hash,
+            fs_path: Some(self.path),
+            is_ignored: self.ignored,
+        }
+    }
 }
 
 /// Filesystem parallel to the ObjectStore, reads files plus cache/ignore info

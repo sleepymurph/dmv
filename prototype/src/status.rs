@@ -133,6 +133,15 @@ impl StatusCompare {
 }
 
 
+pub struct ComparableNode {
+    pub is_treeish: bool,
+    pub file_size: ObjectSize,
+    pub hash: Option<ObjectKey>,
+    pub fs_path: Option<PathBuf>,
+    pub is_ignored: bool,
+}
+
+
 /// A hierarchy of paths and their statuses, describing a potential commit
 pub struct StatusTree {
     pub fs_path: Option<PathBuf>,
