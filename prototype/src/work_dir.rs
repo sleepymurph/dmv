@@ -224,56 +224,37 @@ impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
     type VisitResult = StatusTree;
 
     fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
-        let path_is_dir = match node.0 {
-            Some(ref pwn) => pwn.metadata.is_dir(),
-            None => false,
-        };
-        path_is_dir && self.status(&node, ps).is_included()
+        let path = node.0.as_ref();
+        let is_dir = path.map(|p| p.metadata.is_dir()).unwrap_or(false);
+        let included = self.status(&node, ps).is_included();
+        is_dir && included
     }
     fn no_descend(&mut self,
                   ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
-        let status = self.status(&node, ps);
-        match node {
-            (Some(path), _) => {
-                Ok(Some(StatusTree {
-                    status: status,
-                    fs_path: Some(path.path),
-                    targ_is_dir: path.metadata.is_dir(),
-                    targ_size: path.metadata.len(),
-                    targ_hash: path.hash,
-                    children: BTreeMap::new(),
-                }))
-            }
-            (None, Some(obj)) => {
-                Ok(Some(StatusTree {
-                    status: status,
-                    fs_path: None,
-                    targ_is_dir: false,
-                    targ_size: 0,
-                    targ_hash: Some(obj.hash),
-                    children: BTreeMap::new(),
-                }))
-            }
-            (None, None) => unreachable!(),
-        }
+        let path = node.0.as_ref();
+        let obj = node.1.as_ref();
+        Ok(Some(StatusTree {
+            status: self.status(&node, ps),
+            fs_path: path.map(|p| p.path.to_owned()),
+            targ_is_dir: path.map(|p| p.metadata.is_dir()).unwrap_or(false),
+            targ_size: path.map(|p| p.metadata.len()).unwrap_or(0),
+            targ_hash: path.and_then(|p| p.hash).or(obj.map(|o| o.hash)),
+            children: BTreeMap::new(),
+        }))
     }
     fn post_descend(&mut self,
                     ps: &PathStack,
                     node: CompareNode,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
-
-        // Convert dir node to StatusTree according to normal rules
-        match self.no_descend(ps, node)? {
-            Some(mut plan) => {
-                // Then add children
-                plan.children = children;
-                Ok(Some(plan))
-            }
-            None => Ok(None),
-        }
+        // Convert dir node to StatusTree according to normal rules,
+        // then add children
+        Ok(self.no_descend(ps, node)?.map(|mut plan| {
+            plan.children = children;
+            plan
+        }))
     }
 }
 
