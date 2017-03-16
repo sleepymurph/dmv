@@ -52,16 +52,22 @@ pub struct ProgressReport<'a> {
 
 impl<'a> fmt::Display for ProgressReport<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let secs = self.elapsed.as_secs() as f32 +
-                   self.elapsed.subsec_nanos() as f32 / 1e9;
-        let percent = self.count as f32 / self.total as f32 * 100_f32;
         write!(f, "{}:", self.desc)?;
         write!(f, " {:>10}/{:>10}",
                human_bytes(self.count),
                human_bytes(self.total))?;
+
+        if self.total == 0 {
+            return Ok(());
+        }
+
+        let secs = self.elapsed.as_secs() as f32 +
+                   self.elapsed.subsec_nanos() as f32 / 1e9;
+        let percent = self.count as f32 / self.total as f32 * 100_f32;
         write!(f, " {:5.1}%", percent)?;
         write!(f, " {:0.1}s", secs)?;
-        if secs >= 0.1 {
+
+        if secs >= 0.5 {
             let per_sec = self.count as f32 / secs;
             let remain_secs = (self.total - self.count) as f32 / per_sec;
             write!(f, " {:>10}/s", human_bytes(per_sec as u64))?;
@@ -84,7 +90,6 @@ pub fn std_err_watch(p: Arc<ProgressCounter>) {
     let refresh_per_sec = 10;
     let sleep = Duration::from_millis(1000 / refresh_per_sec);
     loop {
-        thread::sleep(sleep);
         let p = p.read();
         write!(stderr(), "{}", ANSI_CLEAR_TO_END).unwrap();
         writeln!(stderr(), " {}", p).unwrap();
@@ -92,6 +97,7 @@ pub fn std_err_watch(p: Arc<ProgressCounter>) {
             break;
         } else {
             write!(stderr(), "{}", ansi_up_lines(1)).unwrap();
+            thread::sleep(sleep);
         }
     }
 }
