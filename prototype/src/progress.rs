@@ -17,15 +17,15 @@ pub struct ProgressCounter {
 }
 
 impl ProgressCounter {
-    pub fn new<S>(desc: S, total: u64) -> Self
+    pub fn arc<S>(desc: S, total: u64) -> Arc<Self>
         where S: Into<String>
     {
-        ProgressCounter {
+        Arc::new(ProgressCounter {
             desc: desc.into(),
             start: Instant::now(),
             total: total,
             count: RwLock::new(0),
-        }
+        })
     }
     pub fn add(&self, progress: u64) {
         *self.count.write().unwrap() += progress

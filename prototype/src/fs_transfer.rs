@@ -17,7 +17,6 @@ use std::fs::create_dir;
 use std::fs::remove_file;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::thread;
 use walker::*;
 
@@ -55,16 +54,14 @@ impl FsTransfer {
     }
 
     pub fn hash_plan(&mut self, hash_plan: &HashPlan) -> Result<ObjectKey> {
-        let progress =
-            Arc::new(ProgressCounter::new("Hashing",
-                                          hash_plan.unhashed_size()));
+        let prog = ProgressCounter::arc("Hashing", hash_plan.unhashed_size());
 
         let mut op = HashAndStoreOp {
             fs_transfer: self,
-            progress: &*progress.clone(),
+            progress: &*prog.clone(),
         };
 
-        let prog_thread = thread::spawn(move || std_err_watch(progress));
+        let prog_thread = thread::spawn(move || std_err_watch(prog));
         let hash = hash_plan.walk(&mut op)?.ok_or_else(&Self::no_answer_err)?;
 
         prog_thread.join().unwrap();
