@@ -59,7 +59,7 @@ pub struct StatusTree {
 
     pub targ_is_dir: bool,
     pub targ_size: ObjectSize,
-    pub hash: Option<ObjectKey>,
+    pub targ_hash: Option<ObjectKey>,
 
     pub children: ChildMap<StatusTree>,
 }
@@ -69,9 +69,10 @@ impl StatusTree {
     pub fn unhashed_size(&self) -> ObjectSize {
         match self {
             &StatusTree { status, .. } if !status.is_included() => 0,
-            &StatusTree { targ_is_dir: false, hash: None, targ_size, .. } => {
-                targ_size
-            }
+            &StatusTree { targ_is_dir: false,
+                          targ_hash: None,
+                          targ_size,
+                          .. } => targ_size,
             _ => {
                 self.children
                     .iter()

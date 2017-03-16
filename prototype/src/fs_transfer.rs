@@ -131,8 +131,8 @@ impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
             status: self.status(&node),
             fs_path: Some(node.path),
             targ_is_dir: node.metadata.is_dir(),
-            hash: node.hash,
             targ_size: node.metadata.len(),
+            targ_hash: node.hash,
             children: BTreeMap::new(),
         }))
     }
@@ -169,7 +169,7 @@ impl<'a, 'b> WalkOp<&'a StatusTree> for HashAndStoreOp<'a, 'b> {
                   ps: &PathStack,
                   node: &StatusTree)
                   -> Result<Option<Self::VisitResult>> {
-        match (node.status.is_included(), node.hash, &node.fs_path) {
+        match (node.status.is_included(), node.targ_hash, &node.fs_path) {
             (false, _, _) => {
                 debug!("{} {} - skipping", node.status.code(), ps);
                 Ok(None)
