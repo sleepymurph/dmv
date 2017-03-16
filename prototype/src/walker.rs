@@ -18,6 +18,8 @@ pub type ChildMap<N> = BTreeMap<String, N>;
 
 type StdResult<T, E> = ::std::result::Result<T, E>;
 
+const EMPTY_PATH_STACK_STR: &'static str = ".";
+
 /// Tracks the position in the hierarchy during a walk
 wrapper_struct!{
 #[derive(Debug,Clone,Hash,PartialEq,Eq,PartialOrd,Ord)]
@@ -41,6 +43,9 @@ impl PathStack {
                                     path.display())
                         })?;
                     stack.push(s.to_owned());
+                }
+                Component::CurDir => {
+                    // Skip
                 }
                 _ => {
                     bail!("Unknown component '{:?}' in path: {}",
@@ -72,12 +77,23 @@ impl<'a> IntoIterator for &'a PathStack {
 }
 impl fmt::Display for PathStack {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.join("/"))
+        if self.is_empty() {
+            write!(f, "{}", EMPTY_PATH_STACK_STR)
+        } else {
+            write!(f, "{}", self.join("/"))
+        }
     }
 }
 impl<'a> From<&'a str> for PathStack {
     fn from(s: &'a str) -> Self {
-        PathStack(s.split("/").map(|s| s.to_owned()).collect::<Vec<String>>())
+        if s == EMPTY_PATH_STACK_STR {
+            PathStack(Vec::new())
+        } else {
+            PathStack(s.split("/")
+                .map(|s| s.to_owned())
+                .filter(|s| s != "")
+                .collect::<Vec<String>>())
+        }
     }
 }
 impl From<String> for PathStack {
@@ -277,5 +293,14 @@ mod test_path_stack {
     fn test_relative_path_stack() {
         let stack = PathStack::from_path(Path::new("a/b/c")).unwrap();
         assert_eq!(stack.to_string(), "a/b/c");
+    }
+
+    #[test]
+    fn test_cur_dir() {
+        let stack = PathStack::from_path(Path::new(".")).unwrap();
+        assert_eq!(stack.to_string(), EMPTY_PATH_STACK_STR);
+
+        let from_str = PathStack::from(stack.to_string());
+        assert_eq!(from_str, stack);
     }
 }
