@@ -145,9 +145,9 @@ impl<R: BufRead> ChunkReader<R> {
 
                 match self.flagger.slide_until(available) {
                     Some(pos) => {
-                        buf.extend_from_slice(&available[..pos + 2]);
+                        buf.extend_from_slice(&available[..pos + 1]);
                         done = true;
-                        used = pos + 2;
+                        used = pos + 1;
                     }
                     None => {
                         buf.extend_from_slice(available);
