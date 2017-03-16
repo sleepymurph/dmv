@@ -265,7 +265,7 @@ impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
                     fs_path: Some(path.path),
                     is_dir: path.metadata.is_dir(),
                     hash: path.hash,
-                    size: path.metadata.len(),
+                    targ_size: path.metadata.len(),
                     children: BTreeMap::new(),
                 }))
             }
@@ -275,7 +275,7 @@ impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
                     hash: Some(obj.hash),
                     fs_path: None,
                     is_dir: false,
-                    size: 0,
+                    targ_size: 0,
                     children: BTreeMap::new(),
                 }))
             }

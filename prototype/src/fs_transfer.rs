@@ -132,7 +132,7 @@ impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
             fs_path: Some(node.path),
             is_dir: node.metadata.is_dir(),
             hash: node.hash,
-            size: node.metadata.len(),
+            targ_size: node.metadata.len(),
             children: BTreeMap::new(),
         }))
     }

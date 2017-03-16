@@ -55,10 +55,12 @@ impl Status {
 /// A hierarchy of paths and their statuses, describing a potential commit
 pub struct StatusTree {
     pub fs_path: Option<PathBuf>,
-    pub is_dir: bool,
     pub status: Status,
+
+    pub is_dir: bool,
+    pub targ_size: ObjectSize,
     pub hash: Option<ObjectKey>,
-    pub size: ObjectSize,
+
     pub children: ChildMap<StatusTree>,
 }
 
@@ -67,7 +69,9 @@ impl StatusTree {
     pub fn unhashed_size(&self) -> ObjectSize {
         match self {
             &StatusTree { status, .. } if !status.is_included() => 0,
-            &StatusTree { is_dir: false, hash: None, size, .. } => size,
+            &StatusTree { is_dir: false, hash: None, targ_size, .. } => {
+                targ_size
+            }
             _ => {
                 self.children
                     .iter()
