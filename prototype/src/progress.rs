@@ -92,7 +92,7 @@ pub fn std_err_watch(p: Arc<ProgressCounter>) {
     loop {
         let p = p.read();
         write!(stderr(), "{}", ANSI_CLEAR_TO_END).unwrap();
-        writeln!(stderr(), " {}", p).unwrap();
+        writeln!(stderr(), "  {}", p).unwrap();
         if p.finished {
             break;
         } else {
