@@ -142,7 +142,7 @@ impl<'a> WalkOp<CompareNode> for CompareWalkOp<'a> {
             fs_path: targ.and_then(|n| n.fs_path.to_owned()),
             targ_is_dir: targ.map(|n| n.is_treeish).unwrap_or(false),
             targ_size: targ.map(|n| n.file_size).unwrap_or(0),
-            targ_hash: targ.and_then(|n| n.hash).or(src.and_then(|n| n.hash)),
+            targ_hash: targ.or(src).and_then(|n| n.hash),
             children: BTreeMap::new(),
         }))
     }
