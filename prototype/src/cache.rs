@@ -177,6 +177,9 @@ impl AllCaches {
                  file_path: &path::Path,
                  meta: &Metadata)
                  -> Result<Option<ObjectKey>> {
+        if !meta.is_file() {
+            return Ok(None);
+        }
         let entry = self.get(file_path)?;
         Ok(CacheEntry::check(entry.as_ref(), meta))
     }
