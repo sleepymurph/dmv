@@ -130,7 +130,7 @@ impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
         Ok(Some(StatusTree {
             status: self.status(&node),
             fs_path: Some(node.path),
-            is_dir: node.metadata.is_dir(),
+            targ_is_dir: node.metadata.is_dir(),
             hash: node.hash,
             targ_size: node.metadata.len(),
             children: BTreeMap::new(),
@@ -162,7 +162,7 @@ impl<'a, 'b> WalkOp<&'a StatusTree> for HashAndStoreOp<'a, 'b> {
     type VisitResult = ObjectKey;
 
     fn should_descend(&mut self, _ps: &PathStack, node: &&StatusTree) -> bool {
-        node.is_dir && node.status.is_included()
+        node.targ_is_dir && node.status.is_included()
     }
 
     fn no_descend(&mut self,

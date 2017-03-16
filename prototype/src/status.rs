@@ -57,7 +57,7 @@ pub struct StatusTree {
     pub fs_path: Option<PathBuf>,
     pub status: Status,
 
-    pub is_dir: bool,
+    pub targ_is_dir: bool,
     pub targ_size: ObjectSize,
     pub hash: Option<ObjectKey>,
 
@@ -69,7 +69,7 @@ impl StatusTree {
     pub fn unhashed_size(&self) -> ObjectSize {
         match self {
             &StatusTree { status, .. } if !status.is_included() => 0,
-            &StatusTree { is_dir: false, hash: None, targ_size, .. } => {
+            &StatusTree { targ_is_dir: false, hash: None, targ_size, .. } => {
                 targ_size
             }
             _ => {
@@ -129,7 +129,7 @@ impl<'a, 'b> WalkOp<&'a StatusTree> for StatusTreeDisplayOp<'a, 'b> {
     type VisitResult = ();
 
     fn should_descend(&mut self, _ps: &PathStack, node: &&StatusTree) -> bool {
-        node.is_dir && node.status.is_included()
+        node.targ_is_dir && node.status.is_included()
     }
 
     fn no_descend(&mut self,
@@ -139,7 +139,7 @@ impl<'a, 'b> WalkOp<&'a StatusTree> for StatusTreeDisplayOp<'a, 'b> {
         let show = node.status != Status::Unchanged &&
                    (node.status != Status::Ignored || self.show_ignored);
         let mut ps = ps.to_string();
-        if node.is_dir {
+        if node.targ_is_dir {
             ps += "/";
         }
         if show {
