@@ -240,7 +240,7 @@ impl<'a> WalkOp<ObjectWalkNode> for ExtractObjectOp<'a> {
                       _ps: &PathStack,
                       node: &ObjectWalkNode)
                       -> bool {
-        node.1.is_treeish()
+        node.object_type.is_treeish()
     }
 
     fn pre_descend(&mut self,
@@ -263,7 +263,7 @@ impl<'a> WalkOp<ObjectWalkNode> for ExtractObjectOp<'a> {
                   -> Result<Option<Self::VisitResult>> {
         let abs_path = self.abs_path(ps);
         self.file_store
-            .extract_file(self.object_store, &node.0, abs_path.as_path())?;
+            .extract_file(self.object_store, &node.hash, abs_path.as_path())?;
         Ok(None)
     }
 }

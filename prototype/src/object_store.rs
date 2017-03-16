@@ -312,12 +312,19 @@ lazy_static!{
 }
 
 
-pub type ObjectWalkNode = (ObjectKey, ObjectType);
+#[derive(Debug,Clone,Copy)]
+pub struct ObjectWalkNode {
+    pub hash: ObjectKey,
+    pub object_type: ObjectType,
+}
 
 impl NodeLookup<ObjectKey, ObjectWalkNode> for ObjectStore {
     fn lookup_node(&self, handle: ObjectKey) -> Result<ObjectWalkNode> {
         let object_type = self.open_object(&handle)?.header().object_type;
-        Ok((handle, object_type))
+        Ok(ObjectWalkNode {
+            hash: handle,
+            object_type: object_type,
+        })
     }
 }
 
@@ -326,7 +333,7 @@ impl NodeReader<ObjectWalkNode> for ObjectStore {
                      node: &ObjectWalkNode)
                      -> Result<ChildMap<ObjectWalkNode>> {
         let mut children = BTreeMap::new();
-        for (name, hash) in self.open_tree(&node.0)? {
+        for (name, hash) in self.open_tree(&node.hash)? {
             let name = name.into_string()
                 .map_err(|e| format!("Bad UTF-8 in name: {:?}", e))?;
             let node = self.lookup_node(hash.clone())?;
@@ -432,14 +439,18 @@ impl<'a, 'b> WalkOp<ObjectWalkNode> for TreeDisplayOp<'a, 'b> {
                       _ps: &PathStack,
                       node: &ObjectWalkNode)
                       -> bool {
-        node.1.is_treeish()
+        node.object_type.is_treeish()
     }
 
     fn no_descend(&mut self,
                   ps: &PathStack,
                   node: ObjectWalkNode)
                   -> Result<Option<Self::VisitResult>> {
-        writeln!(self.formatter, "{} {} {}", node.0, node.1.code(), ps)?;
+        writeln!(self.formatter,
+                 "{} {} {}",
+                 node.hash,
+                 node.object_type.code(),
+                 ps)?;
         Ok(None)
     }
 }

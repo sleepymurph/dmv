@@ -221,7 +221,7 @@ impl<'a> FsObjComparePlanBuilder<'a> {
             None => (false, None, true),
         };
         let (obj_exists, obj_hash) = match node.1 {
-            Some(ref o) => (true, Some(o.0)),
+            Some(ref o) => (true, Some(o.hash)),
             None => (false, None),
         };
         match (path_exists, obj_exists, path_hash, obj_hash) {
@@ -272,7 +272,7 @@ impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
             (None, Some(obj)) => {
                 Ok(Some(HashPlan {
                     status: status,
-                    hash: Some(obj.0),
+                    hash: Some(obj.hash),
                     fs_path: None,
                     is_dir: false,
                     size: 0,

@@ -53,7 +53,8 @@ pub struct ProgressReport<'a> {
 impl<'a> fmt::Display for ProgressReport<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}:", self.desc)?;
-        write!(f, " {:>10}/{:>10}",
+        write!(f,
+               " {:>10}/{:>10}",
                human_bytes(self.count),
                human_bytes(self.total))?;
 
