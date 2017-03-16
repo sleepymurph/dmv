@@ -4,7 +4,6 @@ use dag::ObjectKey;
 use dag::Tree;
 use error::*;
 use file_store::FileStore;
-use file_store::FileWalkNode;
 use ignore::IgnoreList;
 use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
@@ -107,7 +106,7 @@ impl FsTransfer {
 
 
 
-type FileObjectNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
+type FileObjectNode = (Option<ComparableNode>, Option<ComparableNode>);
 
 /// An operation that compares files to a previous commit to build a StatusTree
 ///
@@ -124,10 +123,10 @@ impl<'a> FileObjectCompareWalkOp<'a> {
         StatusCompare {
                 src_exists: path.is_some(),
                 src_hash: path.and_then(|p| p.hash),
-                src_is_ignored: path.map(|p| p.ignored).unwrap_or(false),
+                src_is_ignored: path.map(|p| p.is_ignored).unwrap_or(false),
 
                 targ_exists: obj.is_some(),
-                targ_hash: obj.map(|n| n.hash),
+                targ_hash: obj.and_then(|n| n.hash),
 
                 exact_mark: self.marks.get(ps).map(|m| *m),
                 ancestor_mark: self.marks.get_ancestor(ps),
@@ -143,7 +142,7 @@ impl<'a> WalkOp<FileObjectNode> for FileObjectCompareWalkOp<'a> {
                       node: &FileObjectNode)
                       -> bool {
         let path = node.0.as_ref();
-        let is_dir = path.map(|p| p.metadata.is_dir()).unwrap_or(false);
+        let is_dir = path.map(|p| p.is_treeish).unwrap_or(false);
         let included = self.status(&node, ps).is_included();
         is_dir && included
     }
@@ -155,10 +154,10 @@ impl<'a> WalkOp<FileObjectNode> for FileObjectCompareWalkOp<'a> {
         let obj = node.1.as_ref();
         Ok(Some(StatusTree {
             status: self.status(&node, ps),
-            fs_path: path.map(|p| p.path.to_owned()),
-            targ_is_dir: path.map(|p| p.metadata.is_dir()).unwrap_or(false),
-            targ_size: path.map(|p| p.metadata.len()).unwrap_or(0),
-            targ_hash: path.and_then(|p| p.hash).or(obj.map(|o| o.hash)),
+            fs_path: path.and_then(|p| p.fs_path.to_owned()),
+            targ_is_dir: path.map(|p| p.is_treeish).unwrap_or(false),
+            targ_size: path.map(|p| p.file_size).unwrap_or(0),
+            targ_hash: path.and_then(|p| p.hash).or(obj.and_then(|o| o.hash)),
             children: BTreeMap::new(),
         }))
     }
