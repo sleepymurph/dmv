@@ -10,14 +10,18 @@ use std::time::Duration;
 use std::time::Instant;
 
 pub struct ProgressCounter {
+    desc: String,
     start: Instant,
     total: u64,
     count: RwLock<u64>,
 }
 
 impl ProgressCounter {
-    pub fn new(total: u64) -> Self {
+    pub fn new<S>(desc: S, total: u64) -> Self
+        where S: Into<String>
+    {
         ProgressCounter {
+            desc: desc.into(),
             start: Instant::now(),
             total: total,
             count: RwLock::new(0),
@@ -29,6 +33,7 @@ impl ProgressCounter {
     pub fn read(&self) -> ProgressReport {
         let count = *self.count.read().unwrap();
         ProgressReport {
+            desc: self.desc.as_str(),
             total: self.total,
             count: count,
             finished: count >= self.total,
@@ -37,20 +42,22 @@ impl ProgressCounter {
     }
 }
 
-pub struct ProgressReport {
+pub struct ProgressReport<'a> {
+    desc: &'a str,
     total: u64,
     count: u64,
     finished: bool,
     elapsed: Duration,
 }
 
-impl fmt::Display for ProgressReport {
+impl<'a> fmt::Display for ProgressReport<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let secs = self.elapsed.as_secs() as f32 +
                    self.elapsed.subsec_nanos() as f32 / 1e9;
         let percent = self.count as f32 / self.total as f32 * 100_f32;
+        write!(f, "{}:", self.desc)?;
         write!(f,
-               "{:>10}/{:>10}",
+               " {:>10}/{:>10}",
                human_bytes(self.count),
                human_bytes(self.total))?;
         write!(f, " {:5.1}%", percent)?;
@@ -58,8 +65,10 @@ impl fmt::Display for ProgressReport {
         if secs >= 0.5 {
             let per_sec = self.count as f32 / secs;
             let remain_secs = (self.total - self.count) as f32 / per_sec;
-            write!(f, " {:>10}/s {:0.0}s",
-                   human_bytes(per_sec as u64), remain_secs)?;
+            write!(f,
+                   " {:>10}/s {:0.0}s",
+                   human_bytes(per_sec as u64),
+                   remain_secs)?;
         }
         Ok(())
     }

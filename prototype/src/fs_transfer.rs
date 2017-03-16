@@ -56,7 +56,8 @@ impl FsTransfer {
 
     pub fn hash_plan(&mut self, hash_plan: &HashPlan) -> Result<ObjectKey> {
         let progress =
-            Arc::new(ProgressCounter::new(hash_plan.unhashed_size()));
+            Arc::new(ProgressCounter::new("Hashing",
+                                          hash_plan.unhashed_size()));
 
         let mut op = HashAndStoreOp {
             fs_transfer: self,
