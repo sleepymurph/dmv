@@ -7,7 +7,7 @@ use dag::ObjectKey;
 use disk_backed::DiskBacked;
 use error::*;
 use find_repo::RepoLayout;
-use fs_transfer::FileObjectCompareWalkOp;
+use fs_transfer::CompareWalkOp;
 use fs_transfer::FsTransfer;
 use object_store::ObjectStore;
 use status::*;
@@ -113,7 +113,7 @@ impl WorkDir {
         let path = Some(self.fs_transfer.file_store.lookup_node(abs_path)?);
         let combo = (&self.fs_transfer.file_store,
                      &self.fs_transfer.object_store);
-        let mut op = FileObjectCompareWalkOp { marks: &self.state.marks };
+        let mut op = CompareWalkOp { marks: &self.state.marks };
         combo.walk_node(&mut op, (path, parent))?
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
     }
