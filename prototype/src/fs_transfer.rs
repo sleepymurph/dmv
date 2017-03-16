@@ -104,7 +104,7 @@ impl FsTransfer {
 
 /// An operation that walks files to build a StatusTree
 ///
-/// Only considers ignore and cache status. See FsObjComparePlanBuilder for an
+/// Only considers ignore and cache status. See FileObjectCompareWalkOp for an
 /// operation that compares to a previous commit/tree.
 pub struct FsOnlyPlanBuilder;
 

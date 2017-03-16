@@ -139,7 +139,7 @@ impl WorkDir {
         let path = Some(self.fs_transfer.file_store.lookup_node(abs_path)?);
         let combo = (&self.fs_transfer.file_store,
                      &self.fs_transfer.object_store);
-        let mut op = FsObjComparePlanBuilder { marks: &self.state.marks };
+        let mut op = FileObjectCompareWalkOp { marks: &self.state.marks };
         combo.walk_node(&mut op, (path, parent))?
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
     }
@@ -195,14 +195,14 @@ impl WorkDir {
 /// Walks a filesystem tree and a Tree object in parallel, comparing them and
 /// building a StatusTree. This is the basis of the status command and the first
 /// step of a commit.
-pub struct FsObjComparePlanBuilder<'a> {
+pub struct FileObjectCompareWalkOp<'a> {
     marks: &'a FileMarkMap,
 }
 
-type CompareNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
+type FileObjectNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
 
-impl<'a> FsObjComparePlanBuilder<'a> {
-    fn status(&self, node: &CompareNode, ps: &PathStack) -> Status {
+impl<'a> FileObjectCompareWalkOp<'a> {
+    fn status(&self, node: &FileObjectNode, ps: &PathStack) -> Status {
         let path = node.0.as_ref();
         let obj = node.1.as_ref();
         StatusCompare {
@@ -220,10 +220,13 @@ impl<'a> FsObjComparePlanBuilder<'a> {
     }
 }
 
-impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
+impl<'a> WalkOp<FileObjectNode> for FileObjectCompareWalkOp<'a> {
     type VisitResult = StatusTree;
 
-    fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
+    fn should_descend(&mut self,
+                      ps: &PathStack,
+                      node: &FileObjectNode)
+                      -> bool {
         let path = node.0.as_ref();
         let is_dir = path.map(|p| p.metadata.is_dir()).unwrap_or(false);
         let included = self.status(&node, ps).is_included();
@@ -231,7 +234,7 @@ impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
     }
     fn no_descend(&mut self,
                   ps: &PathStack,
-                  node: CompareNode)
+                  node: FileObjectNode)
                   -> Result<Option<Self::VisitResult>> {
         let path = node.0.as_ref();
         let obj = node.1.as_ref();
@@ -246,7 +249,7 @@ impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
     }
     fn post_descend(&mut self,
                     ps: &PathStack,
-                    node: CompareNode,
+                    node: FileObjectNode,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
         // Convert dir node to StatusTree according to normal rules,
