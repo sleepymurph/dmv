@@ -1,3 +1,4 @@
+use human_readable::human_bytes;
 use std::fmt;
 use std::io;
 use std::io::Read;
@@ -48,13 +49,17 @@ impl fmt::Display for ProgressReport {
         let secs = self.elapsed.as_secs() as f32 +
                    self.elapsed.subsec_nanos() as f32 / 1e9;
         let percent = self.count as f32 / self.total as f32 * 100_f32;
-        write!(f, "{:4}/{:4}", self.count, self.total)?;
+        write!(f,
+               "{:>10}/{:>10}",
+               human_bytes(self.count),
+               human_bytes(self.total))?;
         write!(f, " {:5.1}%", percent)?;
         write!(f, " {:0.1}s", secs)?;
         if secs >= 0.5 {
             let per_sec = self.count as f32 / secs;
             let remain_secs = (self.total - self.count) as f32 / per_sec;
-            write!(f, " {:0.0} b/s {:0.0}s", per_sec, remain_secs)?;
+            write!(f, " {:>10}/s {:0.0}s",
+                   human_bytes(per_sec as u64), remain_secs)?;
         }
         Ok(())
     }
