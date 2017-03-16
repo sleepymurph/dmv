@@ -7,6 +7,15 @@ use std::fmt;
 use std::path::PathBuf;
 use walker::*;
 
+/// Certain operations that a file can be marked for, such as add or delete
+#[derive(Debug,Clone,Copy,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
+pub enum FileMark {
+    /// Mark this file for addition
+    Add,
+    /// Mark this file for deletion
+    Delete,
+}
+
 /// Status of an individual file or dir, as compared to a commit
 #[derive(Clone,Copy,Eq,PartialEq,Debug)]
 pub enum Status {
@@ -47,6 +56,47 @@ impl Status {
             &Status::Untracked |
             &Status::Ignored |
             &Status::Delete => false,
+        }
+    }
+}
+
+
+pub struct StatusCompare {
+    pub src_exists: bool,
+    pub src_hash: Option<ObjectKey>,
+    pub src_is_ignored: bool,
+
+    pub targ_exists: bool,
+    pub targ_hash: Option<ObjectKey>,
+
+    pub exact_mark: Option<FileMark>,
+    pub ancestor_mark: Option<FileMark>,
+}
+
+impl StatusCompare {
+    pub fn compare(&self) -> Status {
+        let an_mk = self.ancestor_mark;
+        let ex_mk = self.exact_mark;
+
+        match (self.src_exists,
+               self.targ_exists,
+               self.src_hash,
+               self.targ_hash) {
+
+            (_, _, _, _) if an_mk == Some(FileMark::Delete) => Status::Delete,
+
+            (true, true, Some(a), Some(b)) if a == b => Status::Unchanged,
+            (true, true, Some(_), Some(_)) => Status::Modified,
+            (true, true, _, _) => Status::MaybeModified,
+
+            (true, false, _, _) if ex_mk == Some(FileMark::Add) => Status::Add,
+            (true, false, _, _) if self.src_is_ignored => Status::Ignored,
+            (true, false, _, _) if an_mk == Some(FileMark::Add) => Status::Add,
+            (true, false, _, _) => Status::Untracked,
+
+            (false, true, _, _) => Status::Offline,
+
+            (false, false, _, _) => unreachable!(),
         }
     }
 }

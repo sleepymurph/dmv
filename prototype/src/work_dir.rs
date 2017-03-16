@@ -11,22 +11,12 @@ use find_repo::RepoLayout;
 use fs_transfer::FsTransfer;
 use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
-use status::Status;
-use status::StatusTree;
+use status::*;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::path::PathBuf;
 use walker::*;
 
-
-/// Certain operations that a file can be marked for, such as add or delete
-#[derive(Debug,Clone,Copy,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
-pub enum FileMark {
-    /// Mark this file for addition
-    Add,
-    /// Mark this file for deletion
-    Delete,
-}
 
 wrapper_struct!(
 #[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
@@ -213,33 +203,20 @@ type CompareNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
 
 impl<'a> FsObjComparePlanBuilder<'a> {
     fn status(&self, node: &CompareNode, ps: &PathStack) -> Status {
-        let ex_mk = self.marks.get(ps).map(|m| *m);
-        let an_mk = self.marks.get_ancestor(ps);
+        let path = node.0.as_ref();
+        let obj = node.1.as_ref();
+        StatusCompare {
+                src_exists: path.is_some(),
+                src_hash: path.and_then(|p| p.hash),
+                src_is_ignored: path.map(|p| p.ignored).unwrap_or(false),
 
-        let (path_exists, path_hash, path_is_ignored) = match node.0 {
-            Some(ref p) => (true, p.hash, p.ignored),
-            None => (false, None, true),
-        };
-        let (obj_exists, obj_hash) = match node.1 {
-            Some(ref o) => (true, Some(o.hash)),
-            None => (false, None),
-        };
-        match (path_exists, obj_exists, path_hash, obj_hash) {
-            (_, _, _, _) if an_mk == Some(FileMark::Delete) => Status::Delete,
+                targ_exists: obj.is_some(),
+                targ_hash: obj.map(|n| n.hash),
 
-            (true, true, Some(a), Some(b)) if a == b => Status::Unchanged,
-            (true, true, Some(_), Some(_)) => Status::Modified,
-            (true, true, _, _) => Status::MaybeModified,
-
-            (true, false, _, _) if ex_mk == Some(FileMark::Add) => Status::Add,
-            (true, false, _, _) if path_is_ignored => Status::Ignored,
-            (true, false, _, _) if an_mk == Some(FileMark::Add) => Status::Add,
-            (true, false, _, _) => Status::Untracked,
-
-            (false, true, _, _) => Status::Offline,
-
-            (false, false, _, _) => unreachable!(),
-        }
+                exact_mark: self.marks.get(ps).map(|m| *m),
+                ancestor_mark: self.marks.get_ancestor(ps),
+            }
+            .compare()
     }
 }
 

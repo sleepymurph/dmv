@@ -10,11 +10,11 @@ use find_repo::find_fs_transfer;
 use find_repo::find_object_store;
 use find_repo::find_work_dir;
 use object_store::RevSpec;
+use status::FileMark;
 use std::env::current_dir;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
-use work_dir::FileMark;
 use work_dir::WorkDir;
 
 pub fn init() -> Result<()> {
