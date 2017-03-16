@@ -55,13 +55,14 @@ impl ObjectCommon for ChunkedBlob {
     fn object_type(&self) -> ObjectType { ObjectType::ChunkedBlob }
 
     fn content_size(&self) -> ObjectSize {
-        (OBJECT_SIZE_BYTES +
+        (OBJECT_SIZE_BYTES * 2 +
          self.chunks.len() *
          CHUNK_RECORD_SIZE) as ObjectSize
     }
 
     fn write_content(&self, writer: &mut io::Write) -> io::Result<()> {
         try!(write_object_size(writer, self.total_size));
+        try!(write_object_size(writer, self.chunks.len() as ObjectSize));
 
         for chunk in &self.chunks {
             try!(write_object_size(writer, chunk.offset));
@@ -78,10 +79,12 @@ impl ObjectCommon for ChunkedBlob {
         write!(&mut output,
                "Chunked Blob Index
 
+Chunks:                 {:>10}
 Object content size:    {:>10}
 Total file size:        {:>10}
 
 ",
+               self.chunks.len(),
                human_readable::human_bytes(self.content_size()),
                human_readable::human_bytes(self.total_size))
             .unwrap();
@@ -107,6 +110,7 @@ impl ReadObjectContent for ChunkedBlob {
         let mut chunk_record_buf = [0u8; CHUNK_RECORD_SIZE];
 
         let total_size = try!(read_object_size(reader));
+        let num_chunks = try!(read_object_size(reader));
         let mut chunks: Vec<ChunkOffset> = Vec::new();
         loop {
             match reader.read_exact(&mut chunk_record_buf) {
@@ -127,6 +131,9 @@ impl ReadObjectContent for ChunkedBlob {
                 Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
                 Err(e) => bail!(e),
             }
+        }
+        if chunks.len() as ObjectSize != num_chunks {
+            bail!("Only read {} of {} chunks", chunks.len(), num_chunks);
         }
         Ok(ChunkedBlob {
             total_size: total_size,
