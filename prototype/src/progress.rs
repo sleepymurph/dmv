@@ -73,6 +73,7 @@ pub fn std_err_watch(p: Arc<ProgressCounter>) {
     let refresh_per_sec = 10;
     let sleep = Duration::from_millis(1000 / refresh_per_sec);
     loop {
+        thread::sleep(sleep);
         let p = p.read();
         write!(stderr(), "{}", ANSI_CLEAR_TO_END).unwrap();
         writeln!(stderr(), " {}", p).unwrap();
@@ -80,7 +81,6 @@ pub fn std_err_watch(p: Arc<ProgressCounter>) {
             break;
         } else {
             write!(stderr(), "{}", ansi_up_lines(1)).unwrap();
-            thread::sleep(sleep);
         }
     }
 }

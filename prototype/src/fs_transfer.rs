@@ -5,7 +5,6 @@ use dag::Tree;
 use error::*;
 use file_store::FileStore;
 use file_store::FileWalkNode;
-use human_readable::human_bytes;
 use ignore::IgnoreList;
 use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
@@ -58,20 +57,17 @@ impl FsTransfer {
     pub fn hash_plan(&mut self, hash_plan: &HashPlan) -> Result<ObjectKey> {
         let progress =
             Arc::new(ProgressCounter::new(hash_plan.unhashed_size()));
-        if hash_plan.unhashed_size() > 0 {
-            stderrln!("{} to hash. Hashing...",
-                      human_bytes(hash_plan.unhashed_size()));
-            let progress = progress.clone();
-            thread::spawn(move || {
-                std_err_watch(progress);
-            });
-        }
+
         let mut op = HashAndStoreOp {
             fs_transfer: self,
-            progress: &*progress,
+            progress: &*progress.clone(),
         };
-        hash_plan.walk(&mut op)?
-            .ok_or_else(&Self::no_answer_err)
+
+        let prog_thread = thread::spawn(move || std_err_watch(progress));
+        let hash = hash_plan.walk(&mut op)?.ok_or_else(&Self::no_answer_err)?;
+
+        prog_thread.join().unwrap();
+        Ok(hash)
     }
 
     fn no_answer_err() -> Error {
