@@ -126,23 +126,23 @@ impl<'a> WalkOp<CompareNode> for CompareWalkOp<'a> {
     type VisitResult = StatusTree;
 
     fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
-        let path = node.1.as_ref();
-        let is_dir = path.map(|p| p.is_treeish).unwrap_or(false);
+        let targ = node.1.as_ref();
+        let is_treeish = targ.map(|n| n.is_treeish).unwrap_or(false);
         let included = self.status(&node, ps).is_included();
-        is_dir && included
+        is_treeish && included
     }
     fn no_descend(&mut self,
                   ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
-        let obj = node.0.as_ref();
-        let path = node.1.as_ref();
+        let src = node.0.as_ref();
+        let targ = node.1.as_ref();
         Ok(Some(StatusTree {
             status: self.status(&node, ps),
-            fs_path: path.and_then(|p| p.fs_path.to_owned()),
-            targ_is_dir: path.map(|p| p.is_treeish).unwrap_or(false),
-            targ_size: path.map(|p| p.file_size).unwrap_or(0),
-            targ_hash: path.and_then(|p| p.hash).or(obj.and_then(|o| o.hash)),
+            fs_path: targ.and_then(|n| n.fs_path.to_owned()),
+            targ_is_dir: targ.map(|n| n.is_treeish).unwrap_or(false),
+            targ_size: targ.map(|n| n.file_size).unwrap_or(0),
+            targ_hash: targ.and_then(|n| n.hash).or(src.and_then(|n| n.hash)),
             children: BTreeMap::new(),
         }))
     }
