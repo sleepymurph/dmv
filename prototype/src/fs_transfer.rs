@@ -45,9 +45,16 @@ impl FsTransfer {
     /// Check, hash, and store a file or directory
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
         debug!("Hashing object, with framework");
-        let hash_plan = self.file_store
-            .walk_handle(&mut FsOnlyPlanBuilder, path.to_owned())?
-            .ok_or_else(&Self::no_answer_err)?;
+        let hash_plan;
+        {
+            let mut op =
+                FileObjectCompareWalkOp { marks: &FileMarkMap::add_root() };
+            let combo = (&self.file_store, &self.object_store);
+            let file_node = self.file_store.lookup_node(path.to_owned())?;
+            let node = (Some(file_node), None);
+            hash_plan = combo.walk_node(&mut op, node)?
+                .ok_or_else(&Self::no_answer_err)?;
+        }
 
         self.hash_plan(&hash_plan)
     }
@@ -96,56 +103,6 @@ impl FsTransfer {
                  progress: &ProgressCounter)
                  -> Result<ObjectKey> {
         self.file_store.hash_file(file_path, &mut self.object_store, progress)
-    }
-}
-
-
-
-/// An operation that walks files to build a StatusTree
-///
-/// Only considers ignore and cache status. See FileObjectCompareWalkOp for an
-/// operation that compares to a previous commit/tree.
-pub struct FsOnlyPlanBuilder;
-
-impl FsOnlyPlanBuilder {
-    fn status(&self, node: &FileWalkNode) -> Status {
-        match node {
-            &FileWalkNode { ignored: true, .. } => Status::Ignored,
-            _ => Status::Add,
-        }
-    }
-}
-
-impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
-    type VisitResult = StatusTree;
-
-    fn should_descend(&mut self, _ps: &PathStack, node: &FileWalkNode) -> bool {
-        node.metadata.is_dir() && self.status(node).is_included()
-    }
-    fn no_descend(&mut self,
-                  _ps: &PathStack,
-                  node: FileWalkNode)
-                  -> Result<Option<Self::VisitResult>> {
-        Ok(Some(StatusTree {
-            status: self.status(&node),
-            fs_path: Some(node.path),
-            targ_is_dir: node.metadata.is_dir(),
-            targ_size: node.metadata.len(),
-            targ_hash: node.hash,
-            children: BTreeMap::new(),
-        }))
-    }
-    fn post_descend(&mut self,
-                    ps: &PathStack,
-                    node: FileWalkNode,
-                    children: ChildMap<Self::VisitResult>)
-                    -> Result<Option<Self::VisitResult>> {
-        self.no_descend(ps, node).map(|result| {
-            result.map(|mut plan| {
-                plan.children = children;
-                plan
-            })
-        })
     }
 }
 

@@ -25,6 +25,12 @@ pub struct FileMarkMap(BTreeMap<PathStack, FileMark>);
 impl FileMarkMap {
     pub fn new() -> Self { FileMarkMap(BTreeMap::new()) }
 
+    pub fn add_root() -> Self {
+        let mut map = FileMarkMap::new();
+        map.insert(PathStack::new(), FileMark::Add);
+        map
+    }
+
     pub fn get_ancestor(&self, ps: &PathStack) -> Option<FileMark> {
         let mut ps = ps.clone();
         loop {
