@@ -3,6 +3,7 @@ use disk_backed::DiskBacked;
 use error::*;
 use fsutil;
 use regex::Regex;
+use status::ComparableNode;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
@@ -317,6 +318,18 @@ pub struct ObjectWalkNode {
     pub hash: ObjectKey,
     pub object_type: ObjectType,
     pub file_size: ObjectSize,
+}
+
+impl Into<ComparableNode> for ObjectWalkNode {
+    fn into(self) -> ComparableNode {
+        ComparableNode {
+            is_treeish: self.object_type.is_treeish(),
+            file_size: self.file_size,
+            hash: Some(self.hash),
+            fs_path: None,
+            is_ignored: false,
+        }
+    }
 }
 
 impl NodeLookup<ObjectKey, ObjectWalkNode> for ObjectStore {
