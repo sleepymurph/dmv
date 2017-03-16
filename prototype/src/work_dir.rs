@@ -6,13 +6,11 @@ use dag::Commit;
 use dag::ObjectKey;
 use disk_backed::DiskBacked;
 use error::*;
-use file_store::FileWalkNode;
 use find_repo::RepoLayout;
+use fs_transfer::FileObjectCompareWalkOp;
 use fs_transfer::FsTransfer;
 use object_store::ObjectStore;
-use object_store::ObjectWalkNode;
 use status::*;
-use std::collections::BTreeMap;
 use std::path::Path;
 use std::path::PathBuf;
 use walker::*;
@@ -161,79 +159,6 @@ impl WorkDir {
                       ref_name)
             }
         }
-    }
-}
-
-
-
-/// An operation that compares files to a previous commit to build a StatusTree
-///
-/// Walks a filesystem tree and a Tree object in parallel, comparing them and
-/// building a StatusTree. This is the basis of the status command and the first
-/// step of a commit.
-pub struct FileObjectCompareWalkOp<'a> {
-    marks: &'a FileMarkMap,
-}
-
-type FileObjectNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
-
-impl<'a> FileObjectCompareWalkOp<'a> {
-    fn status(&self, node: &FileObjectNode, ps: &PathStack) -> Status {
-        let path = node.0.as_ref();
-        let obj = node.1.as_ref();
-        StatusCompare {
-                src_exists: path.is_some(),
-                src_hash: path.and_then(|p| p.hash),
-                src_is_ignored: path.map(|p| p.ignored).unwrap_or(false),
-
-                targ_exists: obj.is_some(),
-                targ_hash: obj.map(|n| n.hash),
-
-                exact_mark: self.marks.get(ps).map(|m| *m),
-                ancestor_mark: self.marks.get_ancestor(ps),
-            }
-            .compare()
-    }
-}
-
-impl<'a> WalkOp<FileObjectNode> for FileObjectCompareWalkOp<'a> {
-    type VisitResult = StatusTree;
-
-    fn should_descend(&mut self,
-                      ps: &PathStack,
-                      node: &FileObjectNode)
-                      -> bool {
-        let path = node.0.as_ref();
-        let is_dir = path.map(|p| p.metadata.is_dir()).unwrap_or(false);
-        let included = self.status(&node, ps).is_included();
-        is_dir && included
-    }
-    fn no_descend(&mut self,
-                  ps: &PathStack,
-                  node: FileObjectNode)
-                  -> Result<Option<Self::VisitResult>> {
-        let path = node.0.as_ref();
-        let obj = node.1.as_ref();
-        Ok(Some(StatusTree {
-            status: self.status(&node, ps),
-            fs_path: path.map(|p| p.path.to_owned()),
-            targ_is_dir: path.map(|p| p.metadata.is_dir()).unwrap_or(false),
-            targ_size: path.map(|p| p.metadata.len()).unwrap_or(0),
-            targ_hash: path.and_then(|p| p.hash).or(obj.map(|o| o.hash)),
-            children: BTreeMap::new(),
-        }))
-    }
-    fn post_descend(&mut self,
-                    ps: &PathStack,
-                    node: FileObjectNode,
-                    children: ChildMap<Self::VisitResult>)
-                    -> Result<Option<Self::VisitResult>> {
-        // Convert dir node to StatusTree according to normal rules,
-        // then add children
-        Ok(self.no_descend(ps, node)?.map(|mut plan| {
-            plan.children = children;
-            plan
-        }))
     }
 }
 
