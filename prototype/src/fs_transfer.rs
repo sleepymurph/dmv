@@ -46,9 +46,9 @@ impl FsTransfer {
         let hash_plan;
         {
             let mut op = CompareWalkOp { marks: &FileMarkMap::add_root() };
-            let combo = (&self.file_store, &self.object_store);
+            let combo = (&self.object_store, &self.file_store);
             let file_node = self.file_store.lookup_node(path.to_owned())?;
-            let node = (Some(file_node), None);
+            let node = (None, Some(file_node));
             hash_plan = combo.walk_node(&mut op, node)?
                 .ok_or_else(&Self::no_answer_err)?;
         }
@@ -117,8 +117,8 @@ pub struct CompareWalkOp<'a> {
 }
 impl<'a> CompareWalkOp<'a> {
     fn status(&self, node: &CompareNode, ps: &PathStack) -> Status {
-        let path = node.0.as_ref();
-        let obj = node.1.as_ref();
+        let obj = node.0.as_ref();
+        let path = node.1.as_ref();
         StatusCompare {
                 src_exists: path.is_some(),
                 src_hash: path.and_then(|p| p.hash),
@@ -137,7 +137,7 @@ impl<'a> WalkOp<CompareNode> for CompareWalkOp<'a> {
     type VisitResult = StatusTree;
 
     fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
-        let path = node.0.as_ref();
+        let path = node.1.as_ref();
         let is_dir = path.map(|p| p.is_treeish).unwrap_or(false);
         let included = self.status(&node, ps).is_included();
         is_dir && included
@@ -146,8 +146,8 @@ impl<'a> WalkOp<CompareNode> for CompareWalkOp<'a> {
                   ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
-        let path = node.0.as_ref();
-        let obj = node.1.as_ref();
+        let obj = node.0.as_ref();
+        let path = node.1.as_ref();
         Ok(Some(StatusTree {
             status: self.status(&node, ps),
             fs_path: path.and_then(|p| p.fs_path.to_owned()),

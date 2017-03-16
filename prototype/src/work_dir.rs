@@ -111,10 +111,10 @@ impl WorkDir {
             _ => unimplemented!(),
         };
         let path = Some(self.fs_transfer.file_store.lookup_node(abs_path)?);
-        let combo = (&self.fs_transfer.file_store,
-                     &self.fs_transfer.object_store);
+        let combo = (&self.fs_transfer.object_store,
+                     &self.fs_transfer.file_store);
         let mut op = CompareWalkOp { marks: &self.state.marks };
-        combo.walk_node(&mut op, (path, parent))?
+        combo.walk_node(&mut op, (parent, path))?
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
     }
 
