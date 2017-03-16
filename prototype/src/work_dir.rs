@@ -10,6 +10,7 @@ use find_repo::RepoLayout;
 use fs_transfer::CompareWalkOp;
 use fs_transfer::FsTransfer;
 use object_store::ObjectStore;
+use object_store::RevSpec;
 use status::*;
 use std::path::Path;
 use std::path::PathBuf;
@@ -91,30 +92,63 @@ impl WorkDir {
             .collect::<Vec<String>>()
     }
 
-    pub fn status(&mut self) -> Result<StatusTree> {
+    pub fn status(&mut self,
+                  rev1: Option<RevSpec>,
+                  rev2: Option<RevSpec>)
+                  -> Result<StatusTree> {
         debug!("Current branch: {}. Parents: {}",
                self.branch().unwrap_or("<detached head>"),
                self.parents_short_hashes().join(","));
 
         let abs_path = self.path().to_owned();
-        let rel_path = PathBuf::from("");
-        let parent = match self.parents().to_owned() {
-            ref v if v.len() == 1 => {
-                self.try_find_tree_path(&v[0], &rel_path)?
-                    .and_then_try(|hash| {
-                        self.fs_transfer
-                            .object_store
-                            .lookup_node(hash)
-                    })?
+
+        let rev1 = rev1.and_then_try(|r| self.object_store.find_object(&r))?;
+        let rev2 = rev2.and_then_try(|r| self.object_store.find_object(&r))?;
+
+        match (rev1, rev2) {
+            (None, None) => {
+                let parent = match self.parents() {
+                    ref v if v.len() == 1 => Some(v[0]),
+                    ref v if v.len() == 0 => None,
+                    _ => unimplemented!(),
+                };
+                self.status_obj_file(parent, abs_path)
             }
-            ref v if v.len() == 0 => None,
-            _ => unimplemented!(),
-        };
-        let path = Some(self.fs_transfer.file_store.lookup_node(abs_path)?);
-        let combo = (&self.fs_transfer.object_store,
-                     &self.fs_transfer.file_store);
+            (Some(hash1), None) => self.status_obj_file(Some(hash1), abs_path),
+            (Some(hash1), Some(hash2)) => self.status_obj_obj(hash1, hash2),
+            (None, Some(_)) => unreachable!(),
+        }
+
+    }
+
+    fn status_obj_file(&mut self,
+                       src: Option<ObjectKey>,
+                       targ: PathBuf)
+                       -> Result<StatusTree> {
+
+        let src: Option<ComparableNode> =
+            src.and_then_try(|hash| self.object_store.lookup_node(hash))?;
+
+        let targ: Option<ComparableNode> = Some(self.file_store
+            .lookup_node(targ)?);
+
+        let combo = (&self.object_store, &self.file_store);
+
         let mut op = CompareWalkOp { marks: &self.state.marks };
-        combo.walk_node(&mut op, (parent, path))?
+        combo.walk_node(&mut op, (src, targ))?
+            .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
+    }
+
+    fn status_obj_obj(&mut self,
+                      src: ObjectKey,
+                      targ: ObjectKey)
+                      -> Result<StatusTree> {
+
+        let src: ComparableNode = self.object_store.lookup_node(src)?;
+        let targ: ComparableNode = self.object_store.lookup_node(targ)?;
+        let combo = (&self.object_store, &self.object_store);
+        let mut op = CompareWalkOp { marks: &FileMarkMap::add_root() };
+        combo.walk_node(&mut op, (Some(src), Some(targ)))?
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
     }
 
@@ -129,7 +163,7 @@ impl WorkDir {
                   message: String)
                   -> Result<(Option<&str>, ObjectKey)> {
 
-        let hash_plan = self.status()?;
+        let hash_plan = self.status(None, None)?;
         let tree_hash = self.hash_plan(&hash_plan)?;
 
         let commit = Commit {

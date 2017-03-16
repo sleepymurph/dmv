@@ -49,6 +49,10 @@ subcommands:
                 short: i
                 long: ignored
                 help: show ignored files
+            - rev1:
+                index: 1
+            - rev2:
+                index: 2
 
     - add:
         args:

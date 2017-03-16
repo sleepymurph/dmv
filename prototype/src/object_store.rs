@@ -307,7 +307,7 @@ impl ObjectStore {
 lazy_static!{
     pub static ref SHORT_OBJECT_KEY_PAT:Regex = Regex::new(
         &format!("[[:xdigit:]]{{ {},{} }}",
-                    KEY_SHORT_LEN, KEY_SIZE_HEX_DIGITS-1)).unwrap();
+                    KEY_SHORT_LEN, KEY_SIZE_HEX_DIGITS)).unwrap();
 
     pub static ref REF_NAME_PAT:Regex = Regex::new("[[:word:]/-]+").unwrap();
 }

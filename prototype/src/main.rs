@@ -106,7 +106,11 @@ fn cmd_status(_argmatch: &clap::ArgMatches,
               submatch: &clap::ArgMatches)
               -> Result<()> {
     let show_ignored = submatch.is_present("ignored");
-    cmd::status(show_ignored)
+    let rev1 = submatch.value_of("rev1")
+        .and_then_try(|s| RevSpec::from_str(s))?;
+    let rev2 = submatch.value_of("rev2")
+        .and_then_try(|s| RevSpec::from_str(s))?;
+    cmd::status(show_ignored, rev1, rev2)
 }
 
 fn cmd_add(_argmatch: &clap::ArgMatches,
