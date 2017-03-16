@@ -120,12 +120,12 @@ impl<'a> CompareWalkOp<'a> {
         let obj = node.0.as_ref();
         let path = node.1.as_ref();
         StatusCompare {
-                src_exists: path.is_some(),
-                src_hash: path.and_then(|p| p.hash),
-                src_is_ignored: path.map(|p| p.is_ignored).unwrap_or(false),
+                src_exists: obj.is_some(),
+                src_hash: obj.and_then(|n| n.hash),
 
-                targ_exists: obj.is_some(),
-                targ_hash: obj.and_then(|n| n.hash),
+                targ_exists: path.is_some(),
+                targ_hash: path.and_then(|p| p.hash),
+                targ_is_ignored: path.map(|p| p.is_ignored).unwrap_or(false),
 
                 exact_mark: self.marks.get(ps).map(|m| *m),
                 ancestor_mark: self.marks.get_ancestor(ps),

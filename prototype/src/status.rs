@@ -95,10 +95,10 @@ impl Status {
 pub struct StatusCompare {
     pub src_exists: bool,
     pub src_hash: Option<ObjectKey>,
-    pub src_is_ignored: bool,
 
     pub targ_exists: bool,
     pub targ_hash: Option<ObjectKey>,
+    pub targ_is_ignored: bool,
 
     pub exact_mark: Option<FileMark>,
     pub ancestor_mark: Option<FileMark>,
@@ -120,12 +120,12 @@ impl StatusCompare {
             (true, true, Some(_), Some(_)) => Status::Modified,
             (true, true, _, _) => Status::MaybeModified,
 
-            (true, false, _, _) if ex_mk == Some(FileMark::Add) => Status::Add,
-            (true, false, _, _) if self.src_is_ignored => Status::Ignored,
-            (true, false, _, _) if an_mk == Some(FileMark::Add) => Status::Add,
-            (true, false, _, _) => Status::Untracked,
+            (false, true, _, _) if ex_mk == Some(FileMark::Add) => Status::Add,
+            (false, true, _, _) if self.targ_is_ignored => Status::Ignored,
+            (false, true, _, _) if an_mk == Some(FileMark::Add) => Status::Add,
+            (false, true, _, _) => Status::Untracked,
 
-            (false, true, _, _) => Status::Offline,
+            (true, false, _, _) => Status::Offline,
 
             (false, false, _, _) => unreachable!(),
         }
