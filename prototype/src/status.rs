@@ -66,7 +66,7 @@ pub struct StatusTree {
 
 impl StatusTree {
     /// Total size of all unhashed files in this hierarchy
-    pub fn unhashed_size(&self) -> ObjectSize {
+    pub fn transfer_size(&self) -> ObjectSize {
         match self {
             &StatusTree { status, .. } if !status.is_included() => 0,
             &StatusTree { targ_is_dir: false,
@@ -76,7 +76,7 @@ impl StatusTree {
             _ => {
                 self.children
                     .iter()
-                    .map(|(_, plan)| plan.unhashed_size())
+                    .map(|(_, plan)| plan.transfer_size())
                     .sum()
             }
         }

@@ -54,7 +54,7 @@ impl FsTransfer {
     }
 
     pub fn hash_plan(&mut self, hash_plan: &StatusTree) -> Result<ObjectKey> {
-        let prog = ProgressCounter::arc("Hashing", hash_plan.unhashed_size());
+        let prog = ProgressCounter::arc("Hashing", hash_plan.transfer_size());
 
         let mut op = HashAndStoreOp {
             fs_transfer: self,
