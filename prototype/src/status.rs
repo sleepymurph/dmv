@@ -68,6 +68,7 @@ impl StatusTree {
     /// Total size of all unhashed files in this hierarchy
     pub fn transfer_size(&self) -> ObjectSize {
         match self {
+            &StatusTree { status, .. } if status == Status::Unchanged => 0,
             &StatusTree { status, .. } if !status.is_included() => 0,
             &StatusTree { targ_is_dir: false,
                           targ_hash: None,
