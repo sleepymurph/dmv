@@ -134,6 +134,10 @@ impl<'a, 'b> WalkOp<&'a HashPlan> for HashPlanDisplayOp<'a, 'b> {
                   -> Result<Option<Self::VisitResult>> {
         let show = node.status != Status::Unchanged &&
                    (node.status != Status::Ignored || self.show_ignored);
+        let mut ps = ps.to_string();
+        if node.is_dir {
+            ps += "/";
+        }
         if show {
             writeln!(self.formatter, "{} {}", node.status.code(), ps)?;
         }
