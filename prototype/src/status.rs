@@ -53,21 +53,21 @@ impl Status {
 
 
 /// A hierarchy of paths and their statuses, describing a potential commit
-pub struct HashPlan {
+pub struct StatusTree {
     pub fs_path: Option<PathBuf>,
     pub is_dir: bool,
     pub status: Status,
     pub hash: Option<ObjectKey>,
     pub size: ObjectSize,
-    pub children: ChildMap<HashPlan>,
+    pub children: ChildMap<StatusTree>,
 }
 
-impl HashPlan {
+impl StatusTree {
     /// Total size of all unhashed files in this hierarchy
     pub fn unhashed_size(&self) -> ObjectSize {
         match self {
-            &HashPlan { status, .. } if !status.is_included() => 0,
-            &HashPlan { is_dir: false, hash: None, size, .. } => size,
+            &StatusTree { status, .. } if !status.is_included() => 0,
+            &StatusTree { is_dir: false, hash: None, size, .. } => size,
             _ => {
                 self.children
                     .iter()
@@ -77,22 +77,22 @@ impl HashPlan {
         }
     }
 
-    pub fn display(&self) -> HashPlanDisplay { HashPlanDisplay::new(self) }
+    pub fn display(&self) -> StatusTreeDisplay { StatusTreeDisplay::new(self) }
 }
 
-impl NodeWithChildren for HashPlan {
+impl NodeWithChildren for StatusTree {
     fn children(&self) -> Option<&ChildMap<Self>> { Some(&self.children) }
 }
 
 
-/// A wrapper to Display a HashPlan, with options
-pub struct HashPlanDisplay<'a> {
-    hash_plan: &'a HashPlan,
+/// A wrapper to Display a StatusTree, with options
+pub struct StatusTreeDisplay<'a> {
+    hash_plan: &'a StatusTree,
     show_ignored: bool,
 }
-impl<'a> HashPlanDisplay<'a> {
-    fn new(hp: &'a HashPlan) -> Self {
-        HashPlanDisplay {
+impl<'a> StatusTreeDisplay<'a> {
+    fn new(hp: &'a StatusTree) -> Self {
+        StatusTreeDisplay {
             hash_plan: hp,
             show_ignored: false,
         }
@@ -102,9 +102,9 @@ impl<'a> HashPlanDisplay<'a> {
         self
     }
 }
-impl<'a> fmt::Display for HashPlanDisplay<'a> {
+impl<'a> fmt::Display for StatusTreeDisplay<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut op = HashPlanDisplayOp {
+        let mut op = StatusTreeDisplayOp {
             show_ignored: self.show_ignored,
             formatter: f,
         };
@@ -116,21 +116,21 @@ impl<'a> fmt::Display for HashPlanDisplay<'a> {
 }
 
 
-/// An operation that walks a HashPlan to Display it
-struct HashPlanDisplayOp<'s, 'f: 's> {
+/// An operation that walks a StatusTree to Display it
+struct StatusTreeDisplayOp<'s, 'f: 's> {
     show_ignored: bool,
     formatter: &'s mut fmt::Formatter<'f>,
 }
-impl<'a, 'b> WalkOp<&'a HashPlan> for HashPlanDisplayOp<'a, 'b> {
+impl<'a, 'b> WalkOp<&'a StatusTree> for StatusTreeDisplayOp<'a, 'b> {
     type VisitResult = ();
 
-    fn should_descend(&mut self, _ps: &PathStack, node: &&HashPlan) -> bool {
+    fn should_descend(&mut self, _ps: &PathStack, node: &&StatusTree) -> bool {
         node.is_dir && node.status.is_included()
     }
 
     fn no_descend(&mut self,
                   ps: &PathStack,
-                  node: &HashPlan)
+                  node: &StatusTree)
                   -> Result<Option<Self::VisitResult>> {
         let show = node.status != Status::Unchanged &&
                    (node.status != Status::Ignored || self.show_ignored);

@@ -10,8 +10,8 @@ use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
 use progress::ProgressCounter;
 use progress::std_err_watch;
-use status::HashPlan;
 use status::Status;
+use status::StatusTree;
 use std::collections::BTreeMap;
 use std::fs::create_dir;
 use std::fs::remove_file;
@@ -53,7 +53,7 @@ impl FsTransfer {
         self.hash_plan(&hash_plan)
     }
 
-    pub fn hash_plan(&mut self, hash_plan: &HashPlan) -> Result<ObjectKey> {
+    pub fn hash_plan(&mut self, hash_plan: &StatusTree) -> Result<ObjectKey> {
         let prog = ProgressCounter::arc("Hashing", hash_plan.unhashed_size());
 
         let mut op = HashAndStoreOp {
@@ -102,7 +102,7 @@ impl FsTransfer {
 
 
 
-/// An operation that walks files to build a HashPlan
+/// An operation that walks files to build a StatusTree
 ///
 /// Only considers ignore and cache status. See FsObjComparePlanBuilder for an
 /// operation that compares to a previous commit/tree.
@@ -118,7 +118,7 @@ impl FsOnlyPlanBuilder {
 }
 
 impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
-    type VisitResult = HashPlan;
+    type VisitResult = StatusTree;
 
     fn should_descend(&mut self, _ps: &PathStack, node: &FileWalkNode) -> bool {
         node.metadata.is_dir() && self.status(node).is_included()
@@ -127,7 +127,7 @@ impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
                   _ps: &PathStack,
                   node: FileWalkNode)
                   -> Result<Option<Self::VisitResult>> {
-        Ok(Some(HashPlan {
+        Ok(Some(StatusTree {
             status: self.status(&node),
             fs_path: Some(node.path),
             is_dir: node.metadata.is_dir(),
@@ -152,22 +152,22 @@ impl WalkOp<FileWalkNode> for FsOnlyPlanBuilder {
 
 
 
-/// An operation that walks a HashPlan to hash and store the files as a Tree
+/// An operation that walks a StatusTree to hash and store the files as a Tree
 pub struct HashAndStoreOp<'a, 'b> {
     fs_transfer: &'a mut FsTransfer,
     progress: &'b ProgressCounter,
 }
 
-impl<'a, 'b> WalkOp<&'a HashPlan> for HashAndStoreOp<'a, 'b> {
+impl<'a, 'b> WalkOp<&'a StatusTree> for HashAndStoreOp<'a, 'b> {
     type VisitResult = ObjectKey;
 
-    fn should_descend(&mut self, _ps: &PathStack, node: &&HashPlan) -> bool {
+    fn should_descend(&mut self, _ps: &PathStack, node: &&StatusTree) -> bool {
         node.is_dir && node.status.is_included()
     }
 
     fn no_descend(&mut self,
                   ps: &PathStack,
-                  node: &HashPlan)
+                  node: &StatusTree)
                   -> Result<Option<Self::VisitResult>> {
         match (node.status.is_included(), node.hash, &node.fs_path) {
             (false, _, _) => {
@@ -197,7 +197,7 @@ impl<'a, 'b> WalkOp<&'a HashPlan> for HashAndStoreOp<'a, 'b> {
 
     fn post_descend(&mut self,
                     ps: &PathStack,
-                    _node: &HashPlan,
+                    _node: &StatusTree,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
         if children.is_empty() {

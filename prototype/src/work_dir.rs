@@ -11,8 +11,8 @@ use find_repo::RepoLayout;
 use fs_transfer::FsTransfer;
 use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
-use status::HashPlan;
 use status::Status;
+use status::StatusTree;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::path::PathBuf;
@@ -127,7 +127,7 @@ impl WorkDir {
             .collect::<Vec<String>>()
     }
 
-    pub fn status(&mut self) -> Result<HashPlan> {
+    pub fn status(&mut self) -> Result<StatusTree> {
         debug!("Current branch: {}. Parents: {}",
                self.branch().unwrap_or("<detached head>"),
                self.parents_short_hashes().join(","));
@@ -200,10 +200,10 @@ impl WorkDir {
 
 
 
-/// An operation that compares files to a previous commit to build a HashPlan
+/// An operation that compares files to a previous commit to build a StatusTree
 ///
 /// Walks a filesystem tree and a Tree object in parallel, comparing them and
-/// building a HashPlan. This is the basis of the status command and the first
+/// building a StatusTree. This is the basis of the status command and the first
 /// step of a commit.
 pub struct FsObjComparePlanBuilder<'a> {
     marks: &'a FileMarkMap,
@@ -244,7 +244,7 @@ impl<'a> FsObjComparePlanBuilder<'a> {
 }
 
 impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
-    type VisitResult = HashPlan;
+    type VisitResult = StatusTree;
 
     fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
         let path_is_dir = match node.0 {
@@ -260,7 +260,7 @@ impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
         let status = self.status(&node, ps);
         match node {
             (Some(path), _) => {
-                Ok(Some(HashPlan {
+                Ok(Some(StatusTree {
                     status: status,
                     fs_path: Some(path.path),
                     is_dir: path.metadata.is_dir(),
@@ -270,7 +270,7 @@ impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
                 }))
             }
             (None, Some(obj)) => {
-                Ok(Some(HashPlan {
+                Ok(Some(StatusTree {
                     status: status,
                     hash: Some(obj.hash),
                     fs_path: None,
@@ -288,7 +288,7 @@ impl<'a> WalkOp<CompareNode> for FsObjComparePlanBuilder<'a> {
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
 
-        // Convert dir node to HashPlan according to normal rules
+        // Convert dir node to StatusTree according to normal rules
         match self.no_descend(ps, node)? {
             Some(mut plan) => {
                 // Then add children
