@@ -332,6 +332,7 @@ impl Into<ComparableNode> for ObjectWalkNode {
     }
 }
 
+
 impl NodeLookup<ObjectKey, ObjectWalkNode> for ObjectStore {
     fn lookup_node(&self, handle: ObjectKey) -> Result<ObjectWalkNode> {
         let opened = self.open_object(&handle)?;
@@ -359,6 +360,31 @@ impl NodeReader<ObjectWalkNode> for ObjectStore {
                      -> Result<ChildMap<ObjectWalkNode>> {
         let mut children = BTreeMap::new();
         for (name, hash) in self.open_tree(&node.hash)? {
+            let name = name.into_string()
+                .map_err(|e| format!("Bad UTF-8 in name: {:?}", e))?;
+            let node = self.lookup_node(hash.clone())?;
+            children.insert(name, node);
+        }
+        Ok(children)
+    }
+}
+
+
+impl NodeLookup<ObjectKey, ComparableNode> for ObjectStore {
+    fn lookup_node(&self, handle: ObjectKey) -> Result<ComparableNode> {
+        let node = <Self as NodeLookup<ObjectKey,ObjectWalkNode>>
+                    ::lookup_node(&self, handle)?;
+        Ok(node.into())
+    }
+}
+
+impl NodeReader<ComparableNode> for ObjectStore {
+    fn read_children(&self,
+                     node: &ComparableNode)
+                     -> Result<ChildMap<ComparableNode>> {
+        let mut children = BTreeMap::new();
+        for (name, hash) in
+            self.open_tree(&node.hash.expect("Object should have hash"))? {
             let name = name.into_string()
                 .map_err(|e| format!("Bad UTF-8 in name: {:?}", e))?;
             let node = self.lookup_node(hash.clone())?;

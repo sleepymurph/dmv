@@ -113,6 +113,7 @@ impl FileStore {
     }
 }
 
+
 impl NodeLookup<PathBuf, FileWalkNode> for FileStore {
     fn lookup_node(&self, path: PathBuf) -> Result<FileWalkNode> {
         let meta = path.metadata()?;
@@ -131,6 +132,36 @@ impl NodeReader<FileWalkNode> for FileStore {
                      -> Result<ChildMap<FileWalkNode>> {
         let mut children = ChildMap::new();
         for entry in read_dir(&node.path)? {
+            let entry = entry?;
+            let path = entry.path();
+            let name = path.file_name_or_err()?
+                .to_os_string()
+                .into_string()
+                .map_err(|e| format!("Bad UTF-8 in name: {:?}", e))?;
+            let node = self.lookup_node(path.clone())?;
+            children.insert(name, node);
+        }
+        Ok(children)
+    }
+}
+
+
+impl NodeLookup<PathBuf, ComparableNode> for FileStore {
+    fn lookup_node(&self, path: PathBuf) -> Result<ComparableNode> {
+        let node = <Self as NodeLookup<PathBuf,FileWalkNode>>
+                    ::lookup_node(&self, path)?;
+        Ok(node.into())
+    }
+}
+
+impl NodeReader<ComparableNode> for FileStore {
+    fn read_children(&self,
+                     node: &ComparableNode)
+                     -> Result<ChildMap<ComparableNode>> {
+        let mut children = ChildMap::new();
+        for entry in read_dir(node.fs_path
+            .as_ref()
+            .expect("File should have path"))? {
             let entry = entry?;
             let path = entry.path();
             let name = path.file_name_or_err()?
