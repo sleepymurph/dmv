@@ -316,14 +316,26 @@ lazy_static!{
 pub struct ObjectWalkNode {
     pub hash: ObjectKey,
     pub object_type: ObjectType,
+    pub file_size: ObjectSize,
 }
 
 impl NodeLookup<ObjectKey, ObjectWalkNode> for ObjectStore {
     fn lookup_node(&self, handle: ObjectKey) -> Result<ObjectWalkNode> {
-        let object_type = self.open_object(&handle)?.header().object_type;
+        let opened = self.open_object(&handle)?;
+        let object_type = opened.header().object_type;
+        let file_size;
+        match opened {
+            ObjectHandle::Blob(_) => file_size = opened.header().content_size,
+            ObjectHandle::ChunkedBlob(raw) => {
+                let chunked = raw.read_content()?;
+                file_size = chunked.total_size
+            }
+            _ => file_size = 0,
+        }
         Ok(ObjectWalkNode {
             hash: handle,
             object_type: object_type,
+            file_size: file_size,
         })
     }
 }
