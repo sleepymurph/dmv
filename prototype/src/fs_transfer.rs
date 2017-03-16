@@ -26,7 +26,6 @@ pub struct FsTransfer {
     pub file_store: FileStore,
 }
 impl_deref_mut!(FsTransfer => ObjectStore, object_store);
-
 impl FsTransfer {
     pub fn with_object_store(object_store: ObjectStore) -> Self {
         let mut ignored = IgnoreList::default();
@@ -108,6 +107,8 @@ impl FsTransfer {
 
 
 
+type FileObjectNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
+
 /// An operation that compares files to a previous commit to build a StatusTree
 ///
 /// Walks a filesystem tree and a Tree object in parallel, comparing them and
@@ -116,9 +117,6 @@ impl FsTransfer {
 pub struct FileObjectCompareWalkOp<'a> {
     pub marks: &'a FileMarkMap,
 }
-
-type FileObjectNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
-
 impl<'a> FileObjectCompareWalkOp<'a> {
     fn status(&self, node: &FileObjectNode, ps: &PathStack) -> Status {
         let path = node.0.as_ref();
@@ -137,7 +135,6 @@ impl<'a> FileObjectCompareWalkOp<'a> {
             .compare()
     }
 }
-
 impl<'a> WalkOp<FileObjectNode> for FileObjectCompareWalkOp<'a> {
     type VisitResult = StatusTree;
 
@@ -186,7 +183,6 @@ pub struct HashAndStoreOp<'a, 'b> {
     fs_transfer: &'a mut FsTransfer,
     progress: &'b ProgressCounter,
 }
-
 impl<'a, 'b> WalkOp<&'a StatusTree> for HashAndStoreOp<'a, 'b> {
     type VisitResult = ObjectKey;
 
@@ -251,7 +247,6 @@ pub struct ExtractObjectOp<'a> {
     object_store: &'a ObjectStore,
     extract_root: &'a Path,
 }
-
 impl<'a> ExtractObjectOp<'a> {
     fn abs_path(&self, ps: &PathStack) -> PathBuf {
         let mut abs_path = self.extract_root.to_path_buf();
@@ -261,7 +256,6 @@ impl<'a> ExtractObjectOp<'a> {
         abs_path
     }
 }
-
 impl<'a> WalkOp<ObjectWalkNode> for ExtractObjectOp<'a> {
     type VisitResult = ();
 
