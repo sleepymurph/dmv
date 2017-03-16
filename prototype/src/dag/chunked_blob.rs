@@ -109,10 +109,8 @@ impl ReadObjectContent for ChunkedBlob {
         let total_size = try!(read_object_size(reader));
         let mut chunks: Vec<ChunkOffset> = Vec::new();
         loop {
-            let bytes_read = try!(reader.read(&mut chunk_record_buf));
-            match bytes_read {
-                0 => break,
-                CHUNK_RECORD_SIZE => {
+            match reader.read_exact(&mut chunk_record_buf) {
+                Ok(()) => {
                     let chunk_offset =
                         object_size_from_bytes(&chunk_record_buf[0..8]);
                     let chunk_size =
@@ -126,7 +124,8 @@ impl ReadObjectContent for ChunkedBlob {
                         hash: chunk_hash,
                     });
                 }
-                _ => bail!(io::Error::new(io::ErrorKind::UnexpectedEof, "")),
+                Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(e) => bail!(e),
             }
         }
         Ok(ChunkedBlob {

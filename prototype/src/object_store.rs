@@ -257,7 +257,11 @@ impl ObjectStore {
             }
             ObjectHandle::ChunkedBlob(index) => {
                 debug!("Reading ChunkedBlob {}", hash);
-                let index = index.read_content()?;
+                let index =
+                    index.read_content()
+                        .chain_err(|| {
+                            format!("While reading ChunkedBlob {}", hash)
+                        })?;
                 for offset in index.chunks {
                     debug!("{}", offset);
                     self.copy_blob_content(&offset.hash, writer)?;
