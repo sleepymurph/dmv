@@ -2,6 +2,8 @@ use dag::*;
 use disk_backed::DiskBacked;
 use error::*;
 use fsutil;
+use human_readable::human_bytes;
+use log::LogLevel;
 use regex::Regex;
 use status::ComparableNode;
 use std::collections::BTreeMap;
@@ -12,6 +14,7 @@ use std::iter::Iterator;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::Instant;
 use walker::*;
 
 type RefMap = BTreeMap<String, ObjectKey>;
@@ -211,8 +214,13 @@ impl ObjectStore {
         // If object already exists, no need to store
         let key = obj.calculate_hash();
         if self.has_object(&key) {
+            trace!("store {} {} -- already exists",
+                   obj.object_type().code(),
+                   key);
             return Ok(key);
         }
+
+        let start_time = Instant::now();
 
         // Create temporary file
         let temp_path = self.path.join("tmp");
@@ -233,6 +241,24 @@ impl ObjectStore {
         try!(fsutil::create_parents(&permpath));
         try!(fs::rename(&temp_path, &permpath));
 
+        let elapsed = Instant::now().duration_since(start_time);
+        let secs = elapsed.as_secs() as f32 +
+                   elapsed.subsec_nanos() as f32 / 1e9;
+        let per_sec = obj.content_size() as f32 / secs;
+
+        let log_level = match secs {
+            _ if secs > 1.0 => LogLevel::Warn,
+            _ if secs > 0.5 => LogLevel::Info,
+            _ if secs > 0.010 => LogLevel::Debug,
+            _ => LogLevel::Trace,
+        };
+        log!(log_level,
+             "store {} {} -- {:>10} stored in {:0.3}s ({:>10}/s)",
+             obj.object_type().code(),
+             key,
+             human_bytes(obj.content_size()),
+             secs,
+             human_bytes(per_sec as u64));
         Ok(key)
     }
 
