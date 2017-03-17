@@ -1,6 +1,10 @@
 name: prototype
 author: Mike Murphy <sleepymurph@gmail.com>
 args:
+    - version:
+        long: version
+        help: "print version and exit"
+
 subcommands:
     - init:
         args:

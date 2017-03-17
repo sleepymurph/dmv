@@ -269,8 +269,8 @@ class PrototypeRepo(AbstractRepo):
 
     @staticmethod
     def check_version():
-        # TODO
-        return "versioning TODO"
+        return subprocess.check_output(
+                "prototype --version", shell=True).strip()
 
     def __init__(self, workdir):
         super(PrototypeRepo, self).__init__(workdir)

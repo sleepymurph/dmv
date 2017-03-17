@@ -8,3 +8,6 @@ pub const DEFAULT_BRANCH_NAME: &'static str = "master";
 ///
 /// TODO: Allow multiple branches, read current branch from WorkDir
 pub const HARDCODED_BRANCH: &'static str = "master";
+
+pub const PROJECT_GIT_LOG: &'static str =
+    include_str!(concat!(env!("OUT_DIR"), "/project_git_log.txt"));

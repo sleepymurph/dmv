@@ -8,6 +8,7 @@ extern crate env_logger;
 extern crate prototype;
 
 use prototype::cmd;
+use prototype::constants::*;
 use prototype::error::*;
 use prototype::object_store::RevSpec;
 use std::path::PathBuf;
@@ -21,6 +22,11 @@ fn run() -> Result<()> {
 
     let arg_yaml = load_yaml!("cli.yaml");
     let argmatch = clap::App::from_yaml(arg_yaml).get_matches();
+
+    if argmatch.is_present("version") {
+        println!("{}: git version {}", PROJECT_NAME, PROJECT_GIT_LOG.trim());
+        return Ok(());
+    }
 
     match argmatch.subcommand_name() {
         Some(name) => {

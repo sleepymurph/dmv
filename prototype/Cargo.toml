@@ -2,6 +2,7 @@
 name = "prototype"
 version = "0.1.0"
 authors = ["Mike Murphy <codermurph@sleepymurph.com>"]
+build = "build.rs"
 
 [lib]
 name = "prototype"
