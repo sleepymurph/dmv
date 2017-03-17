@@ -22,7 +22,6 @@ use walker::*;
 pub struct WorkDirState {
     parents: Vec<ObjectKey>,
     branch: Option<String>,
-    marks: FileMarkMap,
 }
 
 impl Default for WorkDirState {
@@ -30,7 +29,6 @@ impl Default for WorkDirState {
         WorkDirState {
             parents: Vec::new(),
             branch: Some(DEFAULT_BRANCH_NAME.to_owned()),
-            marks: FileMarkMap::new(),
         }
     }
 }
@@ -134,8 +132,7 @@ impl WorkDir {
 
         let combo = (&self.object_store, &self.file_store);
 
-        let mut op = CompareWalkOp { marks: &self.state.marks };
-        combo.walk_node(&mut op, (src, targ))?
+        combo.walk_node(&mut CompareWalkOp, (src, targ))?
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
     }
 
@@ -147,16 +144,8 @@ impl WorkDir {
         let src: ComparableNode = self.object_store.lookup_node(src)?;
         let targ: ComparableNode = self.object_store.lookup_node(targ)?;
         let combo = (&self.object_store, &self.object_store);
-        let mut op = CompareWalkOp { marks: &FileMarkMap::add_root() };
-        combo.walk_node(&mut op, (Some(src), Some(targ)))?
+        combo.walk_node(&mut CompareWalkOp, (Some(src), Some(targ)))?
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
-    }
-
-    pub fn mark(&mut self, path: &Path, mark: FileMark) -> Result<()> {
-        let path = PathStack::from_path(path)?;
-        self.state.marks.insert(path, mark);
-        self.state.flush()?;
-        Ok(())
     }
 
     pub fn commit(&mut self,
@@ -176,7 +165,6 @@ impl WorkDir {
         if let Some(branch) = self.state.branch.clone() {
             self.update_ref(branch, hash)?;
         }
-        self.state.marks.clear();
         self.state.flush()?;
         Ok((self.branch(), hash))
     }

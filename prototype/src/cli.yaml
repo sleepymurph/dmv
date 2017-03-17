@@ -54,18 +54,6 @@ subcommands:
             - rev2:
                 index: 2
 
-    - add:
-        args:
-            - path:
-                required: true
-                index: 1
-
-    - rm:
-        args:
-            - path:
-                required: true
-                index: 1
-
     - commit:
         args:
             - message:

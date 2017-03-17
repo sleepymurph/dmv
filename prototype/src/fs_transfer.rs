@@ -45,11 +45,10 @@ impl FsTransfer {
         debug!("Hashing object, with framework");
         let hash_plan;
         {
-            let mut op = CompareWalkOp { marks: &FileMarkMap::add_root() };
             let combo = (&self.object_store, &self.file_store);
             let file_node = self.file_store.lookup_node(path.to_owned())?;
             let node = (None, Some(file_node));
-            hash_plan = combo.walk_node(&mut op, node)?
+            hash_plan = combo.walk_node(&mut CompareWalkOp, node)?
                 .ok_or_else(&Self::no_answer_err)?;
         }
 
@@ -112,17 +111,13 @@ type CompareNode = (Option<ComparableNode>, Option<ComparableNode>);
 /// Walks a filesystem tree and a Tree object in parallel, comparing them and
 /// building a StatusTree. This is the basis of the status command and the first
 /// step of a commit.
-pub struct CompareWalkOp<'a> {
-    pub marks: &'a FileMarkMap,
-}
-impl<'a> CompareWalkOp<'a> {
-    fn status(&self, node: &CompareNode, ps: &PathStack) -> Status {
-        let exact_mark = self.marks.get(ps).map(|m| *m);
-        let ancestor_mark = self.marks.get_ancestor(ps);
-        ComparableNode::compare(&node.0, &node.1, exact_mark, ancestor_mark)
+pub struct CompareWalkOp;
+impl CompareWalkOp {
+    fn status(&self, node: &CompareNode, _ps: &PathStack) -> Status {
+        ComparableNode::compare(&node.0, &node.1)
     }
 }
-impl<'a> WalkOp<CompareNode> for CompareWalkOp<'a> {
+impl WalkOp<CompareNode> for CompareWalkOp {
     type VisitResult = StatusTree;
 
     fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {

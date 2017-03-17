@@ -10,7 +10,6 @@ use find_repo::find_fs_transfer;
 use find_repo::find_object_store;
 use find_repo::find_work_dir;
 use object_store::RevSpec;
-use status::FileMark;
 use std::env::current_dir;
 use std::path::Path;
 use std::path::PathBuf;
@@ -90,16 +89,6 @@ pub fn status(show_ignored: bool,
     let status = work_dir.status(rev1, rev2)?;
     print!("{}", status.display().show_ignored(show_ignored));
     Ok(())
-}
-
-pub fn add(path: PathBuf) -> Result<()> {
-    let mut work_dir = find_work_dir()?;
-    work_dir.mark(path.as_path(), FileMark::Add)
-}
-
-pub fn rm(path: PathBuf) -> Result<()> {
-    let mut work_dir = find_work_dir()?;
-    work_dir.mark(path.as_path(), FileMark::Delete)
 }
 
 pub fn commit(message: String) -> Result<()> {

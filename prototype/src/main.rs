@@ -33,8 +33,6 @@ fn run() -> Result<()> {
                 "extract-object" => cmd_extract_object,
                 "cache-status" => cmd_cache_status,
                 "status" => cmd_status,
-                "add" => cmd_add,
-                "rm" => cmd_rm,
                 "commit" => cmd_commit,
                 "log" => cmd_log,
                 "branch" => cmd_branch,
@@ -111,24 +109,6 @@ fn cmd_status(_argmatch: &clap::ArgMatches,
     let rev2 = submatch.value_of("rev2")
         .and_then_try(|s| RevSpec::from_str(s))?;
     cmd::status(show_ignored, rev1, rev2)
-}
-
-fn cmd_add(_argmatch: &clap::ArgMatches,
-           submatch: &clap::ArgMatches)
-           -> Result<()> {
-    let file_path = submatch.value_of("path").expect("required");
-    let file_path = PathBuf::from(file_path);
-
-    cmd::add(file_path)
-}
-
-fn cmd_rm(_argmatch: &clap::ArgMatches,
-          submatch: &clap::ArgMatches)
-          -> Result<()> {
-    let file_path = submatch.value_of("path").expect("required");
-    let file_path = PathBuf::from(file_path);
-
-    cmd::rm(file_path)
 }
 
 fn cmd_commit(_argmatch: &clap::ArgMatches,

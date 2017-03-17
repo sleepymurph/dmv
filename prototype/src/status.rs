@@ -3,57 +3,16 @@
 use dag::ObjectKey;
 use dag::ObjectSize;
 use error::*;
-use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
 use walker::*;
 
-/// Certain operations that a file can be marked for, such as add or delete
-#[derive(Debug,Clone,Copy,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
-pub enum FileMark {
-    /// Mark this file for addition
-    Add,
-    /// Mark this file for deletion
-    Delete,
-}
-
-
-wrapper_struct!(
-#[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
-pub struct FileMarkMap(BTreeMap<PathStack, FileMark>);
-);
-impl FileMarkMap {
-    pub fn new() -> Self { FileMarkMap(BTreeMap::new()) }
-
-    pub fn add_root() -> Self {
-        let mut map = FileMarkMap::new();
-        map.insert(PathStack::new(), FileMark::Add);
-        map
-    }
-
-    pub fn get_ancestor(&self, ps: &PathStack) -> Option<FileMark> {
-        let mut ps = ps.clone();
-        loop {
-            if let Some(mark) = self.get(&ps) {
-                return Some(*mark);
-            }
-            if ps.len() == 0 {
-                return None;
-            } else {
-                ps.pop();
-            }
-        }
-    }
-}
-
-
 /// Status of an individual file or dir, as compared to a commit
 #[derive(Clone,Copy,Eq,PartialEq,Debug)]
 pub enum Status {
-    Untracked,
     Ignored,
     Add,
-    Offline,
+    // Offline,
     Delete,
     Unchanged,
     Modified,
@@ -64,10 +23,9 @@ impl Status {
     /// A short status code for display
     pub fn code(&self) -> &'static str {
         match self {
-            &Status::Untracked => "?",
             &Status::Ignored => "i",
             &Status::Add => "a",
-            &Status::Offline => "o",
+            // &Status::Offline => "o",
             &Status::Delete => "d",
             &Status::Unchanged => " ",
             &Status::Modified => "M",
@@ -79,12 +37,11 @@ impl Status {
     pub fn is_included(&self) -> bool {
         match self {
             &Status::Add |
-            &Status::Offline |
+            // &Status::Offline |
             &Status::Unchanged |
             &Status::Modified |
             &Status::MaybeModified => true,
 
-            &Status::Untracked |
             &Status::Ignored |
             &Status::Delete => false,
         }
@@ -102,9 +59,7 @@ pub struct ComparableNode {
 
 impl ComparableNode {
     pub fn compare(src: &Option<ComparableNode>,
-                   targ: &Option<ComparableNode>,
-                   exact_mark: Option<FileMark>,
-                   ancestor_mark: Option<FileMark>)
+                   targ: &Option<ComparableNode>)
                    -> Status {
 
         let src = src.as_ref();
@@ -116,23 +71,16 @@ impl ComparableNode {
         let targ_hash = targ.and_then(|n| n.hash);
         let targ_is_ignored = targ.map(|n| n.is_ignored).unwrap_or(false);
 
-        let ex_mk = exact_mark;
-        let an_mk = ancestor_mark;
-
         match (src_exists, targ_exists, src_hash, targ_hash) {
-
-            (_, _, _, _) if an_mk == Some(FileMark::Delete) => Status::Delete,
 
             (true, true, Some(a), Some(b)) if a == b => Status::Unchanged,
             (true, true, Some(_), Some(_)) => Status::Modified,
             (true, true, _, _) => Status::MaybeModified,
 
-            (false, true, _, _) if ex_mk == Some(FileMark::Add) => Status::Add,
             (false, true, _, _) if targ_is_ignored => Status::Ignored,
-            (false, true, _, _) if an_mk == Some(FileMark::Add) => Status::Add,
-            (false, true, _, _) => Status::Untracked,
+            (false, true, _, _) => Status::Add,
 
-            (true, false, _, _) => Status::Offline,
+            (true, false, _, _) => Status::Delete,
 
             (false, false, _, _) => unreachable!(),
         }
