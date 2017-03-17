@@ -305,7 +305,7 @@ class PrototypeRepo(AbstractRepo):
     def is_file_in_commit(self, commit_id, filename):
         try:
             output = self.check_output(
-                                "prototype ls-files %s | awk '{print $3}'| grep '^%s$'"
+                                "prototype ls-files %s | grep '^%s$'"
                                 % (commit_id, filename)).strip()
             return bool(output)
         except subprocess.CalledProcessError:

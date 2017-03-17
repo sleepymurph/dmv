@@ -26,6 +26,10 @@ subcommands:
 
     - ls-files:
         args:
+            - verbose:
+                short: v
+                help: "include additional information"
+
             - obj-spec:
                 help: "tree to look up"
                 required: false

@@ -80,8 +80,9 @@ fn cmd_ls_files(_argmatch: &clap::ArgMatches,
                 -> Result<()> {
     let obj_spec = submatch.value_of("obj-spec")
         .and_then_try(|s| RevSpec::from_str(s))?;
+    let verbose = submatch.is_present("verbose");
 
-    cmd::ls_files(obj_spec)
+    cmd::ls_files(obj_spec, verbose)
 }
 
 fn cmd_extract_object(_argmatch: &clap::ArgMatches,

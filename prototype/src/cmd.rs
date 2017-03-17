@@ -49,19 +49,19 @@ pub fn show_object(obj_spec: &RevSpec) -> Result<()> {
     Ok(())
 }
 
-pub fn ls_files(obj_spec: Option<RevSpec>) -> Result<()> {
+pub fn ls_files(obj_spec: Option<RevSpec>, verbose: bool) -> Result<()> {
 
     match obj_spec {
         Some(r) => {
             let object_store = &find_object_store()?;
             let hash = object_store.find_object(&r)?;
-            print!("{}", object_store.ls_files(hash)?);
+            print!("{}", object_store.ls_files(hash, verbose)?);
         }
         None => {
             let wd = find_work_dir()?;
             let hash = wd.head()
                 .ok_or_else(|| "No commit specified and no parent commit")?;
-            print!("{}", wd.ls_files(hash)?);
+            print!("{}", wd.ls_files(hash,verbose)?);
         }
     };
     Ok(())

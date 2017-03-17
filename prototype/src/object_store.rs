@@ -317,10 +317,14 @@ impl ObjectStore {
 
 
     /// Give a Display object that will walk the tree and list its contents
-    pub fn ls_files(&self, hash: ObjectKey) -> Result<TreeDisplay> {
+    pub fn ls_files(&self,
+                    hash: ObjectKey,
+                    verbose: bool)
+                    -> Result<TreeDisplay> {
         Ok(TreeDisplay {
             node: self.lookup_node(hash)?,
             object_store: self,
+            verbose: verbose,
         })
     }
 
@@ -546,10 +550,14 @@ impl<'a> Iterator for Commits<'a> {
 pub struct TreeDisplay<'a> {
     object_store: &'a ObjectStore,
     node: ObjectWalkNode,
+    verbose: bool,
 }
 impl<'a> fmt::Display for TreeDisplay<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut op = TreeDisplayOp { formatter: f };
+        let mut op = TreeDisplayOp {
+            formatter: f,
+            verbose: self.verbose,
+        };
         match self.object_store.walk_node(&mut op, self.node) {
             Ok(_) => Ok(()),
             Err(_) => Err(fmt::Error),
@@ -561,6 +569,7 @@ impl<'a> fmt::Display for TreeDisplay<'a> {
 /// An operation that walks an Object Tree to Display it
 struct TreeDisplayOp<'s, 'f: 's> {
     formatter: &'s mut fmt::Formatter<'f>,
+    verbose: bool,
 }
 impl<'a, 'b> WalkOp<ObjectWalkNode> for TreeDisplayOp<'a, 'b> {
     type VisitResult = ();
@@ -576,11 +585,11 @@ impl<'a, 'b> WalkOp<ObjectWalkNode> for TreeDisplayOp<'a, 'b> {
                   ps: &PathStack,
                   node: ObjectWalkNode)
                   -> Result<Option<Self::VisitResult>> {
-        writeln!(self.formatter,
-                 "{} {} {}",
-                 node.hash,
-                 node.object_type.code(),
-                 ps)?;
+        if self.verbose {
+            writeln!(self.formatter, "{} {} {}", node.hash, node.object_type.code(), ps)?;
+        } else {
+            writeln!(self.formatter, "{}", ps)?;
+        }
         Ok(None)
     }
 }
