@@ -312,12 +312,16 @@ class PrototypeRepo(AbstractRepo):
             return False
 
     def check_repo_integrity(self):
-        # TODO
-        return True
+        try:
+            self.run_cmd("prototype fsck")
+            return True
+        except trialutil.CallFailedError:
+            return False
 
     def corrupt_repo(self):
         internal_file = self.check_output(
-                            "find .prototype/objects/-type f | head -n1").strip()
+                            "find .prototype/objects -type f | head -n1"
+                            ).strip()
         trialutil.make_small_edit(self.workdir, internal_file, 10)
 
 

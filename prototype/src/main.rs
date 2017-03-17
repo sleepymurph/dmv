@@ -40,6 +40,7 @@ fn run() -> Result<()> {
                 "commit" => cmd_commit,
                 "log" => cmd_log,
                 "branch" => cmd_branch,
+                "fsck" => cmd_fsck,
                 _ => unimplemented!(),
             };
             let submatch = argmatch.subcommand_matches(name)
@@ -142,4 +143,10 @@ fn cmd_branch(_argmatch: &clap::ArgMatches,
         }
         (None, Some(_)) => unreachable!(),
     }
+}
+
+fn cmd_fsck(_argmatch: &clap::ArgMatches,
+            _submatch: &clap::ArgMatches)
+            -> Result<()> {
+    cmd::fsck()
 }

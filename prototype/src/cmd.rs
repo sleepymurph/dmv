@@ -135,3 +135,19 @@ pub fn branch_set_to_head(branch_name: &str) -> Result<()> {
     work_dir.update_ref_to_head(branch_name)?;
     Ok(())
 }
+
+pub fn fsck() -> Result<()> {
+    let object_store = find_object_store()?;
+    let bad = object_store.fsck()?;
+    for &(expected, actual) in &bad {
+        println!("Corrupt object {0}: expected {0:x}, actual {1:x}",
+                 expected,
+                 actual);
+    }
+    if bad.is_empty() {
+        println!("All objects OK");
+        Ok(())
+    } else {
+        bail!("Repository has corrupt objects")
+    }
+}

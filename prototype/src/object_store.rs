@@ -4,6 +4,7 @@ use error::*;
 use fsutil;
 use human_readable::human_bytes;
 use log::LogLevel;
+use progress::*;
 use regex::Regex;
 use status::ComparableNode;
 use std::collections::BTreeMap;
@@ -14,6 +15,7 @@ use std::iter::Iterator;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::thread;
 use std::time::Instant;
 use walker::*;
 
@@ -58,6 +60,57 @@ impl ObjectStore {
             .expect("should be ascii")
             .replace("/", "");
         ObjectKey::parse(&key_str)
+    }
+
+    /// Check all stored objects
+    ///
+    /// Returns a list of bad objects: file name key vs actual hash
+    pub fn fsck(&self) -> Result<Vec<(ObjectKey, ObjectKey)>> {
+        let mut obj_count = 0;
+        let mut total_bytes = 0;
+        for dir1 in fs::read_dir(self.path.join("objects"))? {
+            let dir1 = dir1?;
+            for dir2 in fs::read_dir(dir1.path())? {
+                let dir2 = dir2?;
+                for obj_file in fs::read_dir(dir2.path())? {
+                    let obj_file = obj_file?;
+                    obj_count += 1;
+                    total_bytes += obj_file.metadata()?.len();
+                }
+            }
+        }
+
+        stderrln!("{} objects, {}", obj_count, human_bytes(total_bytes));
+
+        let prog = ProgressCounter::arc("Verifying", total_bytes);
+        let prog_clone = prog.clone();
+        let prog_thread = thread::spawn(move || std_err_watch(prog_clone));
+        let mut bad_hashes = Vec::new();
+
+        for dir1 in fs::read_dir(self.path.join("objects"))? {
+            let dir1 = dir1?;
+            for dir2 in fs::read_dir(dir1.path())? {
+                let dir2 = dir2?;
+                for obj_file in fs::read_dir(dir2.path())? {
+                    let obj_file = obj_file?;
+                    let hash = self.object_from_path(&obj_file.path())?;
+                    let obj_file = self.open_object_file(&hash)?;
+                    let mut obj_file = ProgressReader::new(obj_file, &prog);
+                    let mut hasher = HashWriter::wrap(io::sink());
+                    io::copy(&mut obj_file, &mut hasher)?;
+                    let actual = hasher.hash();
+                    if actual != hash {
+                        warn!("Corrupt object {0}: expected {0:x}, actual \
+                               {1:x}",
+                              hash,
+                              actual);
+                        bad_hashes.push((hash, actual));
+                    }
+                }
+            }
+        }
+        prog_thread.join().unwrap();
+        Ok(bad_hashes)
     }
 
     pub fn has_object(&self, key: &ObjectKey) -> bool {

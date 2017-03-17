@@ -75,4 +75,6 @@ subcommands:
             - target-rev:
                 index: 2
 
+    - fsck:
+
 # vim: set sts=4 sw=4 et:
