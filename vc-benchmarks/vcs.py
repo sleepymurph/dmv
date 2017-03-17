@@ -265,11 +265,68 @@ class BupRepo(AbstractRepo):
         trialutil.make_small_edit(self.workdir, internal_file, 20)
 
 
+class PrototypeRepo(AbstractRepo):
+
+    @staticmethod
+    def check_version():
+        # TODO
+        return "versioning TODO"
+
+    def __init__(self, workdir):
+        super(PrototypeRepo, self).__init__(workdir)
+
+    def init_repo(self):
+        self.run_cmd("prototype init")
+
+    def start_tracking_file(self, filename):
+        # Not necessary. Files are tracked by default.
+        pass
+
+    def commit_file(self, filename):
+        self.run_cmd("prototype commit -m 'Add %s'" % filename)
+        log("Commit finished")
+
+    def check_status(self, filename):
+        self.run_cmd("prototype status")
+
+    def garbage_collect(self):
+        log("Prototype has no garbage collection")
+
+    def get_last_commit_id(self):
+        try:
+            revid = self.check_output("prototype log | head -n1 | awk '{print $1}'").strip()
+            if revid in [""]:
+                return None
+            else:
+                return revid
+        except subprocess.CalledProcessError:
+            return None
+
+    def is_file_in_commit(self, commit_id, filename):
+        try:
+            output = self.check_output(
+                                "prototype ls-files %s | awk '{print $3}'| grep '^%s$'"
+                                % (commit_id, filename)).strip()
+            return bool(output)
+        except subprocess.CalledProcessError:
+            return False
+
+    def check_repo_integrity(self):
+        # TODO
+        return True
+
+    def corrupt_repo(self):
+        internal_file = self.check_output(
+                            "find .prototype/objects/-type f | head -n1").strip()
+        trialutil.make_small_edit(self.workdir, internal_file, 10)
+
+
 vcschoices = {
             'copy': SimpleCopyRepo,
             'git': GitRepo,
             'hg': HgRepo,
             'bup': BupRepo,
+            'prototype': PrototypeRepo
         }
 
 
@@ -361,6 +418,11 @@ class BupTests(AbstractRepoTests, unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(BupTests,self).__init__(*args, **kwargs)
         self.repo_class = BupRepo
+
+class PrototypeTests(AbstractRepoTests, unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(PrototypeTests,self).__init__(*args, **kwargs)
+        self.repo_class = PrototypeRepo
 
 if __name__ == '__main__':
     unittest.main()
