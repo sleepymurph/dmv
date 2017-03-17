@@ -24,6 +24,9 @@ subcommands:
                 required: true
                 index: 1
 
+    - parents:
+        about: "show current parent commits"
+
     - ls-files:
         args:
             - verbose:

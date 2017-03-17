@@ -586,7 +586,11 @@ impl<'a, 'b> WalkOp<ObjectWalkNode> for TreeDisplayOp<'a, 'b> {
                   node: ObjectWalkNode)
                   -> Result<Option<Self::VisitResult>> {
         if self.verbose {
-            writeln!(self.formatter, "{} {} {}", node.hash, node.object_type.code(), ps)?;
+            writeln!(self.formatter,
+                     "{} {} {}",
+                     node.hash,
+                     node.object_type.code(),
+                     ps)?;
         } else {
             writeln!(self.formatter, "{}", ps)?;
         }

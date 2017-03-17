@@ -294,7 +294,7 @@ class PrototypeRepo(AbstractRepo):
 
     def get_last_commit_id(self):
         try:
-            revid = self.check_output("prototype log | head -n1 | awk '{print $1}'").strip()
+            revid = self.check_output("prototype parents | head -n1").strip()
             if revid in [""]:
                 return None
             else:

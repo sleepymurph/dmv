@@ -49,6 +49,14 @@ pub fn show_object(obj_spec: &RevSpec) -> Result<()> {
     Ok(())
 }
 
+pub fn parents() -> Result<()> {
+    let work_dir = find_work_dir()?;
+    for parent in work_dir.parents() {
+        println!("{}", parent);
+    }
+    Ok(())
+}
+
 pub fn ls_files(obj_spec: Option<RevSpec>, verbose: bool) -> Result<()> {
 
     match obj_spec {
@@ -61,7 +69,7 @@ pub fn ls_files(obj_spec: Option<RevSpec>, verbose: bool) -> Result<()> {
             let wd = find_work_dir()?;
             let hash = wd.head()
                 .ok_or_else(|| "No commit specified and no parent commit")?;
-            print!("{}", wd.ls_files(hash,verbose)?);
+            print!("{}", wd.ls_files(hash, verbose)?);
         }
     };
     Ok(())

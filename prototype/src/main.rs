@@ -33,6 +33,7 @@ fn run() -> Result<()> {
                 "init" => cmd_init,
                 "hash-object" => cmd_hash_object,
                 "show-object" => cmd_show_object,
+                "parents" => cmd_parents,
                 "ls-files" => cmd_ls_files,
                 "extract-object" => cmd_extract_object,
                 "cache-status" => cmd_cache_status,
@@ -73,6 +74,12 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches,
     let obj_spec = try!(RevSpec::from_str(obj_spec));
 
     cmd::show_object(&obj_spec)
+}
+
+fn cmd_parents(_argmatch: &clap::ArgMatches,
+               _submatch: &clap::ArgMatches)
+               -> Result<()> {
+    cmd::parents()
 }
 
 fn cmd_ls_files(_argmatch: &clap::ArgMatches,
