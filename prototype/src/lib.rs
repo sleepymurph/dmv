@@ -46,6 +46,7 @@ pub mod encodable;
 pub mod fsutil;
 pub mod progress;
 pub mod walker;
+pub mod variance;
 
 // Project-specific code
 pub mod error;
