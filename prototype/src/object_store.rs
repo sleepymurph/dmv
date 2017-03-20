@@ -17,6 +17,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::thread;
 use std::time::Instant;
+use variance::VarianceCalc;
 use walker::*;
 
 type RefMap = BTreeMap<String, ObjectKey>;
@@ -87,12 +88,18 @@ impl ObjectStore {
         let prog_thread = thread::spawn(move || std_err_watch(prog_clone));
         let mut bad_hashes = Vec::new();
 
+        let mut size_stats = VarianceCalc::new();
+
         for dir1 in fs::read_dir(self.path.join("objects"))? {
             let dir1 = dir1?;
             for dir2 in fs::read_dir(dir1.path())? {
                 let dir2 = dir2?;
                 for obj_file in fs::read_dir(dir2.path())? {
                     let obj_file = obj_file?;
+
+                    let size = obj_file.metadata()?.len();
+                    size_stats.item(size as i64);
+
                     let hash = self.object_from_path(&obj_file.path())?;
                     let obj_file = self.open_object_file(&hash)?;
                     let mut obj_file = ProgressReader::new(obj_file, &prog);
@@ -110,6 +117,10 @@ impl ObjectStore {
             }
         }
         prog_thread.join().unwrap();
+        println!("Object sizes: mean {:.1}, var {:.1}, std {:.1}",
+                 size_stats.mean(),
+                 size_stats.var(),
+                 size_stats.std());
         Ok(bad_hashes)
     }
 
