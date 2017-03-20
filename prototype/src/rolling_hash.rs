@@ -60,7 +60,7 @@ impl RollingHasher {
 /// this number of bytes.
 pub const CHUNK_TARGET_SIZE: usize = 15 * 1024;
 const WINDOW_SIZE: usize = 4096;
-const MATCH_BITS: RollingHashValue = 13;
+const MATCH_BITS: RollingHashValue = 14;
 
 /// Flags chunk boundaries where the rolling hash has enough zero bits
 pub struct ChunkFlagger {
@@ -70,13 +70,9 @@ pub struct ChunkFlagger {
 
 impl ChunkFlagger {
     pub fn new() -> Self {
-        let mut mask: RollingHashValue = 1;
-        for _ in 0..MATCH_BITS {
-            mask = (mask << 1) + 1;
-        }
         ChunkFlagger {
             hasher: RollingHasher::new(WINDOW_SIZE),
-            mask: mask,
+            mask: 1 << MATCH_BITS,
         }
     }
 
@@ -89,7 +85,7 @@ impl ChunkFlagger {
     }
 
     pub fn flag(&self) -> bool {
-        self.hasher.full() && (self.hasher.value() & self.mask) == 0
+        self.hasher.full() && (self.hasher.value() % self.mask) == 0
     }
 
     /// Slides across the buffer, returns position of first flag
