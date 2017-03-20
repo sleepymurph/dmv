@@ -117,10 +117,14 @@ impl ObjectStore {
             }
         }
         prog_thread.join().unwrap();
-        println!("Object sizes: mean {:.1}, var {:.1}, std {:.1}",
+        println!("Object sizes: count {}, mean {:.1} ({}), var {:.1}, std {:.1} ({})",
+                 size_stats.count(),
                  size_stats.mean(),
+                 human_bytes(size_stats.mean().round() as u64),
                  size_stats.var(),
-                 size_stats.std());
+                 size_stats.std(),
+                 human_bytes(size_stats.std().round() as u64)
+                 );
         Ok(bad_hashes)
     }
 

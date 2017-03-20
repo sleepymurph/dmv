@@ -27,6 +27,7 @@ impl VarianceCalc {
         self.sum += imk;
         self.sum_sq += imk * imk;
     }
+    pub fn count(&self) -> i64 { self.n }
     pub fn mean(&self) -> f64 {
         self.panic_if_n_is_zero();
         let k = self.k as f64;
