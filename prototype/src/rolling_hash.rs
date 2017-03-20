@@ -105,21 +105,6 @@ impl ChunkFlagger {
         }
         None
     }
-
-    /// Slides across the buffer, returns a list of flag positions
-    ///
-    /// Note that the positions point to the bytes that trigger the flag. These
-    /// positions mark the **end** of the chunk.
-    pub fn slide_over(&mut self, buf: &[u8]) -> Vec<usize> {
-        let mut boundaries = Vec::new();
-        for bufpos in 0..buf.len() {
-            self.slide(buf[bufpos]);
-            if self.flag() {
-                boundaries.push(bufpos);
-            }
-        }
-        boundaries
-    }
 }
 
 /// Breaks a file into chunks and emits them as byte vectors
@@ -359,22 +344,6 @@ mod test {
                          be less than {}. Got {}",
                         ACCEPTABLE_DEVIATION,
                         std));
-    }
-
-
-    #[test]
-    fn test_chunk_slide_over() {
-        let data = TestRand::default().gen_byte_vec(10 * CHUNK_TARGET_SIZE);
-
-        let mut flagger = ChunkFlagger::new();
-        let chunk_offsets = flagger.slide_over(&data);
-
-        // Uncomment to see all offsets
-        // assert_eq!(chunk_offsets, [12345]);
-
-        assert!(chunk_offsets.len() >= 4,
-                format!("Expected several chunk offsets returned. Got: {:?}",
-                        chunk_offsets));
     }
 
 
