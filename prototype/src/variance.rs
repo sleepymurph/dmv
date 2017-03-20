@@ -27,6 +27,13 @@ impl VarianceCalc {
         self.sum += imk;
         self.sum_sq += imk * imk;
     }
+    pub fn items<'a, I>(&mut self, items: I)
+        where I: Iterator<Item = i64>
+    {
+        for i in items {
+            self.item(i);
+        }
+    }
     pub fn count(&self) -> i64 { self.n }
     pub fn mean(&self) -> f64 {
         self.panic_if_n_is_zero();
@@ -50,7 +57,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
+    fn test_variance_calc_accuracy() {
         let mut calc = VarianceCalc::new();
         for x in 1..7 {
             calc.item(x);
@@ -58,5 +65,11 @@ mod tests {
         assert_eq!(calc.mean(), 3.5, "mean");
         assert_eq!(calc.var(), 2.9166666666666665, "variance");
         assert_eq!(calc.std(), 1.707825127659933, "std dev");
+
+        let input: Vec<i64> = vec![2, 4, 4, 4, 5, 5, 7, 9];
+        let mut calc = VarianceCalc::new();
+        calc.items(input.into_iter());
+        assert_eq!(calc.mean(), 5.0, "mean");
+        assert_eq!(calc.std(), 2.0, "std");
     }
 }
