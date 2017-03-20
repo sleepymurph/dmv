@@ -9,6 +9,29 @@ use std::thread;
 use std::time::Duration;
 use std::time::Instant;
 
+pub struct StopWatch {
+    start: Instant,
+    stop: Option<Instant>,
+}
+impl StopWatch {
+    pub fn new() -> Self {
+        StopWatch {
+            start: Instant::now(),
+            stop: None,
+        }
+    }
+    pub fn elapsed(&self) -> Duration {
+        self.stop.unwrap_or(Instant::now()).duration_since(self.start)
+    }
+    pub fn stop(&mut self) -> Duration {
+        self.stop = Some(Instant::now());
+        self.elapsed()
+    }
+    pub fn float_secs(elapsed: &Duration) -> f32 {
+        elapsed.as_secs() as f32 + elapsed.subsec_nanos() as f32 / 1e9
+    }
+}
+
 pub struct ProgressCounter {
     desc: String,
     start: Instant,

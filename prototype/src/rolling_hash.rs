@@ -75,6 +75,12 @@ impl ChunkFlagger {
             mask: 1 << MATCH_BITS,
         }
     }
+    pub fn window_match(window_size: usize, mask: RollingHashValue) -> Self {
+        ChunkFlagger {
+            hasher: RollingHasher::new(window_size),
+            mask: mask,
+        }
+    }
 
     /// Adds a byte to the hash, returns true if this byte triggers a flag
     pub fn slide(&mut self, byte: u8) {
@@ -246,6 +252,7 @@ mod test {
     use dag;
     use dag::ToHashed;
     use human_readable::human_bytes;
+    use progress::StopWatch;
     use std::collections;
     use std::io;
     use std::io::Write;
@@ -298,27 +305,38 @@ mod test {
         assert_eq!((mean, std), (expected_mean, expected_std));
     }
 
-    #[test]
-    fn test_chunk_target_size() {
-        const CHUNK_TARGET_MIN: usize = 10 * 1024;
-        const CHUNK_TARGET_MAX: usize = 25 * 1024;
-        const ACCEPTABLE_DEVIATION: usize = 25 * 1024;
-        const CHUNK_REPEAT: usize = 100;
+    fn measure_chunk_size(mut flagger: ChunkFlagger) -> VarianceCalc {
+        const CHUNK_REPEAT: i64 = 100;
+        const GIVE_UP: usize = 1 << 30;
 
         let mut vcalc = VarianceCalc::new();
-        let mut flagger = ChunkFlagger::new();
         let mut last_offset: usize = 0;
         for (offset, byte) in TestRand::default()
             .gen_iter::<u8>()
-            .take(CHUNK_TARGET_SIZE * CHUNK_REPEAT)
+            .take(GIVE_UP)
             .enumerate() {
 
             flagger.slide(byte);
             if flagger.flag() {
                 vcalc.item((offset - last_offset) as i64);
                 last_offset = offset;
+                if vcalc.count() >= CHUNK_REPEAT {
+                    return vcalc;
+                }
             }
         }
+        panic!("No chunks at all after {}. Giving up.",
+               human_bytes(GIVE_UP as u64));
+    }
+
+
+    #[test]
+    fn test_chunk_target_size() {
+        const CHUNK_TARGET_MIN: usize = 10 * 1024;
+        const CHUNK_TARGET_MAX: usize = 25 * 1024;
+        const ACCEPTABLE_DEVIATION: usize = 25 * 1024;
+
+        let vcalc = measure_chunk_size(ChunkFlagger::new());
 
         let mean = vcalc.mean() as usize;
         let std = vcalc.std() as usize;
@@ -330,6 +348,42 @@ mod test {
                 vcalc.count(),
                 human_bytes(mean as u64),
                 human_bytes(std as u64));
+    }
+
+
+    #[ignore]
+    #[test]
+    fn chunk_size_experiment() {
+        println!();
+        println!("{:>6} {:>6} {:>10} {:>10} {:>5}",
+                 "window",
+                 "match",
+                 "mean",
+                 "std",
+                 "secs");
+        for wb in 8..18 {
+            for mb in 8..16 {
+                let wb = 1 << wb;
+                let mb = 1 << mb;
+
+                let sw = StopWatch::new();
+                let flagger = ChunkFlagger::window_match(wb, mb);
+                let vcalc = measure_chunk_size(flagger);
+                stderrln!("{:6} {:6} {:10.1} {:10.1} {:5.3}",
+                          wb,
+                          mb,
+                          vcalc.mean(),
+                          vcalc.std(),
+                          StopWatch::float_secs(&sw.elapsed()));
+                println!("{:6} {:6} {:10.1} {:10.1} {:5.3}",
+                         wb,
+                         mb,
+                         vcalc.mean(),
+                         vcalc.std(),
+                         StopWatch::float_secs(&sw.elapsed()));
+            }
+        }
+        panic!();
     }
 
 
