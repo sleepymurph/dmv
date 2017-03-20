@@ -11,7 +11,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
 use std::io;
-use std::iter::Iterator;
+use std::io::Read;
+use std::io::Write;
+use std::iter;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -89,6 +91,13 @@ impl ObjectStore {
         let mut bad_hashes = Vec::new();
 
         let mut size_stats = VarianceCalc::new();
+        let mut stats_by_type = BTreeMap::<ObjectType, VarianceCalc>::new();
+        for t in &[ObjectType::Blob,
+                   ObjectType::ChunkedBlob,
+                   ObjectType::Tree,
+                   ObjectType::Commit] {
+            stats_by_type.insert(*t, VarianceCalc::new());
+        }
 
         for dir1 in fs::read_dir(self.path.join("objects"))? {
             let dir1 = dir1?;
@@ -104,6 +113,19 @@ impl ObjectStore {
                     let obj_file = self.open_object_file(&hash)?;
                     let mut obj_file = ProgressReader::new(obj_file, &prog);
                     let mut hasher = HashWriter::wrap(io::sink());
+
+                    let mut header_buf = [0u8; 12];
+                    obj_file.read_exact(&mut header_buf)?;
+                    let object_type =
+                        ObjectHeader::read_from(&mut header_buf.as_ref())
+                            ?
+                            .object_type;
+                    hasher.write_all(header_buf.as_ref())?;
+                    stats_by_type.get_mut(&object_type)
+                        .unwrap()
+                        .item(size as i64);
+
+
                     io::copy(&mut obj_file, &mut hasher)?;
                     let actual = hasher.hash();
                     if actual != hash {
@@ -117,14 +139,19 @@ impl ObjectStore {
             }
         }
         prog_thread.join().unwrap();
-        println!("Object sizes: count {}, mean {:.1} ({}), var {:.1}, std {:.1} ({})",
-                 size_stats.count(),
-                 size_stats.mean(),
-                 human_bytes(size_stats.mean().round() as u64),
-                 size_stats.var(),
-                 size_stats.std(),
-                 human_bytes(size_stats.std().round() as u64)
-                 );
+
+        println!("{:4}  {:>10} {:^23} {:^23}", "", "count", "mean", "std");
+        for (type_str, size_stats) in stats_by_type.iter()
+            .map(|(t, s)| (t.code(), s))
+            .chain(iter::once(("all", &size_stats))) {
+            println!("{:4}: {:10} {:10.1} ({:>10}) {:10.1} ({:>10})",
+                     type_str,
+                     size_stats.count(),
+                     size_stats.mean(),
+                     human_bytes(size_stats.mean().round() as u64),
+                     size_stats.std(),
+                     human_bytes(size_stats.std().round() as u64));
+        }
         Ok(bad_hashes)
     }
 
