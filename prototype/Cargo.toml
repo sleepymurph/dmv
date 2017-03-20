@@ -29,6 +29,4 @@ human_readable = { path = "human_readable" }
 wrapper_struct = { path = "wrapper_struct" }
 
 [dev-dependencies]
-hamcrest = "0.1.3"
-
 testutil = { path = "testutil" }

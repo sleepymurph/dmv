@@ -23,9 +23,6 @@ extern crate wrapper_struct;
 #[cfg(test)]
 #[macro_use]
 extern crate testutil;
-#[cfg(test)]
-#[macro_use]
-extern crate hamcrest;
 
 
 /// Write to stderr
