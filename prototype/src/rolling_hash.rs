@@ -249,12 +249,14 @@ mod test {
 
     use dag;
     use dag::ToHashed;
+    use human_readable::human_bytes;
     use std::collections;
     use std::io;
     use std::io::Write;
     use super::*;
     use testutil::TestRand;
     use testutil::rand::Rng;
+    use variance::VarianceCalc;
 
     #[test]
     /// This test shows that the Rabin value increases slowly after a reset
@@ -307,43 +309,31 @@ mod test {
         const ACCEPTABLE_DEVIATION: usize = 25 * 1024;
         const CHUNK_REPEAT: usize = 100;
 
+        let mut vcalc = VarianceCalc::new();
         let mut flagger = ChunkFlagger::new();
-        let mut chunk_offsets: Vec<usize> = Vec::new();
-        for (count, byte) in TestRand::default()
+        let mut last_offset: usize = 0;
+        for (offset, byte) in TestRand::default()
             .gen_iter::<u8>()
             .take(CHUNK_TARGET_SIZE * CHUNK_REPEAT)
             .enumerate() {
 
             flagger.slide(byte);
             if flagger.flag() {
-                chunk_offsets.push(count);
+                vcalc.item((offset - last_offset) as i64);
+                last_offset = offset;
             }
         }
-        assert!(chunk_offsets.len() > 0,
-                "Expected input to be broken in to chunks, but no chunks \
-                 were found.");
 
-        let mut chunk_sizes: Vec<usize> = Vec::new();
-        chunk_sizes.push(chunk_offsets[0]);
-        for i in 1..chunk_offsets.len() {
-            chunk_sizes.push(chunk_offsets[i] - chunk_offsets[i - 1]);
-        }
+        let mean = vcalc.mean() as usize;
+        let std = vcalc.std() as usize;
 
-        // Uncomment to get all chunk sizes
-        // assert_eq!(chunk_sizes, []);
-
-        let (mean, std) = mean_std(chunk_sizes.iter());
-        assert!(CHUNK_TARGET_MIN < mean && mean < CHUNK_TARGET_MAX,
-                format!("Expected mean chunk size between {} and {}. \
-                         Got {}",
-                        CHUNK_TARGET_MIN,
-                        CHUNK_TARGET_MAX,
-                        mean));
-        assert!(std < ACCEPTABLE_DEVIATION,
-                format!("Expected standard deviation of chunk sizes to \
-                         be less than {}. Got {}",
-                        ACCEPTABLE_DEVIATION,
-                        std));
+        assert!(vcalc.count() > 1 && CHUNK_TARGET_MIN < mean &&
+                mean < CHUNK_TARGET_MAX &&
+                std < ACCEPTABLE_DEVIATION,
+                "count: {}, mean: {}, std: {}",
+                vcalc.count(),
+                human_bytes(mean as u64),
+                human_bytes(std as u64));
     }
 
 
