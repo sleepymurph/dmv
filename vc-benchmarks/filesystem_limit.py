@@ -117,6 +117,7 @@ def run_trial(ts, data_gen, repodir):
                 StopWatch(ts, "write_time"):
             create_file(dirname, fname, ts.each_bytes, data_gen=data_gen, quiet=True)
 
+    finally:
         df = subprocess.check_output(
                 "df -B1 "+dirname+" | tail -n1 | awk '{print $2,$3,$4}'",
                 shell=True)
@@ -132,8 +133,6 @@ def run_trial(ts, data_gen, repodir):
                     "du --bytes -s "+repodir+" | awk '{print $1}'", shell=True)
             ts.du = int(du)
 
-    finally:
-        pass
 
 
 def cleanup(tmpdir, reformat_partition):
