@@ -21,6 +21,6 @@
 #
 
 murph	ALL=(root) NOPASSWD: \
-		/bin/umount /dev/murphytest??-vg/test, \
-		/sbin/mke2fs -F -t ext4 -m0 -L test -E root_owner\=1000\:1000 /dev/murphytest??-vg/test, \
-		/bin/mount /dev/murphytest??-vg/test
+		/bin/umount /dev/murphytest??-vg/*test, \
+		/sbin/mke2fs -F -t ext4 -m0 -L test -E root_owner\=1000\:1000 /dev/murphytest??-vg/*test, \
+		/bin/mount /dev/murphytest??-vg/*test
