@@ -225,13 +225,13 @@ if __name__ == "__main__":
     comment()
     printheader(TrialStats.columns)
 
-    for filecount in base10trials(args.start_mag, args.end_mag, args.mag_steps):
+    # If reformatting, do one at the beginning to ensure all runs start
+    # with the same conditions (last run might have been cancelled without
+    # reformatting)
+    if args.reformat_partition:
+        reformat_device(args.reformat_partition)
 
-        # If reformatting, do one at the beginning to ensure all runs start
-        # with the same conditions (last run might have been cancelled without
-        # reformatting)
-        if args.reformat_partition:
-            reformat_device(args.reformat_partition)
+    for filecount in base10trials(args.start_mag, args.end_mag, args.mag_steps):
 
         result = TrialStats(filecount, eachfilebytes)
         try:
