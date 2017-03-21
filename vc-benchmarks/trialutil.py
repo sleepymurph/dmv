@@ -1,3 +1,4 @@
+import errno
 import math
 import os
 import shutil
@@ -96,6 +97,15 @@ class TestLog10Functions(unittest.TestCase):
 # --------------------------------------------------------------------------
 # Misc Utility Functions
 #
+
+def makedirs_quiet(path):
+    """ Recursively creates directories, without raising an error if path exists """
+    try:
+        os.makedirs(path)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+
 
 def chunkstring(s, chunklength):
     """ Breaks a string into fixed-length chunks
