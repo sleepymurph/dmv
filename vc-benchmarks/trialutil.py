@@ -472,7 +472,8 @@ def update_many_files(directory, prefix, every_nth_file=10):
     starttime = time.time()
 
     updatedfiles = checkedfiles = 0
-    findprocess = subprocess.Popen(["find", prefix, "-type", "f"],
+    findprocess = subprocess.Popen(["find", prefix, "-type", "f",
+                    "-and", "-not", "-name", ".prototype_cache"],
                         cwd=directory,
                         stdout=subprocess.PIPE)
 
