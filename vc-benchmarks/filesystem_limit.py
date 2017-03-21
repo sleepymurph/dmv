@@ -56,6 +56,7 @@ class TrialStats:
     timepat = '%9.3f'
     bytespat = "0x%010x"
     percentpat = "%3.3f"
+    inodespat = "%6d"
 
     columns = [
             Column("each_bytes", bytespat, sample=0),
@@ -71,8 +72,10 @@ class TrialStats:
             Column("df_total", bytespat, sample=0),
             Column("df_used", bytespat, sample=0),
             Column("df_avail", bytespat, sample=0),
-            Column("du", bytespat, sample=0),
-            Column("du_time", timepat, sample=0),
+
+            Column("inode_total", inodespat, sample=0),
+            Column("inode_used", inodespat, sample=0),
+            Column("inode_avail", inodespat, sample=0),
         ]
 
     def __init__(self, eachbytes, dir_split, dir_depth, f_num, **args):
@@ -89,8 +92,10 @@ class TrialStats:
         self.df_total = 0
         self.df_used = 0
         self.df_avail = 0
-        self.du = 0
-        self.du_time = 0.0
+
+        self.inode_total = 0
+        self.inode_used = 0
+        self.inode_avail = 0
 
 
 def random_file_name(ts):
@@ -104,6 +109,14 @@ def random_file_name(ts):
     fname = obj_name[ts.dir_split * ts.dir_depth:]
     return (dirname,fname)
 
+
+def sys_df(dirname, opts=""):
+    df = subprocess.check_output(
+            "df "+opts+" "+dirname+" | tail -n1 | awk '{print $2,$3,$4}'",
+            shell=True)
+    df = string.split(df)
+    df = [int(x) for x in df]
+    return df
 
 
 def run_trial(ts, data_gen, repodir):
@@ -125,20 +138,15 @@ def run_trial(ts, data_gen, repodir):
             create_file(dirname, fname, ts.each_bytes, data_gen=data_gen, quiet=True)
 
     finally:
-        df = subprocess.check_output(
-                "df -B1 "+repodir+" | tail -n1 | awk '{print $2,$3,$4}'",
-                shell=True)
-        df = string.split(df)
-        df = [int(x) for x in df]
+        df = sys_df(repodir, "-B1")
         ts.df_total = df[0]
         ts.df_used = df[1]
         ts.df_avail = df[2]
 
-        with \
-                StopWatch(ts, "du_time"):
-            du = subprocess.check_output(
-                    "du --bytes -s "+repodir+" | awk '{print $1}'", shell=True)
-            ts.du = int(du)
+        df = sys_df(repodir, "--inodes")
+        ts.inode_total = df[0]
+        ts.inode_used = df[1]
+        ts.inode_avail = df[2]
 
 
 
