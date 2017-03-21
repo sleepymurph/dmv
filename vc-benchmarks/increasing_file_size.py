@@ -221,13 +221,13 @@ if __name__ == "__main__":
     comment()
     printheader(TrialStats.columns)
 
-    for mag in range(args.start_mag, args.end_mag):
+    # If reformatting, do one at the beginning to ensure all runs start
+    # with the same conditions (last run might have been cancelled without
+    # reformatting)
+    if args.reformat_partition:
+        reformat_device(args.reformat_partition)
 
-        # If reformatting, do one at the beginning to ensure all runs start
-        # with the same conditions (last run might have been cancelled without
-        # reformatting)
-        if args.reformat_partition:
-            reformat_device(args.reformat_partition)
+    for mag in range(args.start_mag, args.end_mag):
 
         for step in range(0, args.mag_steps):
             bytesperstep = 2**mag / args.mag_steps
