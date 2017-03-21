@@ -193,6 +193,9 @@ if __name__ == "__main__":
 
     repodir = tempfile.mkdtemp(prefix='filesystem_limit_', dir=tmpdir)
 
+    fill_time = StopWatch()
+    fill_time.start()
+
     f_num = 0
     try:
         while True:
@@ -214,8 +217,10 @@ if __name__ == "__main__":
         comment(repr(e))
     finally:
 
+        fill_time.stop()
         final_stats = {
                     "reformat_partition": args.reformat_partition,
+                    "fill_time": "%0.3f" % fill_time.elapsed(),
                 }
         with \
                 CmdResult(final_stats, 'cleanup_ok'), \
