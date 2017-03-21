@@ -129,7 +129,7 @@ def run_trial(ts, data_gen, repodir):
         with \
                 StopWatch(ts, "du_time"):
             du = subprocess.check_output(
-                    "du --bytes -s "+dirname+" | awk '{print $1}'", shell=True)
+                    "du --bytes -s "+repodir+" | awk '{print $1}'", shell=True)
             ts.du = int(du)
 
     finally:
