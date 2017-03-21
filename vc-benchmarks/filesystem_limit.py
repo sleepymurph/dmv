@@ -126,7 +126,7 @@ def run_trial(ts, data_gen, repodir):
 
     finally:
         df = subprocess.check_output(
-                "df -B1 "+dirname+" | tail -n1 | awk '{print $2,$3,$4}'",
+                "df -B1 "+repodir+" | tail -n1 | awk '{print $2,$3,$4}'",
                 shell=True)
         df = string.split(df)
         df = [int(x) for x in df]
