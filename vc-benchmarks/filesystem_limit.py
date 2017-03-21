@@ -93,17 +93,24 @@ class TrialStats:
         self.du_time = 0.0
 
 
+def random_file_name(ts):
+    hasher = hashlib.sha1()
+    hasher.update(os.urandom(200))
+    obj_name = hasher.hexdigest()
+    dirname = ""
+    for i in range(0, ts.dir_depth):
+        split = i*ts.dir_split
+        dirname = dirname + obj_name[split: split+ts.dir_split] + "/"
+    fname = obj_name[ts.dir_split * ts.dir_depth:]
+    return (dirname,fname)
+
+
+
 def run_trial(ts, data_gen, repodir):
 
     try:
-        hasher = hashlib.sha1()
-        hasher.update(os.urandom(200))
-        obj_name = hasher.hexdigest()
-        dirname = repodir+"/objects/"
-        for i in range(0, ts.dir_depth):
-            split = i*ts.dir_split
-            dirname = dirname + obj_name[split: split+ts.dir_split] + "/"
-        fname = obj_name[ts.dir_split * ts.dir_depth:]
+        (dirname, fname) = random_file_name(ts)
+        dirname = repodir+"/objects/"+dirname
         # log(dirname+fname)
 
         makedirs_quiet(dirname)
@@ -156,9 +163,12 @@ if __name__ == "__main__":
                 dirs = [tmpdir],
             )
 
-    comment("Simulating growning object file directories")
+    comment("Simulating growing object file directories")
     comment()
     comment(align_kvs({
+            "dir_split": args.dir_split,
+            "dir_depth": args.dir_depth,
+            "example_file" : string.join(random_file_name(args), ''),
             "data_gen": args.data_gen,
             "each_file_size": "0x%x bytes (%s)" \
                     % (eachfilebytes, hsize(eachfilebytes)),
