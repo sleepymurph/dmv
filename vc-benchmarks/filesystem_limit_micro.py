@@ -107,12 +107,7 @@ def random_file_name(ts):
     hasher = hashlib.sha1()
     hasher.update(os.urandom(200))
     obj_name = hasher.hexdigest()
-    dirname = ""
-    for i in range(0, ts.dir_depth):
-        split = i*ts.dir_split
-        dirname = dirname + obj_name[split: split+ts.dir_split] + "/"
-    fname = obj_name[ts.dir_split * ts.dir_depth:]
-    return (dirname,fname)
+    return object_dir_split(obj_name, ts.dir_split, ts.dir_depth)
 
 
 def sys_df(dirname, opts=""):

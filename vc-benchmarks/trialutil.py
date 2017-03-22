@@ -114,23 +114,34 @@ def makedirs_quiet(path):
     return dirsmade
 
 
-def chunkstring(s, chunklength):
-    """ Breaks a string into fixed-length chunks
+def object_dir_split(obj_name, dir_split=2, dir_depth=1):
+    if dir_split * dir_depth > len(obj_name):
+        raise Exception("Cannot dir-split, too many splits: %d*%d=%d > len('%s')"
+                % (dir_split, dir_depth, dir_split*dir_depth, obj_name))
+    dirname = ""
+    for i in range(0, dir_depth):
+        split = i*dir_split
+        dirname = dirname + obj_name[split: split+dir_split] + "/"
+    fname = obj_name[dir_split * dir_depth:]
+    return (dirname,fname)
 
-    Stolen from http://stackoverflow.com/a/18854817/1888742
-    """
-    return (s[0+i:chunklength+i] for i in range(0, len(s), chunklength))
+class TestObjectDirSplit(unittest.TestCase):
 
-class TestChunkString(unittest.TestCase):
+    def test_simple(self):
+        self.assertEqual(object_dir_split("helloworldparty", 2, 1),
+                ("he/","lloworldparty"))
+        self.assertEqual(object_dir_split("helloworldparty", 3, 2),
+                ("hel/low/","orldparty"))
 
-    def test_even_split(self):
-        self.assertEqual(list(chunkstring("helloworldparty", 5)),
-                ["hello", "world", "party"])
+    def test_too_long(self):
+        def bad():
+            object_dir_split("helloworldparty", 3, 10)
+        self.assertRaises(bad)
 
-    def test_remainder_split(self):
-        self.assertEqual(list(chunkstring("helloworldpartytime", 5)),
-                ["hello", "world", "party", "time"])
-
+    def test_joinable(self):
+        self.assertEqual(
+                "".join(object_dir_split("helloworldparty", 2, 1)),
+                "he/lloworldparty")
 
 def set_attr_or_key(obj, attr, val):
     if isinstance(obj, dict):
@@ -472,9 +483,13 @@ def create_many_files(directory, numfiles, eachfilebytes,
             % (hsize(numfiles, suffix=''), hsize(eachfilebytes)))
     starttime = time.time()
 
+    width = digitlength(numfiles-1)
     for i in range(0,numfiles):
-        seqrep = "{:0{width}d}".format(i, width=digitlength(numfiles-1))
-        name = prefix + '/' + '/'.join(chunkstring(seqrep, 2))
+        seqrep = "{:0{width}d}".format(i, width=width)
+        if width < 3:
+            name = prefix + '/' + seqrep
+        else:
+            name = prefix + '/' + ''.join(object_dir_split(seqrep, 2, 1))
         create_file(directory, name, eachfilebytes, data_gen=data_gen, quiet=True)
 
     elapsed = time.time() - starttime
