@@ -65,7 +65,6 @@ class TrialStats:
             Column("f_num", filecountpat, sample=0),
             Column("dirs", filecountpat, sample=0),
             Column("d_f_num", filecountpat, sample=0),
-            Column("d_ct_time", timepat, sample=0),
 
             Column("write_ok", "%s", max_w=cmdmax),
             Column("write_time", timepat, sample=0.0),
@@ -77,6 +76,8 @@ class TrialStats:
             Column("inode_total", inodespat, sample=0),
             Column("inode_used", inodespat, sample=0),
             Column("inode_avail", inodespat, sample=0),
+
+            Column("path", "%s"),
         ]
 
     def __init__(self, eachbytes, dir_split, dir_depth, f_num, dirs, **args):
@@ -86,7 +87,6 @@ class TrialStats:
         self.f_num = f_num
         self.dirs = dirs
         self.d_f_num = 0
-        self.d_ct_time = 0.0
 
         self.write_ok = CmdResults.value('no_exec')
         self.write_time = 0.0
@@ -98,6 +98,8 @@ class TrialStats:
         self.inode_total = 0
         self.inode_used = 0
         self.inode_avail = 0
+
+        self.path = ""
 
 
 def random_file_name(ts):
@@ -124,9 +126,7 @@ def sys_df(dirname, opts=""):
 def run_trial(ts, data_gen, repodir, dirname, fname):
 
     try:
-        with \
-                StopWatch(ts, "d_ct_time"):
-            ts.d_f_num = len(os.listdir(dirname)) + 1
+        ts.d_f_num = len(os.listdir(dirname)) + 1
 
         with \
                 CmdResult(ts, 'write_ok'), \
@@ -206,6 +206,7 @@ if __name__ == "__main__":
         while True:
             f_num += 1
             (dirname, fname) = random_file_name(args)
+            objpath = dirname + fname
             dirname = repodir+"/objects/"+dirname
             # log(dirname+fname)
 
@@ -213,6 +214,7 @@ if __name__ == "__main__":
 
             result = TrialStats(eachfilebytes, args.dir_split, args.dir_depth,
                                 f_num, dirs)
+            result.path = objpath
             try:
                 run_trial(
                         result,
