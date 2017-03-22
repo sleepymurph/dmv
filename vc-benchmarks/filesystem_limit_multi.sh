@@ -7,20 +7,25 @@ shift
 DIR_DEPTH_MAX=$1
 shift
 
-echo $DIR_SPLIT_MAX
-echo $DIR_DEPTH_MAX
+run_test() {
+    set -x
+    ./filesystem_limit_micro.py \
+        --each-file-size=$EACH_BYTES \
+        --dir-split=$S \
+        --dir-depth=$D \
+        $* \
+        | tee ${EACH_BYTES}x${S}x${D}--$(date +%F)-$(hostname).txt
+    set +x
+}
 
-for S in $(seq -f "%02.0f" 0 $DIR_SPLIT_MAX)
+S=00
+D=00
+run_test
+
+for S in $(seq -f "%02.0f" 1 $DIR_SPLIT_MAX)
 do
-    for D in $(seq -f "%02.0f" 0 $DIR_DEPTH_MAX)
+    for D in $(seq -f "%02.0f" 1 $DIR_DEPTH_MAX)
     do
-        set -x
-        ./filesystem_limit_micro.py \
-            --each-file-size=$EACH_BYTES \
-            --dir-split=$S \
-            --dir-depth=$D \
-            $* \
-            | tee ${EACH_BYTES}x${S}x${D}--$(date +%F)-$(hostname).txt
-        set +x
+        run_test
     done
 done
