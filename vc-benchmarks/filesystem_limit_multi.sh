@@ -27,6 +27,10 @@ for S in $(seq -f "%02.0f" 1 $DIR_SPLIT_MAX)
 do
     for D in $(seq -f "%02.0f" 1 $DIR_DEPTH_MAX)
     do
-        run_test
+        let L=$((10#$S*10#$D))
+        if [ $L -le 40 ]
+        then
+            run_test
+        fi
     done
 done
