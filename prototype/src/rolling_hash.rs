@@ -252,6 +252,7 @@ mod test {
     use dag;
     use dag::ToHashed;
     use human_readable::human_bytes;
+    use human_readable::human_bytes_f;
     use progress::StopWatch;
     use std::collections;
     use std::io;
@@ -354,33 +355,28 @@ mod test {
     #[ignore]
     #[test]
     fn chunk_size_experiment() {
-        println!();
-        println!("{:>6} {:>6} {:>10} {:>10} {:>5}",
-                 "window",
-                 "match",
-                 "mean",
-                 "std",
-                 "secs");
+        bothln!();
+        bothln!("{:>6} {:>6} {:>10} {:>10} {:>5}",
+                "window",
+                "match",
+                "mean",
+                "std",
+                "secs");
         for wb in 8..18 {
             for mb in 8..16 {
                 let wb = 1 << wb;
-                let mb = 1 << mb;
+                let mn = 1 << mb;
 
                 let sw = StopWatch::new();
-                let flagger = ChunkFlagger::window_match(wb, mb);
+                let flagger = ChunkFlagger::window_match(wb, mn);
                 let vcalc = measure_chunk_size(flagger);
-                stderrln!("{:6} {:6} {:10.1} {:10.1} {:5.3}",
-                          wb,
-                          mb,
-                          vcalc.mean(),
-                          vcalc.std(),
-                          StopWatch::float_secs(&sw.elapsed()));
-                println!("{:6} {:6} {:10.1} {:10.1} {:5.3}",
-                         wb,
-                         mb,
-                         vcalc.mean(),
-                         vcalc.std(),
-                         StopWatch::float_secs(&sw.elapsed()));
+                bothln!("{:3.0}{:<3} {:6} {:10.1} {:10.1} {:5.3}",
+                        human_bytes_f(wb as u64).0,
+                        human_bytes_f(wb as u64).1,
+                        mb,
+                        vcalc.mean(),
+                        vcalc.std(),
+                        StopWatch::float_secs(&sw.elapsed()));
             }
         }
         panic!();

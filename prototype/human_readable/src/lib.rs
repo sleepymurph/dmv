@@ -38,7 +38,16 @@
 ///
 pub fn human_bytes<N: Into<u64>>(num: N) -> String {
 
-    let prefixes = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB"];
+    let (size, prefix) = human_bytes_f(num);
+    match prefix {
+        "" => format!("{:0.0} bytes", size),
+        _ => format!("{:0.1} {}B", size, prefix),
+    }
+}
+
+pub fn human_bytes_f<N: Into<u64>>(num: N) -> (f64, &'static str) {
+
+    let prefixes = ["", "ki", "Mi", "Gi", "Ti", "Pi", "Ei"];
     let pindex_limit = prefixes.len() - 1;
     let num: u64 = num.into();
 
@@ -52,14 +61,6 @@ pub fn human_bytes<N: Into<u64>>(num: N) -> String {
         pindex += 1;
     }
 
-    let mut tenths = (rem as f32 / 102.4).round() as u8;
-    if tenths == 10 {
-        mant += 1;
-        tenths = 0;
-    }
-
-    match pindex {
-        0 => format!("{} bytes", mant),
-        _ => format!("{}.{} {}", mant, tenths, prefixes[pindex]),
-    }
+    let f = (mant as f64) + (rem as f64 / 1024_f64);
+    (f, prefixes[pindex])
 }

@@ -27,10 +27,19 @@ extern crate testutil;
 
 /// Write to stderr
 macro_rules! stderrln {
+    () => {{ stderrln!("") }};
     ( $($arg:expr),* ) => {{
         use ::std::io::Write;
         writeln!(::std::io::stderr(), $($arg),*)
             .expect("could not write to stderr")
+    }};
+}
+
+/// Write to both stdout and stderr
+macro_rules! bothln {
+    ( $($arg:expr),* ) => {{
+        stderrln!( $($arg),* );
+        println!( $($arg),* );
     }};
 }
 
