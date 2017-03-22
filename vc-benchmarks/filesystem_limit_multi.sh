@@ -6,6 +6,7 @@ DIR_SPLIT_MAX=$1
 shift
 DIR_DEPTH_MAX=$1
 shift
+OTHER_ARGS=$*
 
 run_test() {
     set -x
@@ -13,7 +14,7 @@ run_test() {
         --each-file-size=$EACH_BYTES \
         --dir-split=$S \
         --dir-depth=$D \
-        $* \
+        $OTHER_ARGS \
         | tee ${EACH_BYTES}x${S}x${D}--$(date +%F)-$(hostname).txt
     set +x
 }
