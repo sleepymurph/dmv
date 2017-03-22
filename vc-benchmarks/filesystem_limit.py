@@ -52,7 +52,7 @@ def parse_args():
 class TrialStats:
 
     cmdmax = CmdResults.max_width()
-    filecountpat = "%12d"
+    filecountpat = "%8d"
     timepat = '%9.3f'
     bytespat = "0x%010x"
     percentpat = "%3.3f"
@@ -63,6 +63,7 @@ class TrialStats:
             Column("dir_split", "%2d", sample=0),
             Column("dir_depth", "%2d", sample=0),
             Column("f_num", filecountpat, sample=0),
+            Column("dirs", filecountpat, sample=0),
             Column("d_f_num", filecountpat, sample=0),
             Column("d_ct_time", timepat, sample=0),
 
@@ -78,11 +79,12 @@ class TrialStats:
             Column("inode_avail", inodespat, sample=0),
         ]
 
-    def __init__(self, eachbytes, dir_split, dir_depth, f_num, **args):
+    def __init__(self, eachbytes, dir_split, dir_depth, f_num, dirs, **args):
         self.each_bytes = eachbytes
         self.dir_split = dir_split
         self.dir_depth = dir_depth
         self.f_num = f_num
+        self.dirs = dirs
         self.d_f_num = 0
         self.d_ct_time = 0.0
 
@@ -119,15 +121,9 @@ def sys_df(dirname, opts=""):
     return df
 
 
-def run_trial(ts, data_gen, repodir):
+def run_trial(ts, data_gen, repodir, dirname, fname):
 
     try:
-        (dirname, fname) = random_file_name(ts)
-        dirname = repodir+"/objects/"+dirname
-        # log(dirname+fname)
-
-        makedirs_quiet(dirname)
-
         with \
                 StopWatch(ts, "d_ct_time"):
             ts.d_f_num = len(os.listdir(dirname)) + 1
@@ -205,16 +201,25 @@ if __name__ == "__main__":
     fill_time.start()
 
     f_num = 0
+    dirs = 0
     try:
         while True:
             f_num += 1
+            (dirname, fname) = random_file_name(args)
+            dirname = repodir+"/objects/"+dirname
+            # log(dirname+fname)
+
+            dirs += makedirs_quiet(dirname)
+
             result = TrialStats(eachfilebytes, args.dir_split, args.dir_depth,
-                                f_num)
+                                f_num, dirs)
             try:
                 run_trial(
                         result,
                         data_gen=args.data_gen,
-                        repodir=repodir)
+                        repodir=repodir,
+                        dirname=dirname,
+                        fname=fname)
                 #time.sleep(.5)
             finally:
                 printrow(TrialStats.columns, result)

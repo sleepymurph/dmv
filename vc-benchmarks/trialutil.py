@@ -99,12 +99,18 @@ class TestLog10Functions(unittest.TestCase):
 #
 
 def makedirs_quiet(path):
-    """ Recursively creates directories, without raising an error if path exists """
+    """ Recursively creates directories, without raising an error if path exists
+
+    Returns 1 if a directory was created, 0 if not.
+    """
     try:
         os.makedirs(path)
+        return 1
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
+        else:
+            return 0
 
 
 def chunkstring(s, chunklength):
