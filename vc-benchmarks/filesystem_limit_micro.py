@@ -54,12 +54,13 @@ class TrialStats:
     cmdmax = CmdResults.max_width()
     filecountpat = "%8d"
     timepat = '%9.3f'
-    bytespat = "0x%010x"
+    smallbytespat = "0x%04x"
+    bytespat = "0x%09x"
     percentpat = "%3.3f"
     inodespat = "%6d"
 
     columns = [
-            Column("each_bytes", bytespat, sample=0),
+            Column("each_bytes", smallbytespat, sample=0),
             Column("dir_split", "%2d", sample=0),
             Column("dir_depth", "%2d", sample=0),
             Column("f_num", filecountpat, sample=0),
