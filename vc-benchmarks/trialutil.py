@@ -2,6 +2,7 @@ import errno
 import math
 import os
 import shutil
+import string
 import subprocess
 import sys
 import tempfile
@@ -101,16 +102,16 @@ class TestLog10Functions(unittest.TestCase):
 def makedirs_quiet(path):
     """ Recursively creates directories, without raising an error if path exists
 
-    Returns 1 if a directory was created, 0 if not.
+    Returns the number of directories created
     """
-    try:
-        os.makedirs(path)
-        return 1
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
-        else:
-            return 0
+    dirsmade = 0
+    segments = string.split(path,"/")
+    for i in range(2, len(segments)):
+        buildpath = string.join(segments[0:i], "/")
+        if not os.path.isdir(buildpath):
+            os.mkdir(buildpath)
+            dirsmade += 1
+    return dirsmade
 
 
 def chunkstring(s, chunklength):
