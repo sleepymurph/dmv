@@ -3,6 +3,7 @@
 use dag::ObjectKey;
 use dag::ObjectSize;
 use error::*;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
 use walker::*;
@@ -101,6 +102,21 @@ pub struct StatusTree {
 }
 
 impl StatusTree {
+    pub fn compare(src: &Option<ComparableNode>,
+                   targ: &Option<ComparableNode>)
+                   -> Self {
+        let status = ComparableNode::compare(src, targ);
+        let src = src.as_ref();
+        let targ = targ.as_ref();
+        StatusTree {
+            status: status,
+            fs_path: targ.and_then(|n| n.fs_path.to_owned()),
+            targ_is_dir: targ.map(|n| n.is_treeish).unwrap_or(false),
+            targ_size: targ.map(|n| n.file_size).unwrap_or(0),
+            targ_hash: targ.or(src).and_then(|n| n.hash),
+            children: BTreeMap::new(),
+        }
+    }
     /// Total size of all unhashed files in this hierarchy
     pub fn transfer_size(&self) -> ObjectSize {
         match self {

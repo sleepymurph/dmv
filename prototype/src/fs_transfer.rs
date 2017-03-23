@@ -10,7 +10,6 @@ use object_store::ObjectWalkNode;
 use progress::ProgressCounter;
 use progress::std_err_watch;
 use status::*;
-use std::collections::BTreeMap;
 use std::fs::create_dir;
 use std::fs::remove_file;
 use std::path::Path;
@@ -66,6 +65,39 @@ impl FsTransfer {
 
         let prog_thread = thread::spawn(move || std_err_watch(prog_clone));
         let hash = hash_plan.walk(&mut op)?.ok_or_else(&Self::no_answer_err)?;
+
+        prog.finish();
+        prog_thread.join().unwrap();
+        Ok(hash)
+    }
+
+    /// Hash by parent object key, path to hash, and estimated hash bytes
+    fn hash_obj_file_est(&mut self,
+                         src: Option<ObjectKey>,
+                         targ: PathBuf,
+                         est: u64)
+                         -> Result<ObjectKey> {
+
+        let prog = ProgressCounter::arc("Hashing", est);
+        let prog_clone = prog.clone();
+
+        let src: Option<ComparableNode> =
+            src.and_then_try(|hash| self.object_store.lookup_node(hash))?;
+
+        let targ: Option<ComparableNode> = Some(self.file_store
+            .lookup_node(targ)?);
+
+        let combo = (&self.object_store, &self.file_store);
+
+        let mut op = HashAndStoreOp2 {
+            fs_transfer: self,
+            progress: &*prog.clone(),
+        };
+
+        let prog_thread = thread::spawn(move || std_err_watch(prog_clone));
+
+        let hash = combo.walk_node(&mut op, (src, targ))?
+            .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))?;
 
         prog.finish();
         prog_thread.join().unwrap();
@@ -129,19 +161,10 @@ impl WalkOp<CompareNode> for CompareWalkOp {
         is_treeish && included
     }
     fn no_descend(&mut self,
-                  ps: &PathStack,
+                  _ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
-        let src = node.0.as_ref();
-        let targ = node.1.as_ref();
-        Ok(Some(StatusTree {
-            status: self.status(&node, ps),
-            fs_path: targ.and_then(|n| n.fs_path.to_owned()),
-            targ_is_dir: targ.map(|n| n.is_treeish).unwrap_or(false),
-            targ_size: targ.map(|n| n.file_size).unwrap_or(0),
-            targ_hash: targ.or(src).and_then(|n| n.hash),
-            children: BTreeMap::new(),
-        }))
+        Ok(Some(StatusTree::compare(&node.0, &node.1)))
     }
     fn post_descend(&mut self,
                     ps: &PathStack,
@@ -204,6 +227,72 @@ impl<'a, 'b> WalkOp<&'a StatusTree> for HashAndStoreOp<'a, 'b> {
     fn post_descend(&mut self,
                     ps: &PathStack,
                     _node: &StatusTree,
+                    children: ChildMap<Self::VisitResult>)
+                    -> Result<Option<Self::VisitResult>> {
+        if children.is_empty() {
+            debug!("  {} - dropping empty dir", ps);
+            return Ok(None);
+        }
+        let mut tree = Tree::new();
+        for (name, hash) in children {
+            tree.insert(name, hash);
+        }
+        let hash = self.fs_transfer.store_object(&tree)?;
+        debug!("  {} - storing tree {}", ps, hash);
+        Ok(Some(hash))
+    }
+}
+
+
+
+/// An operation that walks a StatusTree to hash and store the files as a Tree
+pub struct HashAndStoreOp2<'a, 'b> {
+    fs_transfer: &'a mut FsTransfer,
+    progress: &'b ProgressCounter,
+}
+impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp2<'a, 'b> {
+    type VisitResult = ObjectKey;
+
+    fn should_descend(&mut self, _ps: &PathStack, node: &CompareNode) -> bool {
+        let status = ComparableNode::compare(&node.0, &node.1);
+        node.1.as_ref().map(|ref n| n.is_treeish).unwrap_or(false) &&
+        status.is_included()
+    }
+
+    fn no_descend(&mut self,
+                  ps: &PathStack,
+                  node: CompareNode)
+                  -> Result<Option<Self::VisitResult>> {
+        let node = StatusTree::compare(&node.0, &node.1);
+        match (node.status.is_included(), node.targ_hash, &node.fs_path) {
+            (false, _, _) => {
+                debug!("{} {} - skipping", node.status.code(), ps);
+                Ok(None)
+            }
+            (true, Some(hash), _) => {
+                debug!("{} {} - including with known hash {}",
+                       node.status.code(),
+                       ps,
+                       hash);
+                Ok(Some(hash))
+            }
+            (true, None, &Some(ref fs_path)) => {
+                debug!("{} {} - hashing", node.status.code(), ps);
+                let hash = self.fs_transfer
+                    .hash_file(fs_path.as_path(), self.progress)?;
+                Ok(Some(hash))
+            }
+            (true, None, &None) => {
+                bail!("{} {} - Node has neither known hash nor fs_path",
+                      node.status.code(),
+                      ps);
+            }
+        }
+    }
+
+    fn post_descend(&mut self,
+                    ps: &PathStack,
+                    _node: CompareNode,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
         if children.is_empty() {
