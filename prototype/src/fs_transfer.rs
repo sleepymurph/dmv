@@ -57,15 +57,17 @@ impl FsTransfer {
 
     pub fn hash_plan(&mut self, hash_plan: &StatusTree) -> Result<ObjectKey> {
         let prog = ProgressCounter::arc("Hashing", hash_plan.transfer_size());
+        let prog_clone = prog.clone();
 
         let mut op = HashAndStoreOp {
             fs_transfer: self,
             progress: &*prog.clone(),
         };
 
-        let prog_thread = thread::spawn(move || std_err_watch(prog));
+        let prog_thread = thread::spawn(move || std_err_watch(prog_clone));
         let hash = hash_plan.walk(&mut op)?.ok_or_else(&Self::no_answer_err)?;
 
+        prog.finish();
         prog_thread.join().unwrap();
         Ok(hash)
     }

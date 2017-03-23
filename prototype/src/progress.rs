@@ -35,31 +35,32 @@ impl StopWatch {
 pub struct ProgressCounter {
     desc: String,
     start: Instant,
-    total: u64,
-    count: RwLock<u64>,
+    estimate: u64,
+    state: RwLock<(u64, bool)>,
 }
 
 impl ProgressCounter {
-    pub fn arc<S>(desc: S, total: u64) -> Arc<Self>
+    pub fn arc<S>(desc: S, estimate: u64) -> Arc<Self>
         where S: Into<String>
     {
         Arc::new(ProgressCounter {
             desc: desc.into(),
             start: Instant::now(),
-            total: total,
-            count: RwLock::new(0),
+            estimate: estimate,
+            state: RwLock::new((0, false)),
         })
     }
     pub fn add(&self, progress: u64) {
-        *self.count.write().unwrap() += progress
+        self.state.write().unwrap().0 += progress
     }
+    pub fn finish(&self) { self.state.write().unwrap().1 = true; }
     pub fn read(&self) -> ProgressReport {
-        let count = *self.count.read().unwrap();
+        let state = *self.state.read().unwrap();
         ProgressReport {
             desc: self.desc.as_str(),
-            total: self.total,
-            count: count,
-            finished: count >= self.total,
+            estimate: self.estimate,
+            count: state.0,
+            finished: state.1,
             elapsed: Instant::now().duration_since(self.start),
         }
     }
@@ -67,7 +68,7 @@ impl ProgressCounter {
 
 pub struct ProgressReport<'a> {
     desc: &'a str,
-    total: u64,
+    estimate: u64,
     count: u64,
     finished: bool,
     elapsed: Duration,
@@ -79,21 +80,21 @@ impl<'a> fmt::Display for ProgressReport<'a> {
         write!(f,
                " {:>10}/{:>10}",
                human_bytes(self.count),
-               human_bytes(self.total))?;
+               human_bytes(self.estimate))?;
 
-        if self.total == 0 {
+        if self.estimate == 0 {
             return Ok(());
         }
 
         let secs = self.elapsed.as_secs() as f32 +
                    self.elapsed.subsec_nanos() as f32 / 1e9;
-        let percent = self.count as f32 / self.total as f32 * 100_f32;
+        let percent = self.count as f32 / self.estimate as f32 * 100_f32;
         write!(f, " {:5.1}%", percent)?;
         write!(f, " {:0.1}s", secs)?;
 
         if secs >= 0.5 {
             let per_sec = self.count as f32 / secs;
-            let remain_secs = (self.total - self.count) as f32 / per_sec;
+            let remain_secs = (self.estimate - self.count) as f32 / per_sec;
             write!(f, " {:>10}/s", human_bytes(per_sec as u64))?;
             if !self.finished {
                 write!(f, " {:0.0}s", remain_secs)?;

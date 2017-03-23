@@ -131,6 +131,7 @@ impl ObjectStore {
                 }
             }
         }
+        prog.finish();
         prog_thread.join().unwrap();
 
         println!("{:4}  {:>10} {:^23} {:^23}", "", "count", "mean", "std");
