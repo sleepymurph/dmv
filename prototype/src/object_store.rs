@@ -52,8 +52,7 @@ impl ObjectStore {
         self.path
             .join("objects")
             .join(&key[0..2])
-            .join(&key[2..4])
-            .join(&key[4..])
+            .join(&key[2..])
     }
 
     fn object_from_path(&self, path: &Path) -> Result<ObjectKey> {
@@ -73,13 +72,10 @@ impl ObjectStore {
         let mut total_bytes = 0;
         for dir1 in fs::read_dir(self.path.join("objects"))? {
             let dir1 = dir1?;
-            for dir2 in fs::read_dir(dir1.path())? {
-                let dir2 = dir2?;
-                for obj_file in fs::read_dir(dir2.path())? {
-                    let obj_file = obj_file?;
-                    obj_count += 1;
-                    total_bytes += obj_file.metadata()?.len();
-                }
+            for obj_file in fs::read_dir(dir1.path())? {
+                let obj_file = obj_file?;
+                obj_count += 1;
+                total_bytes += obj_file.metadata()?.len();
             }
         }
 
@@ -101,40 +97,37 @@ impl ObjectStore {
 
         for dir1 in fs::read_dir(self.path.join("objects"))? {
             let dir1 = dir1?;
-            for dir2 in fs::read_dir(dir1.path())? {
-                let dir2 = dir2?;
-                for obj_file in fs::read_dir(dir2.path())? {
-                    let obj_file = obj_file?;
+            for obj_file in fs::read_dir(dir1.path())? {
+                let obj_file = obj_file?;
 
-                    let size = obj_file.metadata()?.len();
-                    size_stats.item(size as i64);
+                let size = obj_file.metadata()?.len();
+                size_stats.item(size as i64);
 
-                    let hash = self.object_from_path(&obj_file.path())?;
-                    let obj_file = self.open_object_file(&hash)?;
-                    let mut obj_file = ProgressReader::new(obj_file, &prog);
-                    let mut hasher = HashWriter::wrap(io::sink());
+                let hash = self.object_from_path(&obj_file.path())?;
+                let obj_file = self.open_object_file(&hash)?;
+                let mut obj_file = ProgressReader::new(obj_file, &prog);
+                let mut hasher = HashWriter::wrap(io::sink());
 
-                    let mut header_buf = [0u8; 12];
-                    obj_file.read_exact(&mut header_buf)?;
-                    let object_type =
-                        ObjectHeader::read_from(&mut header_buf.as_ref())
-                            ?
-                            .object_type;
-                    hasher.write_all(header_buf.as_ref())?;
-                    stats_by_type.get_mut(&object_type)
-                        .unwrap()
-                        .item(size as i64);
+                let mut header_buf = [0u8; 12];
+                obj_file.read_exact(&mut header_buf)?;
+                let object_type =
+                    ObjectHeader::read_from(&mut header_buf.as_ref())
+                        ?
+                        .object_type;
+                hasher.write_all(header_buf.as_ref())?;
+                stats_by_type.get_mut(&object_type)
+                    .unwrap()
+                    .item(size as i64);
 
 
-                    io::copy(&mut obj_file, &mut hasher)?;
-                    let actual = hasher.hash();
-                    if actual != hash {
-                        warn!("Corrupt object {0}: expected {0:x}, actual \
+                io::copy(&mut obj_file, &mut hasher)?;
+                let actual = hasher.hash();
+                if actual != hash {
+                    warn!("Corrupt object {0}: expected {0:x}, actual \
                                {1:x}",
-                              hash,
-                              actual);
-                        bad_hashes.push((hash, actual));
-                    }
+                          hash,
+                          actual);
+                    bad_hashes.push((hash, actual));
                 }
             }
         }
