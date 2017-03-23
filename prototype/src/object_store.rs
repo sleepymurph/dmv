@@ -654,7 +654,7 @@ pub mod test {
 
     #[test]
     fn test_store_and_retrieve() {
-        let (_tempdir, mut store) = create_temp_repository().unwrap();
+        let (_tempdir, store) = create_temp_repository().unwrap();
 
         let obj = Blob::from("Hello!").to_hashed();
 

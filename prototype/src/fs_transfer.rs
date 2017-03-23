@@ -51,32 +51,16 @@ impl FsTransfer {
                 .ok_or_else(&Self::no_answer_err)?;
         }
 
-        self.hash_plan(&hash_plan)
-    }
-
-    pub fn hash_plan(&mut self, hash_plan: &StatusTree) -> Result<ObjectKey> {
-        let prog = ProgressCounter::arc("Hashing", hash_plan.transfer_size());
-        let prog_clone = prog.clone();
-
-        let mut op = HashAndStoreOp {
-            fs_transfer: self,
-            progress: &*prog.clone(),
-        };
-
-        let prog_thread = thread::spawn(move || std_err_watch(prog_clone));
-        let hash = hash_plan.walk(&mut op)?.ok_or_else(&Self::no_answer_err)?;
-
-        prog.finish();
-        prog_thread.join().unwrap();
-        Ok(hash)
+        let est = hash_plan.transfer_size();
+        self.hash_obj_file_est(None, path, est)
     }
 
     /// Hash by parent object key, path to hash, and estimated hash bytes
-    fn hash_obj_file_est(&mut self,
-                         src: Option<ObjectKey>,
-                         targ: PathBuf,
-                         est: u64)
-                         -> Result<ObjectKey> {
+    pub fn hash_obj_file_est(&mut self,
+                             src: Option<ObjectKey>,
+                             targ: &Path,
+                             est: u64)
+                             -> Result<ObjectKey> {
 
         let prog = ProgressCounter::arc("Hashing", est);
         let prog_clone = prog.clone();
@@ -85,7 +69,7 @@ impl FsTransfer {
             src.and_then_try(|hash| self.object_store.lookup_node(hash))?;
 
         let targ: Option<ComparableNode> = Some(self.file_store
-            .lookup_node(targ)?);
+            .lookup_node(targ.to_owned())?);
 
         let combo = (&self.object_store, &self.file_store);
 

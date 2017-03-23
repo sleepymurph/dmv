@@ -82,6 +82,15 @@ impl WorkDir {
 
     pub fn parents(&self) -> &Vec<ObjectKey> { &self.state.parents }
 
+    /// Assume a single parent and return that (for now)
+    fn parent(&self) -> Option<ObjectKey> {
+        match self.parents() {
+            ref v if v.len() == 1 => Some(v[0]),
+            ref v if v.len() == 0 => None,
+            _ => unimplemented!(),
+        }
+    }
+
     fn parents_short_hashes(&self) -> Vec<String> {
         self.state
             .parents
@@ -105,18 +114,13 @@ impl WorkDir {
 
         match (rev1, rev2) {
             (None, None) => {
-                let parent = match self.parents() {
-                    ref v if v.len() == 1 => Some(v[0]),
-                    ref v if v.len() == 0 => None,
-                    _ => unimplemented!(),
-                };
+                let parent = self.parent();
                 self.status_obj_file(parent, abs_path)
             }
             (Some(hash1), None) => self.status_obj_file(Some(hash1), abs_path),
             (Some(hash1), Some(hash2)) => self.status_obj_obj(hash1, hash2),
             (None, Some(_)) => unreachable!(),
         }
-
     }
 
     fn status_obj_file(&mut self,
@@ -152,8 +156,11 @@ impl WorkDir {
                   message: String)
                   -> Result<(Option<&str>, ObjectKey)> {
 
-        let hash_plan = self.status(None, None)?;
-        let tree_hash = self.hash_plan(&hash_plan)?;
+        let abs_path = self.path().to_owned();
+        let parent = self.parent();
+        let est = self.status_obj_file(parent, abs_path.clone())?
+            .transfer_size();
+        let tree_hash = self.hash_obj_file_est(parent, &abs_path, est)?;
 
         let commit = Commit {
             tree: tree_hash,
