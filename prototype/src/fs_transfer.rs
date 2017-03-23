@@ -11,6 +11,7 @@ use object_store::ObjectWalkNode;
 use progress::ProgressCounter;
 use progress::std_err_watch;
 use status::*;
+use std::fmt;
 use std::fs::create_dir;
 use std::fs::remove_file;
 use std::path::Path;
@@ -167,6 +168,88 @@ impl WalkOp<CompareNode> for CompareWalkOp {
             plan.children = children;
             plan
         }))
+    }
+}
+
+
+
+/// A wrapper to Display a Node Comparison, with options
+pub struct ComparePrintWalkDisplay<'a, R: 'a>
+    where R: NodeReader<CompareNode>
+{
+    reader: &'a R,
+    node: CompareNode,
+    show_ignored: bool,
+}
+impl<'a, R> ComparePrintWalkDisplay<'a, R>
+    where R: NodeReader<CompareNode>
+{
+    pub fn new(reader: &'a R, node: CompareNode) -> Self {
+        ComparePrintWalkDisplay {
+            reader: reader,
+            node: node,
+            show_ignored: false,
+        }
+    }
+    pub fn show_ignored(mut self, si: bool) -> Self {
+        self.show_ignored = si;
+        self
+    }
+}
+impl<'a, R> fmt::Display for ComparePrintWalkDisplay<'a, R>
+    where R: NodeReader<CompareNode>
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut op = ComparePrintWalkOp {
+            show_ignored: self.show_ignored,
+            formatter: f,
+        };
+        match self.reader.walk_node(&mut op, self.node.clone()) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(fmt::Error),
+        }
+    }
+}
+
+
+/// An operation that compares files to a previous commit to build a StatusTree
+///
+/// Walks a filesystem tree and a Tree object in parallel, comparing them and
+/// building a StatusTree. This is the basis of the status command and the first
+/// step of a commit.
+pub struct ComparePrintWalkOp<'s, 'f: 's> {
+    show_ignored: bool,
+    formatter: &'s mut fmt::Formatter<'f>,
+}
+impl<'s, 'f> ComparePrintWalkOp<'s, 'f> {
+    fn status(&self, node: &CompareNode, _ps: &PathStack) -> Status {
+        ComparableNode::compare(&node.0, &node.1)
+    }
+}
+impl<'s, 'f> WalkOp<CompareNode> for ComparePrintWalkOp<'s, 'f> {
+    type VisitResult = ();
+
+    fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
+        let targ = node.1.as_ref();
+        let is_treeish = targ.map(|n| n.is_treeish).unwrap_or(false);
+        let included = self.status(&node, ps).is_included();
+        is_treeish && included
+    }
+    fn no_descend(&mut self,
+                  ps: &PathStack,
+                  node: CompareNode)
+                  -> Result<Option<Self::VisitResult>> {
+        let node = StatusTree::compare(&node.0, &node.1);
+        let show = node.status != Status::Unchanged &&
+                   (node.status != Status::Ignored || self.show_ignored);
+        let mut ps = ps.to_string();
+        if node.targ_is_dir {
+            ps += "/";
+        }
+        if show {
+            writeln!(self.formatter, "{} {}", node.status.code(), ps)?;
+        }
+        Ok(None)
     }
 }
 

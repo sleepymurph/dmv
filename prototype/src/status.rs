@@ -50,6 +50,7 @@ impl Status {
 }
 
 
+#[derive(Clone)]
 pub struct ComparableNode {
     pub is_treeish: bool,
     pub file_size: ObjectSize,
