@@ -131,46 +131,6 @@ impl FsTransfer {
 
 type CompareNode = (Option<ComparableNode>, Option<ComparableNode>);
 
-/// An operation that compares files to a previous commit to build a StatusTree
-///
-/// Walks a filesystem tree and a Tree object in parallel, comparing them and
-/// building a StatusTree. This is the basis of the status command and the first
-/// step of a commit.
-pub struct CompareWalkOp;
-impl CompareWalkOp {
-    fn status(&self, node: &CompareNode, _ps: &PathStack) -> Status {
-        ComparableNode::compare(&node.0, &node.1)
-    }
-}
-impl WalkOp<CompareNode> for CompareWalkOp {
-    type VisitResult = StatusTree;
-
-    fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
-        let targ = node.1.as_ref();
-        let is_treeish = targ.map(|n| n.is_treeish).unwrap_or(false);
-        let included = self.status(&node, ps).is_included();
-        is_treeish && included
-    }
-    fn no_descend(&mut self,
-                  _ps: &PathStack,
-                  node: CompareNode)
-                  -> Result<Option<Self::VisitResult>> {
-        Ok(Some(StatusTree::compare(&node.0, &node.1)))
-    }
-    fn post_descend(&mut self,
-                    ps: &PathStack,
-                    node: CompareNode,
-                    children: ChildMap<Self::VisitResult>)
-                    -> Result<Option<Self::VisitResult>> {
-        // Convert dir node to StatusTree according to normal rules,
-        // then add children
-        Ok(self.no_descend(ps, node)?.map(|mut plan| {
-            plan.children = children;
-            plan
-        }))
-    }
-}
-
 
 
 /// A wrapper to Display a Node Comparison, with options

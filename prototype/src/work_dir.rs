@@ -8,7 +8,6 @@ use disk_backed::DiskBacked;
 use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::ComparePrintWalkDisplay;
-use fs_transfer::CompareWalkOp;
 use fs_transfer::FsTransfer;
 use object_store::ObjectStore;
 use object_store::RevSpec;
