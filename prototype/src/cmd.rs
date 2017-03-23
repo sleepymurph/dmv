@@ -94,9 +94,7 @@ pub fn status(show_ignored: bool,
               rev2: Option<RevSpec>)
               -> Result<()> {
     let mut work_dir = find_work_dir()?;
-    let status = work_dir.status(rev1, rev2)?;
-    print!("{}", status.display().show_ignored(show_ignored));
-    Ok(())
+    work_dir.status(show_ignored, rev1, rev2)
 }
 
 pub fn commit(message: String) -> Result<()> {

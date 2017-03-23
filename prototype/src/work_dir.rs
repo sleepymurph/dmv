@@ -7,6 +7,7 @@ use dag::ObjectKey;
 use disk_backed::DiskBacked;
 use error::*;
 use find_repo::RepoLayout;
+use fs_transfer::ComparePrintWalkDisplay;
 use fs_transfer::CompareWalkOp;
 use fs_transfer::FsTransfer;
 use object_store::ObjectStore;
@@ -100,9 +101,10 @@ impl WorkDir {
     }
 
     pub fn status(&mut self,
+                  show_ignored: bool,
                   rev1: Option<RevSpec>,
                   rev2: Option<RevSpec>)
-                  -> Result<StatusTree> {
+                  -> Result<()> {
         debug!("Current branch: {}. Parents: {}",
                self.branch().unwrap_or("<detached head>"),
                self.parents_short_hashes().join(","));
@@ -115,18 +117,23 @@ impl WorkDir {
         match (rev1, rev2) {
             (None, None) => {
                 let parent = self.parent();
-                self.status_obj_file(parent, abs_path)
+                self.status_obj_file(show_ignored, parent, abs_path)
             }
-            (Some(hash1), None) => self.status_obj_file(Some(hash1), abs_path),
-            (Some(hash1), Some(hash2)) => self.status_obj_obj(hash1, hash2),
+            (Some(hash1), None) => {
+                self.status_obj_file(show_ignored, Some(hash1), abs_path)
+            }
+            (Some(hash1), Some(hash2)) => {
+                self.status_obj_obj(show_ignored, hash1, hash2)
+            }
             (None, Some(_)) => unreachable!(),
         }
     }
 
     fn status_obj_file(&mut self,
+                       show_ignored: bool,
                        src: Option<ObjectKey>,
                        targ: PathBuf)
-                       -> Result<StatusTree> {
+                       -> Result<()> {
 
         let src: Option<ComparableNode> =
             src.and_then_try(|hash| self.object_store.lookup_node(hash))?;
@@ -134,22 +141,30 @@ impl WorkDir {
         let targ: Option<ComparableNode> = Some(self.file_store
             .lookup_node(targ)?);
 
-        let combo = (&self.object_store, &self.file_store);
+        let node = (src, targ);
 
-        combo.walk_node(&mut CompareWalkOp, (src, targ))?
-            .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
+        let combo = (&self.object_store, &self.file_store);
+        let display = ComparePrintWalkDisplay::new(show_ignored, &combo, node);
+
+        print!("{}", display);
+        Ok(())
     }
 
     fn status_obj_obj(&mut self,
+                      show_ignored: bool,
                       src: ObjectKey,
                       targ: ObjectKey)
-                      -> Result<StatusTree> {
+                      -> Result<()> {
 
         let src: ComparableNode = self.object_store.lookup_node(src)?;
         let targ: ComparableNode = self.object_store.lookup_node(targ)?;
+        let node = (Some(src), Some(targ));
         let combo = (&self.object_store, &self.object_store);
-        combo.walk_node(&mut CompareWalkOp, (Some(src), Some(targ)))?
-            .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))
+
+        let display = ComparePrintWalkDisplay::new(show_ignored, &combo, node);
+
+        print!("{}", display);
+        Ok(())
     }
 
     pub fn commit(&mut self,

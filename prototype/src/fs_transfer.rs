@@ -184,11 +184,11 @@ pub struct ComparePrintWalkDisplay<'a, R: 'a>
 impl<'a, R> ComparePrintWalkDisplay<'a, R>
     where R: NodeReader<CompareNode>
 {
-    pub fn new(reader: &'a R, node: CompareNode) -> Self {
+    pub fn new(show_ignored: bool, reader: &'a R, node: CompareNode) -> Self {
         ComparePrintWalkDisplay {
             reader: reader,
             node: node,
-            show_ignored: false,
+            show_ignored: show_ignored,
         }
     }
     pub fn show_ignored(mut self, si: bool) -> Self {
