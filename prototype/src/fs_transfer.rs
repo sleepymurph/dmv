@@ -1,6 +1,7 @@
 //! Functionality for transfering files between filesystem and object store
 
 use dag::ObjectKey;
+use dag::ObjectSize;
 use dag::Tree;
 use error::*;
 use file_store::FileStore;
@@ -41,25 +42,34 @@ impl FsTransfer {
 
     /// Check, hash, and store a file or directory
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
-        debug!("Hashing object, with framework");
-        let hash_plan;
-        {
-            let combo = (&self.object_store, &self.file_store);
-            let file_node = self.file_store.lookup_node(path.to_owned())?;
-            let node = (None, Some(file_node));
-            hash_plan = combo.walk_node(&mut CompareWalkOp, node)?
-                .ok_or_else(&Self::no_answer_err)?;
-        }
-
-        let est = hash_plan.transfer_size();
+        let est = self.transfer_estimate(None, path)?;
         self.hash_obj_file_est(None, path, est)
+    }
+
+    pub fn transfer_estimate(&self,
+                             src: Option<ObjectKey>,
+                             targ: &Path)
+                             -> Result<ObjectSize> {
+        debug!("Checking transfer size");
+
+        let src: Option<ComparableNode> =
+            src.and_then_try(|hash| self.object_store.lookup_node(hash))?;
+
+        let targ: Option<ComparableNode> = Some(self.file_store
+            .lookup_node(targ.to_path_buf())?);
+
+        let combo = (&self.object_store, &self.file_store);
+
+        let mut op = TransferEstimateOp::new();
+        combo.walk_node(&mut op, (src, targ))?;
+        Ok(op.estimate())
     }
 
     /// Hash by parent object key, path to hash, and estimated hash bytes
     pub fn hash_obj_file_est(&mut self,
                              src: Option<ObjectKey>,
                              targ: &Path,
-                             est: u64)
+                             est: ObjectSize)
                              -> Result<ObjectKey> {
 
         let prog = ProgressCounter::arc("Hashing", est);
@@ -86,10 +96,6 @@ impl FsTransfer {
         prog.finish();
         prog_thread.join().unwrap();
         Ok(hash)
-    }
-
-    fn no_answer_err() -> Error {
-        Error::from("Nothing to hash (all ignored?)")
     }
 
     /// Extract a file or directory from the object store to the filesystem
@@ -163,6 +169,42 @@ impl WalkOp<CompareNode> for CompareWalkOp {
         }))
     }
 }
+
+
+
+/// An operation that compares files to a previous commit to build a StatusTree
+///
+/// Walks a filesystem tree and a Tree object in parallel, comparing them and
+/// building a StatusTree. This is the basis of the status command and the first
+/// step of a commit.
+pub struct TransferEstimateOp {
+    acc: ObjectSize,
+}
+impl TransferEstimateOp {
+    pub fn new() -> Self { TransferEstimateOp { acc: 0 } }
+    pub fn estimate(&self) -> ObjectSize { self.acc }
+    fn status(&self, node: &CompareNode, _ps: &PathStack) -> Status {
+        ComparableNode::compare(&node.0, &node.1)
+    }
+}
+impl WalkOp<CompareNode> for TransferEstimateOp {
+    type VisitResult = ();
+
+    fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
+        let targ = node.1.as_ref();
+        let is_treeish = targ.map(|n| n.is_treeish).unwrap_or(false);
+        let included = self.status(&node, ps).is_included();
+        is_treeish && included
+    }
+    fn no_descend(&mut self,
+                  _ps: &PathStack,
+                  node: CompareNode)
+                  -> Result<Option<Self::VisitResult>> {
+        self.acc += StatusTree::compare(&node.0, &node.1).transfer_size();
+        Ok(None)
+    }
+}
+
 
 
 

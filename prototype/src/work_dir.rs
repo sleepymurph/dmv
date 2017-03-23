@@ -158,8 +158,7 @@ impl WorkDir {
 
         let abs_path = self.path().to_owned();
         let parent = self.parent();
-        let est = self.status_obj_file(parent, abs_path.clone())?
-            .transfer_size();
+        let est = self.transfer_estimate(parent, &abs_path)?;
         let tree_hash = self.hash_obj_file_est(parent, &abs_path, est)?;
 
         let commit = Commit {
