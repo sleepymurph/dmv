@@ -12,6 +12,7 @@ use std::fmt;
 use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::RwLock;
 
 /// Type for reading and iterating over a node's children
 pub type ChildMap<N> = BTreeMap<String, N>;
@@ -249,6 +250,22 @@ pub trait WalkOp<N> {
     }
 }
 
+
+impl<H, N, R> NodeLookup<H, N> for RwLock<R>
+    where R: NodeLookup<H, N>
+{
+    fn lookup_node(&self, handle: H) -> Result<N> {
+        self.read().unwrap().lookup_node(handle)
+    }
+}
+
+impl<N, R> NodeReader<N> for RwLock<R>
+    where R: NodeReader<N>
+{
+    fn read_children(&self, node: &N) -> Result<ChildMap<N>> {
+        self.read().unwrap().read_children(node)
+    }
+}
 
 impl<'a, A, B, RA, RB> NodeReader<(Option<A>, Option<B>)> for (&'a RA, &'a RB)
     where RA: NodeReader<A>,
