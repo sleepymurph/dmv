@@ -73,7 +73,7 @@ impl FsTransfer {
 
         let combo = (&self.object_store, &self.file_store);
 
-        let mut op = HashAndStoreOp2 {
+        let mut op = HashAndStoreOp {
             fs_transfer: self,
             progress: &*prog.clone(),
         };
@@ -168,73 +168,10 @@ impl WalkOp<CompareNode> for CompareWalkOp {
 
 /// An operation that walks a StatusTree to hash and store the files as a Tree
 pub struct HashAndStoreOp<'a, 'b> {
-    fs_transfer: &'a mut FsTransfer,
-    progress: &'b ProgressCounter,
-}
-impl<'a, 'b> WalkOp<&'a StatusTree> for HashAndStoreOp<'a, 'b> {
-    type VisitResult = ObjectKey;
-
-    fn should_descend(&mut self, _ps: &PathStack, node: &&StatusTree) -> bool {
-        node.targ_is_dir && node.status.is_included()
-    }
-
-    fn no_descend(&mut self,
-                  ps: &PathStack,
-                  node: &StatusTree)
-                  -> Result<Option<Self::VisitResult>> {
-        match (node.status.is_included(), node.targ_hash, &node.fs_path) {
-            (false, _, _) => {
-                debug!("{} {} - skipping", node.status.code(), ps);
-                Ok(None)
-            }
-            (true, Some(hash), _) => {
-                debug!("{} {} - including with known hash {}",
-                       node.status.code(),
-                       ps,
-                       hash);
-                Ok(Some(hash))
-            }
-            (true, None, &Some(ref fs_path)) => {
-                debug!("{} {} - hashing", node.status.code(), ps);
-                let hash = self.fs_transfer
-                    .hash_file(fs_path.as_path(), self.progress)?;
-                Ok(Some(hash))
-            }
-            (true, None, &None) => {
-                bail!("{} {} - Node has neither known hash nor fs_path",
-                      node.status.code(),
-                      ps);
-            }
-        }
-    }
-
-    fn post_descend(&mut self,
-                    ps: &PathStack,
-                    _node: &StatusTree,
-                    children: ChildMap<Self::VisitResult>)
-                    -> Result<Option<Self::VisitResult>> {
-        if children.is_empty() {
-            debug!("  {} - dropping empty dir", ps);
-            return Ok(None);
-        }
-        let mut tree = Tree::new();
-        for (name, hash) in children {
-            tree.insert(name, hash);
-        }
-        let hash = self.fs_transfer.store_object(&tree)?;
-        debug!("  {} - storing tree {}", ps, hash);
-        Ok(Some(hash))
-    }
-}
-
-
-
-/// An operation that walks a StatusTree to hash and store the files as a Tree
-pub struct HashAndStoreOp2<'a, 'b> {
     fs_transfer: &'a FsTransfer,
     progress: &'b ProgressCounter,
 }
-impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp2<'a, 'b> {
+impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp<'a, 'b> {
     type VisitResult = ObjectKey;
 
     fn should_descend(&mut self, _ps: &PathStack, node: &CompareNode) -> bool {
