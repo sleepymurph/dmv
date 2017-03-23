@@ -51,9 +51,9 @@ impl FileStore {
     }
 
     /// Store a single file and cache and return its hash
-    pub fn hash_file(&mut self,
+    pub fn hash_file(&self,
                      file_path: &Path,
-                     object_store: &mut ObjectStore,
+                     object_store: &ObjectStore,
                      progress: &ProgressCounter)
                      -> Result<ObjectKey> {
         let file = File::open(&file_path)?;

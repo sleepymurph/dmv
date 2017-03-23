@@ -128,11 +128,11 @@ impl FsTransfer {
         Ok(())
     }
 
-    fn hash_file(&mut self,
+    fn hash_file(&self,
                  file_path: &Path,
                  progress: &ProgressCounter)
                  -> Result<ObjectKey> {
-        self.file_store.hash_file(file_path, &mut self.object_store, progress)
+        self.file_store.hash_file(file_path, &self.object_store, progress)
     }
 }
 
@@ -247,7 +247,7 @@ impl<'a, 'b> WalkOp<&'a StatusTree> for HashAndStoreOp<'a, 'b> {
 
 /// An operation that walks a StatusTree to hash and store the files as a Tree
 pub struct HashAndStoreOp2<'a, 'b> {
-    fs_transfer: &'a mut FsTransfer,
+    fs_transfer: &'a FsTransfer,
     progress: &'b ProgressCounter,
 }
 impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp2<'a, 'b> {

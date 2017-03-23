@@ -298,7 +298,7 @@ impl ObjectStore {
     /// Writes a single object into the object store
     ///
     /// Returns the hash key of the object
-    pub fn store_object(&mut self, obj: &ObjectCommon) -> Result<ObjectKey> {
+    pub fn store_object(&self, obj: &ObjectCommon) -> Result<ObjectKey> {
 
         // If object already exists, no need to store
         let key = obj.calculate_hash();

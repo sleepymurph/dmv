@@ -184,7 +184,7 @@ impl AllCaches {
         Ok(CacheEntry::check(entry.as_ref(), meta))
     }
 
-    pub fn insert(&mut self,
+    pub fn insert(&self,
                   file_path: path::PathBuf,
                   meta: &Metadata,
                   hash: ObjectKey)
