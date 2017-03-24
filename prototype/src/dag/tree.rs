@@ -80,9 +80,10 @@ impl ReadObjectContent for Tree {
         loop {
             // Read hash
             let mut hash_buf = [0u8; KEY_SIZE_BYTES];
-            let bytes_read = try!(reader.read(&mut hash_buf));
-            if bytes_read == 0 {
-                break;
+            match reader.read_exact(&mut hash_buf) {
+                Ok(()) => (),
+                Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(e) => bail!(e),
             }
             let hash = ObjectKey::from(hash_buf);
 
@@ -93,9 +94,11 @@ impl ReadObjectContent for Tree {
             let name = String::from_utf8(name_buf).map_err(|e| {
                     let err = e.utf8_error();
                     let bytes = e.into_bytes();
-                    Error::from(format!(
-                            "UTF-8 error: {}, bad bytes: {:?} (\"{}\")",
-                            err, bytes, String::from_utf8_lossy(&bytes)))
+                    Error::from(format!("UTF-8 error: {}, bad bytes: {:?} \
+                                         (\"{}\")",
+                                        err,
+                                        bytes,
+                                        String::from_utf8_lossy(&bytes)))
                 })
                 .chain_err(|| {
                     let mut msg = format!("Could not read tree record #{}",
