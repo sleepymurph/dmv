@@ -220,8 +220,9 @@ impl ObjectStore {
     }
 
     pub fn open_object(&self, key: &ObjectKey) -> Result<ObjectHandle> {
-        let file = self.open_object_file(key)?;
-        ObjectHandle::read_header(Box::new(file))
+        self.open_object_file(key)
+            .and_then(|file| ObjectHandle::read_header(Box::new(file)))
+            .chain_err(|| format!("Could not open object {}", key))
     }
 
     pub fn open_commit(&self, key: &ObjectKey) -> Result<Commit> {

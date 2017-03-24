@@ -91,9 +91,12 @@ impl ReadObjectContent for Tree {
             try!(reader.read_until(TREE_ENTRY_SEPARATOR, &mut name_buf));
             name_buf.pop(); // Drop the string-ending separator
             let name = String::from_utf8(name_buf).map_err(|e| {
-                    format!("UTF-8 error: {}, bad string: {}",
-                             e.utf8_error(),
-                             String::from_utf8_lossy(&e.into_bytes()))
+                    Error::from(format!("UTF-8 error: {}, bad string: {}",
+                            e.utf8_error(),
+                            String::from_utf8_lossy(&e.into_bytes())))
+                })
+                .chain_err(|| {
+                    format!("Could not read tree record #{}", tree.len())
                 })?;
             tree.insert(name, hash);
         }
