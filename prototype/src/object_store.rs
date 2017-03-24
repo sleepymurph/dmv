@@ -230,8 +230,8 @@ impl ObjectStore {
                 Ok(ObjectHandle::Commit(raw)) => raw.read_content(),
                 Ok(other) => {
                     bail!("{} is a {:?}. Expected a commit.",
-                      key,
-                      other.header().object_type)
+                          key,
+                          other.header().object_type)
                 }
                 Err(e) => Err(e),
             }
@@ -247,8 +247,8 @@ impl ObjectStore {
                 }
                 Ok(other) => {
                     bail!("{} is a {:?}. Expected a tree.",
-                      key,
-                      other.header().object_type)
+                          key,
+                          other.header().object_type)
                 }
                 Err(e) => Err(e),
             }
