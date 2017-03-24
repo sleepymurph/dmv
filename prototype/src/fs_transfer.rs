@@ -166,7 +166,10 @@ impl<'a, R> fmt::Display for ComparePrintWalkDisplay<'a, R>
         };
         match self.reader.walk_node(&mut op, self.node.clone()) {
             Ok(_) => Ok(()),
-            Err(_) => Err(fmt::Error),
+            Err(e) => {
+                stderrln!("{}", e);
+                Err(fmt::Error)
+            }
         }
     }
 }
