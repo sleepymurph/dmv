@@ -5,6 +5,7 @@ use dag::ObjectSize;
 use dag::Tree;
 use error::*;
 use file_store::FileStore;
+use file_store::FileWalkNode;
 use ignore::IgnoreList;
 use object_store::ObjectStore;
 use object_store::ObjectWalkNode;
@@ -13,6 +14,7 @@ use progress::std_err_watch;
 use status::*;
 use std::fmt;
 use std::fs::create_dir;
+use std::fs::remove_dir_all;
 use std::fs::remove_file;
 use std::path::Path;
 use std::path::PathBuf;
@@ -76,11 +78,9 @@ impl FsTransfer {
         let prog = ProgressCounter::arc("Hashing", est);
         let prog_clone = prog.clone();
 
-        let src: Option<ComparableNode> =
-            src.and_then_try(|hash| self.object_store.lookup_node(hash))?;
-
-        let targ: Option<ComparableNode> = Some(self.file_store
-            .lookup_node(targ.to_owned())?);
+        let src = src.and_then_try(|hash| self.object_store.lookup_node(hash))?;
+        let targ = Some(self.file_store.lookup_node(targ.to_owned())?);
+        let node = (src, targ);
 
         let combo = (&self.object_store, &self.file_store);
 
@@ -91,7 +91,7 @@ impl FsTransfer {
 
         let prog_thread = thread::spawn(move || std_err_watch(prog_clone));
 
-        let hash = combo.walk_node(&mut op, (src, targ))?
+        let hash = combo.walk_node(&mut op, node)?
             .ok_or_else(|| Error::from("Nothing to hash (all ignored?)"))?;
 
         prog.finish();
@@ -105,14 +105,19 @@ impl FsTransfer {
                           path: &Path)
                           -> Result<()> {
 
-        let mut op = ExtractObjectOp {
-            file_store: &mut self.file_store,
+        let obj = Some(self.object_store.lookup_node(hash.to_owned())?);
+        let file = self.file_store.lookup_node(path.to_owned()).ok();
+        let node = (file, obj);
+
+        let combo = (&self.file_store, &self.object_store);
+
+        let mut op = CheckoutOp {
+            file_store: &self.file_store,
             object_store: &self.object_store,
             extract_root: path,
         };
 
-        self.object_store
-            .walk_handle(&mut op, *hash)
+        combo.walk_node(&mut op, node)
             .chain_err(|| {
                 format!("Could not extract {} to {}", hash, path.display())
             })?;
@@ -326,13 +331,15 @@ impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp<'a, 'b> {
 
 
 
+type CheckoutNode = (Option<FileWalkNode>, Option<ObjectWalkNode>);
+
 /// An operation that walks a Tree (or Commit) object to extract it to disk
-pub struct ExtractObjectOp<'a> {
-    file_store: &'a mut FileStore,
+pub struct CheckoutOp<'a> {
+    file_store: &'a FileStore,
     object_store: &'a ObjectStore,
     extract_root: &'a Path,
 }
-impl<'a> ExtractObjectOp<'a> {
+impl<'a> CheckoutOp<'a> {
     fn abs_path(&self, ps: &PathStack) -> PathBuf {
         let mut abs_path = self.extract_root.to_path_buf();
         for path in ps {
@@ -341,37 +348,75 @@ impl<'a> ExtractObjectOp<'a> {
         abs_path
     }
 }
-impl<'a> WalkOp<ObjectWalkNode> for ExtractObjectOp<'a> {
+impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
     type VisitResult = ();
 
-    fn should_descend(&mut self,
-                      _ps: &PathStack,
-                      node: &ObjectWalkNode)
-                      -> bool {
-        node.object_type.is_treeish()
+    fn should_descend(&mut self, _ps: &PathStack, node: &CheckoutNode) -> bool {
+        node.1.map(|n| n.object_type.is_treeish()).unwrap_or(false)
     }
 
     fn pre_descend(&mut self,
                    ps: &PathStack,
-                   _node: &ObjectWalkNode)
+                   _node: &CheckoutNode)
                    -> Result<()> {
-        let dir_path = self.abs_path(ps);
-        if !dir_path.is_dir() {
-            if dir_path.exists() {
-                remove_file(&dir_path)?;
+        let path = self.abs_path(ps);
+        if !path.is_dir() {
+            if path.exists() {
+                debug!("Checkout: Removing file {}", path.display());
+                remove_file(&path)?;
             }
-            create_dir(&dir_path)?;
+            debug!("Checkout: Creating dir  {}", path.display());
+            create_dir(&path)?;
         }
         Ok(())
     }
 
     fn no_descend(&mut self,
                   ps: &PathStack,
-                  node: ObjectWalkNode)
+                  node: CheckoutNode)
                   -> Result<Option<Self::VisitResult>> {
-        let abs_path = self.abs_path(ps);
-        self.file_store
-            .extract_file(self.object_store, &node.hash, abs_path.as_path())?;
+        let file = node.0.as_ref();
+        let obj = node.1.as_ref();
+
+        let file_exists = file.is_some();
+        let obj_exists = obj.is_some();
+        let file_hash = file.and_then(|n| n.hash);
+        let obj_hash = obj.map(|n| n.hash);
+        let file_is_ignored = file.map(|n| n.ignored).unwrap_or(false);
+
+        let mut delete = false;
+        let mut extract = false;
+
+        match (file_exists, obj_exists, file_hash, obj_hash) {
+            (true, true, Some(a), Some(b)) if a == b => (),
+            (_, true, _, _) => extract = true,
+            (true, false, _, _) if file_is_ignored => (),
+            (true, false, _, _) => delete = true,
+            (false, false, _, _) => unreachable!(),
+        }
+
+        let path = self.abs_path(ps);
+
+        if delete {
+            let file = file.unwrap(); // safe to unwrap
+            if file.metadata.is_dir() {
+                debug!("Checkout: Removing dir  {}", path.display());
+                remove_dir_all(&file.path)?;
+            } else {
+                debug!("Checkout: Removing file {}", path.display());
+                remove_file(&file.path)?;
+            }
+        }
+
+        if extract {
+            let hash = obj.unwrap().hash; // safe to unwrap
+            self.file_store
+                .extract_file(self.object_store, &hash, &path)
+                .chain_err(|| {
+                    format!("Checkout: Could not extract object {}", hash)
+                })?;
+        }
+
         Ok(None)
     }
 }

@@ -17,6 +17,7 @@ use std::path::PathBuf;
 use walker::*;
 
 /// A path (file or dir) plus metadata, a cached hash if any, and ignore flag
+#[derive(Clone)]
 pub struct FileWalkNode {
     pub path: PathBuf,
     pub metadata: Metadata,
@@ -81,7 +82,7 @@ impl FileStore {
     }
 
     /// Extract a single file object and cache its hash
-    pub fn extract_file(&mut self,
+    pub fn extract_file(&self,
                         object_store: &ObjectStore,
                         hash: &ObjectKey,
                         path: &Path)
