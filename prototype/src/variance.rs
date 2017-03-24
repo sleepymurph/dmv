@@ -13,11 +13,6 @@ impl VarianceCalc {
             sum_sq: 0,
         }
     }
-    fn panic_if_n_is_zero(&self) {
-        if self.n == 0 {
-            panic!("No values given");
-        }
-    }
     pub fn item(&mut self, item: i64) {
         if self.n == 0 {
             self.k = item;
@@ -36,14 +31,18 @@ impl VarianceCalc {
     }
     pub fn count(&self) -> i64 { self.n }
     pub fn mean(&self) -> f64 {
-        self.panic_if_n_is_zero();
+        if self.n == 0 {
+            return 0.0;
+        }
         let k = self.k as f64;
         let sum = self.sum as f64;
         let n = self.n as f64;
         k + sum / n
     }
     pub fn var(&self) -> f64 {
-        self.panic_if_n_is_zero();
+        if self.n == 0 {
+            return 0.0;
+        }
         let sum = self.sum as f64;
         let sum_sq = self.sum_sq as f64;
         let n = self.n as f64;
