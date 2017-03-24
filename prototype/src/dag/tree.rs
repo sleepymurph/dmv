@@ -96,7 +96,14 @@ impl ReadObjectContent for Tree {
                             String::from_utf8_lossy(&e.into_bytes())))
                 })
                 .chain_err(|| {
-                    format!("Could not read tree record #{}", tree.len())
+                    let mut msg = format!("Could not read tree record #{}",
+                                          tree.len());
+                    if let Some(entry) = tree.iter().last() {
+                        msg += &format!(" Previous record: {} {}",
+                                        entry.1,
+                                        entry.0.to_string_lossy());
+                    }
+                    msg
                 })?;
             tree.insert(name, hash);
         }
