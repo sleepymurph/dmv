@@ -90,7 +90,11 @@ impl ReadObjectContent for Tree {
             let mut name_buf: Vec<u8> = Vec::new();
             try!(reader.read_until(TREE_ENTRY_SEPARATOR, &mut name_buf));
             name_buf.pop(); // Drop the string-ending separator
-            let name = try!(String::from_utf8(name_buf));
+            let name = String::from_utf8(name_buf).map_err(|e| {
+                    format!("UTF-8 error: {}, bad string: {}",
+                             e.utf8_error(),
+                             String::from_utf8_lossy(&e.into_bytes()))
+                })?;
             tree.insert(name, hash);
         }
         Ok(tree)
