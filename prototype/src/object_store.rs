@@ -227,30 +227,32 @@ impl ObjectStore {
 
     pub fn open_commit(&self, key: &ObjectKey) -> Result<Commit> {
         match self.open_object(key) {
-            Ok(ObjectHandle::Commit(raw)) => raw.read_content(),
-            Ok(other) => {
-                bail!("{} is a {:?}. Expected a commit.",
+                Ok(ObjectHandle::Commit(raw)) => raw.read_content(),
+                Ok(other) => {
+                    bail!("{} is a {:?}. Expected a commit.",
                       key,
                       other.header().object_type)
+                }
+                Err(e) => Err(e),
             }
-            Err(e) => Err(e),
-        }
+            .chain_err(|| format!("Could not open object {}", key))
     }
 
     pub fn open_tree(&self, key: &ObjectKey) -> Result<Tree> {
         match self.open_object(key) {
-            Ok(ObjectHandle::Tree(raw)) => raw.read_content(),
-            Ok(ObjectHandle::Commit(raw)) => {
-                let commit = raw.read_content()?;
-                self.open_tree(&commit.tree)
-            }
-            Ok(other) => {
-                bail!("{} is a {:?}. Expected a tree.",
+                Ok(ObjectHandle::Tree(raw)) => raw.read_content(),
+                Ok(ObjectHandle::Commit(raw)) => {
+                    raw.read_content()
+                        .and_then(|commit| self.open_tree(&commit.tree))
+                }
+                Ok(other) => {
+                    bail!("{} is a {:?}. Expected a tree.",
                       key,
                       other.header().object_type)
+                }
+                Err(e) => Err(e),
             }
-            Err(e) => Err(e),
-        }
+            .chain_err(|| format!("Could not open object {}", key))
     }
 
     pub fn try_find_tree_path(&self,
