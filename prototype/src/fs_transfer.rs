@@ -167,7 +167,13 @@ impl<'a, R> fmt::Display for ComparePrintWalkDisplay<'a, R>
         match self.reader.walk_node(&mut op, self.node.clone()) {
             Ok(_) => Ok(()),
             Err(e) => {
-                stderrln!("{}", e);
+                stderrln!("Error while walking+printing status: {}", e);
+                for e in e.iter().skip(1) {
+                    stderrln!("Caused by: {}", e);
+                }
+                if let Some(backtrace) = e.backtrace() {
+                    stderrln!("{:?}", backtrace);
+                }
                 Err(fmt::Error)
             }
         }
