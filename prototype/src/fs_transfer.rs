@@ -179,11 +179,6 @@ impl<'a, R> fmt::Display for ComparePrintWalkDisplay<'a, R>
 }
 
 
-/// An operation that compares files to a previous commit to build a StatusTree
-///
-/// Walks a filesystem tree and a Tree object in parallel, comparing them and
-/// building a StatusTree. This is the basis of the status command and the first
-/// step of a commit.
 pub struct ComparePrintWalkOp<'s, 'f: 's> {
     show_ignored: bool,
     formatter: &'s mut fmt::Formatter<'f>,
@@ -206,15 +201,15 @@ impl<'s, 'f> WalkOp<CompareNode> for ComparePrintWalkOp<'s, 'f> {
                   ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
-        let node = StatusTree::compare(&node.0, &node.1);
-        let show = node.status != Status::Unchanged &&
-                   (node.status != Status::Ignored || self.show_ignored);
+        let status = ComparableNode::compare(&node.0, &node.1);
+        let show = status != Status::Unchanged &&
+                   (status != Status::Ignored || self.show_ignored);
         let mut ps = ps.to_string();
-        if node.targ_is_dir {
+        if node.1.map(|n| n.is_treeish).unwrap_or(false) {
             ps += "/";
         }
         if show {
-            writeln!(self.formatter, "{} {}", node.status.code(), ps)?;
+            writeln!(self.formatter, "{} {}", status.code(), ps)?;
         }
         Ok(None)
     }
