@@ -130,9 +130,9 @@ pub fn branch_list() -> Result<()> {
     Ok(())
 }
 
-pub fn branch_set(branch_name: &str, target: RevSpec) -> Result<()> {
+pub fn branch_set(branch_name: &str, target: &str) -> Result<()> {
     let mut object_store = find_object_store()?;
-    let hash = object_store.find_object(&target)?;
+    let hash = object_store.expect_ref_or_hash(&target)?.into_hash();
     object_store.update_ref(branch_name, hash)
 }
 

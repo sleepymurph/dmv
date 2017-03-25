@@ -8,9 +8,7 @@ extern crate prototype;
 use prototype::cmd;
 use prototype::constants::*;
 use prototype::error::*;
-use prototype::object_store::RevSpec;
 use std::path::PathBuf;
-use std::str::FromStr;
 
 // Have error_chain create a main() function that handles Results
 quick_main!(run);
@@ -140,7 +138,6 @@ fn cmd_branch(_argmatch: &clap::ArgMatches,
         (None, None) => cmd::branch_list(),
         (Some(branch_name), None) => cmd::branch_set_to_head(branch_name),
         (Some(branch_name), Some(target)) => {
-            let target = RevSpec::from_str(target)?;
             cmd::branch_set(branch_name, target)
         }
         (None, Some(_)) => unreachable!(),
