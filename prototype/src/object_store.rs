@@ -541,6 +541,12 @@ impl ObjSpec {
             &ObjSpec::Hash(ref hash) => hash,
         }
     }
+    pub fn into_hash(self) -> ObjectKey {
+        match self {
+            ObjSpec::Ref(_, hash) => hash,
+            ObjSpec::Hash(hash) => hash,
+        }
+    }
     pub fn ref_name(&self) -> Option<&str> {
         match self {
             &ObjSpec::Ref(ref r, _) => Some(r.as_str()),

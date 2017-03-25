@@ -34,7 +34,7 @@ pub fn show_object(obj_spec: &str) -> Result<()> {
 
     let object_store = find_object_store()?;
 
-    let hash = *object_store.expect_ref_or_hash(obj_spec)?.hash();
+    let hash = object_store.expect_ref_or_hash(obj_spec)?.into_hash();
 
     let handle = try!(object_store.open_object(&hash));
     match handle {
@@ -57,12 +57,12 @@ pub fn parents() -> Result<()> {
     Ok(())
 }
 
-pub fn ls_files(obj_spec: Option<RevSpec>, verbose: bool) -> Result<()> {
+pub fn ls_files(obj_spec: Option<&str>, verbose: bool) -> Result<()> {
 
     match obj_spec {
-        Some(r) => {
+        Some(ref r) => {
             let object_store = &find_object_store()?;
-            let hash = object_store.find_object(&r)?;
+            let hash = object_store.expect_ref_or_hash(r)?.into_hash();
             print!("{}", object_store.ls_files(hash, verbose)?);
         }
         None => {

@@ -84,8 +84,7 @@ fn cmd_parents(_argmatch: &clap::ArgMatches,
 fn cmd_ls_files(_argmatch: &clap::ArgMatches,
                 submatch: &clap::ArgMatches)
                 -> Result<()> {
-    let obj_spec = submatch.value_of("obj-spec")
-        .and_then_try(|s| RevSpec::from_str(s))?;
+    let obj_spec = submatch.value_of("obj-spec");
     let verbose = submatch.is_present("verbose");
 
     cmd::ls_files(obj_spec, verbose)
