@@ -94,12 +94,10 @@ fn cmd_extract_object(_argmatch: &clap::ArgMatches,
                       submatch: &clap::ArgMatches)
                       -> Result<()> {
     let obj_spec = submatch.value_of("obj-spec").expect("required");
-    let obj_spec = try!(RevSpec::from_str(obj_spec));
-
     let file_path = submatch.value_of("filepath").expect("required");
     let file_path = PathBuf::from(file_path);
 
-    cmd::extract_object(&obj_spec, &file_path)
+    cmd::extract_object(obj_spec, &file_path)
 }
 
 fn cmd_cache_status(_argmatch: &clap::ArgMatches,

@@ -75,10 +75,10 @@ pub fn ls_files(obj_spec: Option<&str>, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn extract_object(obj_spec: &RevSpec, file_path: &Path) -> Result<()> {
+pub fn extract_object(obj_spec: &str, file_path: &Path) -> Result<()> {
 
     let fs_transfer = find_fs_transfer()?;
-    let hash = fs_transfer.object_store.find_object(obj_spec)?;
+    let hash = fs_transfer.expect_ref_or_hash(obj_spec)?.into_hash();
     fs_transfer.extract_object(&hash, &file_path)
 }
 
