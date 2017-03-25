@@ -72,8 +72,6 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches,
                    submatch: &clap::ArgMatches)
                    -> Result<()> {
     let obj_spec = submatch.value_of("obj-spec").expect("required");
-    let obj_spec = try!(RevSpec::from_str(obj_spec));
-
     cmd::show_object(&obj_spec)
 }
 

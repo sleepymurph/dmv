@@ -30,11 +30,11 @@ pub fn hash_object(path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn show_object(obj_spec: &RevSpec) -> Result<()> {
+pub fn show_object(obj_spec: &str) -> Result<()> {
 
     let object_store = find_object_store()?;
 
-    let hash = object_store.find_object(obj_spec)?;
+    let hash = *object_store.expect_ref_or_hash(obj_spec)?.hash();
 
     let handle = try!(object_store.open_object(&hash));
     match handle {
