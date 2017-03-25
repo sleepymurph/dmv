@@ -144,3 +144,23 @@ impl<'a, R: Read> Read for ProgressReader<'a, R> {
         Ok(count)
     }
 }
+
+
+pub struct ProgressWriter<'a, W: Write> {
+    p: &'a ProgressCounter,
+    w: W,
+}
+impl<'a, W: Write> ProgressWriter<'a, W> {
+    pub fn new(w: W, p: &'a ProgressCounter) -> Self {
+        ProgressWriter { w: w, p: p }
+    }
+    pub fn into_inner(self) -> W { self.w }
+}
+impl<'a, W: Write> Write for ProgressWriter<'a, W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let count = self.w.write(buf)?;
+        self.p.add(count as u64);
+        Ok(count)
+    }
+    fn flush(&mut self) -> io::Result<()> { self.w.flush() }
+}

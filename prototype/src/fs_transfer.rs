@@ -112,20 +112,26 @@ impl FsTransfer {
         let node = (file.as_ref().map(|n| n.clone().into()),
                     Some(obj.clone().into()));
         combo.walk_node(&mut op, node)?;
-        let est = op.estimate();
-        stderrln!("{} to extract", est);
 
         // Checkout
+        let prog = ProgressCounter::arc("Extracting", op.estimate());
+        let prog_clone = prog.clone();
+        let prog_thread = thread::spawn(move || std_err_watch(prog_clone));
+
         let mut op = CheckoutOp {
             file_store: &self.file_store,
             object_store: &self.object_store,
             extract_root: path,
+            progress: &prog,
         };
         let node = (file, Some(obj));
         combo.walk_node(&mut op, node)
             .chain_err(|| {
                 format!("Could not extract {} to {}", hash, path.display())
             })?;
+
+        prog.finish();
+        prog_thread.join().unwrap();
         Ok(())
     }
 
@@ -352,6 +358,7 @@ pub struct CheckoutOp<'a> {
     file_store: &'a FileStore,
     object_store: &'a ObjectStore,
     extract_root: &'a Path,
+    progress: &'a ProgressCounter,
 }
 impl<'a> CheckoutOp<'a> {
     fn abs_path(&self, ps: &PathStack) -> PathBuf {
@@ -425,7 +432,7 @@ impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
         if extract {
             let hash = obj.unwrap().hash; // safe to unwrap
             self.file_store
-                .extract_file(self.object_store, &hash, &path)
+                .extract_file(self.object_store, &hash, &path, self.progress)
                 .chain_err(|| {
                     format!("Checkout: Could not extract object {}", hash)
                 })?;

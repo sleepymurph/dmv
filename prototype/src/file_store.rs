@@ -5,8 +5,7 @@ use dag::ObjectKey;
 use error::*;
 use ignore::IgnoreList;
 use object_store::ObjectStore;
-use progress::ProgressCounter;
-use progress::ProgressReader;
+use progress::*;
 use rolling_hash::read_file_objects;
 use status::ComparableNode;
 use std::fs::*;
@@ -85,7 +84,8 @@ impl FileStore {
     pub fn extract_file(&self,
                         object_store: &ObjectStore,
                         hash: &ObjectKey,
-                        path: &Path)
+                        path: &Path,
+                        progress: &ProgressCounter)
                         -> Result<()> {
 
         if path.is_file() {
@@ -100,13 +100,15 @@ impl FileStore {
             remove_dir_all(path)?;
         }
 
-        let mut out_file = OpenOptions::new().write(true)
+        let out_file = OpenOptions::new().write(true)
             .create(true)
             .truncate(true)
             .open(path)?;
 
+        let mut out_file = ProgressWriter::new(out_file, progress);
         object_store.copy_blob_content(hash, &mut out_file)?;
         out_file.flush()?;
+        let out_file = out_file.into_inner();
 
         self.cache.insert(path.to_owned(), &out_file.metadata()?, *hash)?;
 
