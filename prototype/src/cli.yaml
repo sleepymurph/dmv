@@ -84,4 +84,10 @@ subcommands:
 
     - fsck:
 
+    - checkout:
+        args:
+            - target-rev:
+                index: 1
+                required: true
+
 # vim: set sts=4 sw=4 et:

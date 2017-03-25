@@ -153,6 +153,24 @@ impl ObjectStore {
         self.object_path(key).is_file()
     }
 
+    pub fn ref_or_hash(&self, rev: &str) -> Result<Option<ObjSpec>> {
+        if let Some(hash) = self.refs().get(rev) {
+            Ok(Some(ObjSpec::Ref(rev.to_owned(), *hash)))
+        } else if let Some(hash) = self.try_find_short_hash(&rev)? {
+            Ok(Some(ObjSpec::Hash(hash)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn expect_ref_or_hash(&self, rev: &str) -> Result<ObjSpec> {
+        match self.ref_or_hash(rev) {
+            Ok(Some(x)) => Ok(x),
+            Ok(None) => bail!("Object not found: {}", rev),
+            Err(e) => bail!(e),
+        }
+    }
+
     pub fn find_object(&self, rev: &RevSpec) -> Result<ObjectKey> {
         match self.try_find_object(rev) {
             Ok(Some(x)) => Ok(x),
@@ -513,6 +531,28 @@ impl NodeReader<ComparableNode> for ObjectStore {
             children.insert(name, node);
         }
         Ok(children)
+    }
+}
+
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum ObjSpec {
+    Ref(String, ObjectKey),
+    Hash(ObjectKey),
+}
+
+impl ObjSpec {
+    pub fn hash(&self) -> &ObjectKey {
+        match self {
+            &ObjSpec::Ref(_, ref hash) => hash,
+            &ObjSpec::Hash(ref hash) => hash,
+        }
+    }
+    pub fn ref_name(&self) -> Option<&str> {
+        match self {
+            &ObjSpec::Ref(ref r, _) => Some(r.as_str()),
+            &ObjSpec::Hash(_) => None,
+        }
     }
 }
 

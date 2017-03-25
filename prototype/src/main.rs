@@ -42,6 +42,7 @@ fn run() -> Result<()> {
                 "log" => cmd_log,
                 "branch" => cmd_branch,
                 "fsck" => cmd_fsck,
+                "checkout" => cmd_checkout,
                 _ => unimplemented!(),
             };
             let submatch = argmatch.subcommand_matches(name)
@@ -157,4 +158,11 @@ fn cmd_fsck(_argmatch: &clap::ArgMatches,
             _submatch: &clap::ArgMatches)
             -> Result<()> {
     cmd::fsck()
+}
+
+fn cmd_checkout(_argmatch: &clap::ArgMatches,
+                submatch: &clap::ArgMatches)
+                -> Result<()> {
+    let target = submatch.value_of("target-rev").expect("required");
+    cmd::checkout(target)
 }

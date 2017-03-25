@@ -77,7 +77,7 @@ pub fn ls_files(obj_spec: Option<RevSpec>, verbose: bool) -> Result<()> {
 
 pub fn extract_object(obj_spec: &RevSpec, file_path: &Path) -> Result<()> {
 
-    let mut fs_transfer = find_fs_transfer()?;
+    let fs_transfer = find_fs_transfer()?;
     let hash = fs_transfer.object_store.find_object(obj_spec)?;
     fs_transfer.extract_object(&hash, &file_path)
 }
@@ -156,4 +156,9 @@ pub fn fsck() -> Result<()> {
     } else {
         bail!("Repository has corrupt objects")
     }
+}
+
+pub fn checkout(target: &str) -> Result<()> {
+    let mut work_dir = find_work_dir()?;
+    work_dir.checkout(target)
 }

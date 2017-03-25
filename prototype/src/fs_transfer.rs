@@ -100,10 +100,7 @@ impl FsTransfer {
     }
 
     /// Extract a file or directory from the object store to the filesystem
-    pub fn extract_object(&mut self,
-                          hash: &ObjectKey,
-                          path: &Path)
-                          -> Result<()> {
+    pub fn extract_object(&self, hash: &ObjectKey, path: &Path) -> Result<()> {
 
         let obj = Some(self.object_store.lookup_node(hash.to_owned())?);
         let file = self.file_store.lookup_node(path.to_owned()).ok();
@@ -494,7 +491,7 @@ mod test {
 
     #[test]
     fn test_extract_object_object_not_found() {
-        let (temp, mut fs_transfer) = create_temp_repo("object_store");
+        let (temp, fs_transfer) = create_temp_repo("object_store");
 
         let out_file = temp.path().join("foo");
         let hash = Blob::from("12345").calculate_hash();
