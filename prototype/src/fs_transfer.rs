@@ -43,44 +43,26 @@ impl FsTransfer {
         Ok(FsTransfer::with_object_store(ObjectStore::open(repo_path)?))
     }
 
-    /// Check, hash, and store a file or directory
-    pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
-        let est = self.transfer_est_hash(None, path)?;
-        self.hash_obj_file_est(None, path, est)
-    }
-
-    pub fn transfer_est_hash(&self,
-                             parent: Option<ObjectKey>,
-                             path: &Path)
-                             -> Result<ObjectSize> {
-        debug!("Checking transfer size");
+    /// Hash by parent object key, path to hash, and estimated hash bytes
+    pub fn hash_obj_file(&mut self,
+                         parent: Option<ObjectKey>,
+                         path: &Path)
+                         -> Result<ObjectKey> {
 
         let parent =
             parent.and_then_try(|hash| self.object_store.lookup_node(hash))?;
-        let path = Some(self.file_store.lookup_node(path.to_path_buf())?);
+        let path = Some(self.file_store.lookup_node(path.to_owned())?);
         let node = (parent, path);
+
         let combo = (&self.object_store, &self.file_store);
 
+        // Estimate
         let mut op = TransferEstimateOp::new();
-        combo.walk_node(&mut op, node)?;
-        Ok(op.estimate())
-    }
+        combo.walk_node(&mut op, node.clone())?;
 
-    /// Hash by parent object key, path to hash, and estimated hash bytes
-    pub fn hash_obj_file_est(&mut self,
-                             src: Option<ObjectKey>,
-                             targ: &Path,
-                             est: ObjectSize)
-                             -> Result<ObjectKey> {
-
-        let prog = ProgressCounter::arc("Hashing", est);
+        // Store
+        let prog = ProgressCounter::arc("Storing", op.estimate());
         let prog_clone = prog.clone();
-
-        let src = src.and_then_try(|hash| self.object_store.lookup_node(hash))?;
-        let targ = Some(self.file_store.lookup_node(targ.to_owned())?);
-        let node = (src, targ);
-
-        let combo = (&self.object_store, &self.file_store);
 
         let mut op = HashAndStoreOp {
             fs_transfer: self,

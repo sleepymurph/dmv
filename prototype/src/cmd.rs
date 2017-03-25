@@ -23,7 +23,7 @@ pub fn init() -> Result<()> {
 pub fn hash_object(path: PathBuf) -> Result<()> {
 
     let mut fs_transfer = find_fs_transfer()?;
-    let hash = fs_transfer.hash_path(&path)?;
+    let hash = fs_transfer.hash_obj_file(None, &path)?;
     println!("{} {}", hash, path.display());
     Ok(())
 }

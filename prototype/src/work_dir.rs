@@ -176,8 +176,7 @@ impl WorkDir {
 
         let abs_path = self.path().to_owned();
         let parent = self.parent();
-        let est = self.transfer_est_hash(parent, &abs_path)?;
-        let tree_hash = self.hash_obj_file_est(parent, &abs_path, est)?;
+        let tree_hash = self.hash_obj_file(parent, &abs_path)?;
 
         let commit = Commit {
             tree: tree_hash,
