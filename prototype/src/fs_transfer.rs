@@ -45,26 +45,24 @@ impl FsTransfer {
 
     /// Check, hash, and store a file or directory
     pub fn hash_path(&mut self, path: &Path) -> Result<ObjectKey> {
-        let est = self.transfer_estimate(None, path)?;
+        let est = self.transfer_est_hash(None, path)?;
         self.hash_obj_file_est(None, path, est)
     }
 
-    pub fn transfer_estimate(&self,
-                             src: Option<ObjectKey>,
-                             targ: &Path)
+    pub fn transfer_est_hash(&self,
+                             parent: Option<ObjectKey>,
+                             path: &Path)
                              -> Result<ObjectSize> {
         debug!("Checking transfer size");
 
-        let src: Option<ComparableNode> =
-            src.and_then_try(|hash| self.object_store.lookup_node(hash))?;
-
-        let targ: Option<ComparableNode> = Some(self.file_store
-            .lookup_node(targ.to_path_buf())?);
-
+        let parent =
+            parent.and_then_try(|hash| self.object_store.lookup_node(hash))?;
+        let path = Some(self.file_store.lookup_node(path.to_path_buf())?);
+        let node = (parent, path);
         let combo = (&self.object_store, &self.file_store);
 
         let mut op = TransferEstimateOp::new();
-        combo.walk_node(&mut op, (src, targ))?;
+        combo.walk_node(&mut op, node)?;
         Ok(op.estimate())
     }
 
@@ -102,18 +100,28 @@ impl FsTransfer {
     /// Extract a file or directory from the object store to the filesystem
     pub fn extract_object(&self, hash: &ObjectKey, path: &Path) -> Result<()> {
 
-        let obj = Some(self.object_store.lookup_node(hash.to_owned())?);
-        let file = self.file_store.lookup_node(path.to_owned()).ok();
-        let node = (file, obj);
+        let obj: ObjectWalkNode = self.object_store
+            .lookup_node(hash.to_owned())?;
+        let file: Option<FileWalkNode> =
+            self.file_store.lookup_node(path.to_owned()).ok();
 
         let combo = (&self.file_store, &self.object_store);
 
+        // Estimate
+        let mut op = TransferEstimateOp::new();
+        let node = (file.as_ref().map(|n| n.clone().into()),
+                    Some(obj.clone().into()));
+        combo.walk_node(&mut op, node)?;
+        let est = op.estimate();
+        stderrln!("{} to extract", est);
+
+        // Checkout
         let mut op = CheckoutOp {
             file_store: &self.file_store,
             object_store: &self.object_store,
             extract_root: path,
         };
-
+        let node = (file, Some(obj));
         combo.walk_node(&mut op, node)
             .chain_err(|| {
                 format!("Could not extract {} to {}", hash, path.display())
@@ -251,10 +259,19 @@ impl WalkOp<CompareNode> for TransferEstimateOp {
         is_treeish && included
     }
     fn no_descend(&mut self,
-                  _ps: &PathStack,
+                  ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
-        self.acc += StatusTree::compare(&node.0, &node.1).transfer_size();
+        let status = ComparableNode::compare(&node.0, &node.1);
+        let size = node.1.as_ref().map(|n| n.file_size).unwrap_or(0);
+        if status.needs_transfer() {
+            self.acc += size;
+        }
+        trace!("{} {} -- {} to transfer, {} total",
+               status.code(),
+               ps,
+               size,
+               self.acc);
         Ok(None)
     }
 }

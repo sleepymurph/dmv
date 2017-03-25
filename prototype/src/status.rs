@@ -47,10 +47,23 @@ impl Status {
             &Status::Delete => false,
         }
     }
+
+    pub fn needs_transfer(&self) -> bool {
+        match self {
+            &Status::Add |
+            // &Status::Offline |
+            &Status::Modified |
+            &Status::MaybeModified => true,
+
+            &Status::Unchanged |
+            &Status::Ignored |
+            &Status::Delete => false,
+        }
+    }
 }
 
 
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 pub struct ComparableNode {
     pub is_treeish: bool,
     pub file_size: ObjectSize,
