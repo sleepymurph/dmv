@@ -69,8 +69,20 @@ pub struct ComparableNode {
 }
 
 impl ComparableNode {
-    pub fn compare(src: &Option<ComparableNode>,
-                   targ: &Option<ComparableNode>)
+    pub fn compare_pair(pair: &(Option<ComparableNode>,
+                                Option<ComparableNode>))
+                        -> Status {
+        Self::compare(pair.0.as_ref(), pair.1.as_ref())
+    }
+    pub fn compare_into<A, B>(src: Option<A>, targ: Option<B>) -> Status
+        where A: Into<ComparableNode>,
+              B: Into<ComparableNode>
+    {
+        Self::compare(src.map(|n| n.into()).as_ref(),
+                      targ.map(|n| n.into()).as_ref())
+    }
+    pub fn compare(src: Option<&ComparableNode>,
+                   targ: Option<&ComparableNode>)
                    -> Status {
 
         let src = src.as_ref();
@@ -80,17 +92,22 @@ impl ComparableNode {
         let targ_exists = targ.is_some();
         let src_hash = src.and_then(|n| n.hash);
         let targ_hash = targ.and_then(|n| n.hash);
+        let src_is_ignored = src.map(|n| n.is_ignored).unwrap_or(false);
         let targ_is_ignored = targ.map(|n| n.is_ignored).unwrap_or(false);
 
         match (src_exists, targ_exists, src_hash, targ_hash) {
 
             (true, true, Some(a), Some(b)) if a == b => Status::Unchanged,
+            (true, true, _, _) if src_is_ignored && targ_is_ignored => {
+                Status::Ignored
+            }
             (true, true, Some(_), Some(_)) => Status::Modified,
             (true, true, _, _) => Status::MaybeModified,
 
             (false, true, _, _) if targ_is_ignored => Status::Ignored,
             (false, true, _, _) => Status::Add,
 
+            (true, false, _, _) if src_is_ignored => Status::Ignored,
             (true, false, _, _) => Status::Delete,
 
             (false, false, _, _) => unreachable!(),

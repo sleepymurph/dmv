@@ -185,7 +185,7 @@ pub struct ComparePrintWalkOp<'s, 'f: 's> {
 }
 impl<'s, 'f> ComparePrintWalkOp<'s, 'f> {
     fn status(&self, node: &CompareNode, _ps: &PathStack) -> Status {
-        ComparableNode::compare(&node.0, &node.1)
+        ComparableNode::compare_pair(node)
     }
 }
 impl<'s, 'f> WalkOp<CompareNode> for ComparePrintWalkOp<'s, 'f> {
@@ -201,7 +201,7 @@ impl<'s, 'f> WalkOp<CompareNode> for ComparePrintWalkOp<'s, 'f> {
                   ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
-        let status = ComparableNode::compare(&node.0, &node.1);
+        let status = ComparableNode::compare_pair(&node);
         let show = status != Status::Unchanged &&
                    (status != Status::Ignored || self.show_ignored);
         let mut ps = ps.to_string();
@@ -224,7 +224,7 @@ impl TransferEstimateOp {
     pub fn new() -> Self { TransferEstimateOp { acc: 0 } }
     pub fn estimate(&self) -> ObjectSize { self.acc }
     fn status(&self, node: &CompareNode, _ps: &PathStack) -> Status {
-        ComparableNode::compare(&node.0, &node.1)
+        ComparableNode::compare_pair(node)
     }
 }
 impl WalkOp<CompareNode> for TransferEstimateOp {
@@ -240,7 +240,7 @@ impl WalkOp<CompareNode> for TransferEstimateOp {
                   ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
-        let status = ComparableNode::compare(&node.0, &node.1);
+        let status = ComparableNode::compare_pair(&node);
         let size = node.1.as_ref().map(|n| n.file_size).unwrap_or(0);
         if status.needs_transfer() {
             self.acc += size;
@@ -265,7 +265,7 @@ impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp<'a, 'b> {
     type VisitResult = ObjectKey;
 
     fn should_descend(&mut self, _ps: &PathStack, node: &CompareNode) -> bool {
-        let status = ComparableNode::compare(&node.0, &node.1);
+        let status = ComparableNode::compare_pair(node);
         node.1.as_ref().map(|ref n| n.is_treeish).unwrap_or(false) &&
         status.is_included()
     }
@@ -274,7 +274,7 @@ impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp<'a, 'b> {
                   ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
-        let status = ComparableNode::compare(&node.0, &node.1);
+        let status = ComparableNode::compare_pair(&node);
         let file_hash = node.1.as_ref().and_then(|n| n.hash);
         let file_path = node.1.as_ref().and_then(|n| n.fs_path.as_ref());
         match (status.is_included(), file_hash, &file_path) {
@@ -369,29 +369,13 @@ impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
                   ps: &PathStack,
                   node: CheckoutNode)
                   -> Result<Option<Self::VisitResult>> {
-        let file = node.0.as_ref();
-        let obj = node.1.as_ref();
-
-        let file_exists = file.is_some();
-        let obj_exists = obj.is_some();
-        let file_hash = file.and_then(|n| n.hash);
-        let obj_hash = obj.map(|n| n.hash);
-        let file_is_ignored = file.map(|n| n.ignored).unwrap_or(false);
-
-        let mut delete = false;
-        let mut extract = false;
-
-        match (file_exists, obj_exists, file_hash, obj_hash) {
-            (true, true, Some(a), Some(b)) if a == b => (),
-            (_, true, _, _) => extract = true,
-            (true, false, _, _) if file_is_ignored => (),
-            (true, false, _, _) => delete = true,
-            (false, false, _, _) => unreachable!(),
-        }
+        let file = node.0;
+        let obj = node.1;
+        let status = ComparableNode::compare_into(file.clone(), obj.clone());
 
         let path = self.abs_path(ps);
 
-        if delete {
+        if status == Status::Delete {
             let file = file.unwrap(); // safe to unwrap
             if file.metadata.is_dir() {
                 debug!("Checkout: Removing dir  {}", path.display());
@@ -402,7 +386,7 @@ impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
             }
         }
 
-        if extract {
+        if status.needs_transfer() {
             let hash = obj.unwrap().hash; // safe to unwrap
             self.file_store
                 .extract_file(self.object_store, &hash, &path, self.progress)
