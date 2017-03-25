@@ -2,11 +2,7 @@
 
 use dag::ObjectKey;
 use dag::ObjectSize;
-use error::*;
-use std::collections::BTreeMap;
-use std::fmt;
 use std::path::PathBuf;
-use walker::*;
 
 /// Status of an individual file or dir, as compared to a commit
 #[derive(Clone,Copy,Eq,PartialEq,Debug)]
@@ -99,120 +95,5 @@ impl ComparableNode {
 
             (false, false, _, _) => unreachable!(),
         }
-    }
-}
-
-
-/// A hierarchy of paths and their statuses, describing a potential commit
-pub struct StatusTree {
-    pub fs_path: Option<PathBuf>,
-    pub status: Status,
-
-    pub targ_is_dir: bool,
-    pub targ_size: ObjectSize,
-    pub targ_hash: Option<ObjectKey>,
-
-    pub children: ChildMap<StatusTree>,
-}
-
-impl StatusTree {
-    pub fn compare(src: &Option<ComparableNode>,
-                   targ: &Option<ComparableNode>)
-                   -> Self {
-        let status = ComparableNode::compare(src, targ);
-        let src = src.as_ref();
-        let targ = targ.as_ref();
-        StatusTree {
-            status: status,
-            fs_path: targ.and_then(|n| n.fs_path.to_owned()),
-            targ_is_dir: targ.map(|n| n.is_treeish).unwrap_or(false),
-            targ_size: targ.map(|n| n.file_size).unwrap_or(0),
-            targ_hash: targ.or(src).and_then(|n| n.hash),
-            children: BTreeMap::new(),
-        }
-    }
-    /// Total size of all unhashed files in this hierarchy
-    pub fn transfer_size(&self) -> ObjectSize {
-        match self {
-            &StatusTree { status, .. } if status == Status::Unchanged => 0,
-            &StatusTree { status, .. } if !status.is_included() => 0,
-            &StatusTree { targ_is_dir: false,
-                          targ_hash: None,
-                          targ_size,
-                          .. } => targ_size,
-            _ => {
-                self.children
-                    .iter()
-                    .map(|(_, plan)| plan.transfer_size())
-                    .sum()
-            }
-        }
-    }
-
-    pub fn display(&self) -> StatusTreeDisplay { StatusTreeDisplay::new(self) }
-}
-
-impl NodeWithChildren for StatusTree {
-    fn children(&self) -> Option<&ChildMap<Self>> { Some(&self.children) }
-}
-
-
-/// A wrapper to Display a StatusTree, with options
-pub struct StatusTreeDisplay<'a> {
-    hash_plan: &'a StatusTree,
-    show_ignored: bool,
-}
-impl<'a> StatusTreeDisplay<'a> {
-    fn new(hp: &'a StatusTree) -> Self {
-        StatusTreeDisplay {
-            hash_plan: hp,
-            show_ignored: false,
-        }
-    }
-    pub fn show_ignored(mut self, si: bool) -> Self {
-        self.show_ignored = si;
-        self
-    }
-}
-impl<'a> fmt::Display for StatusTreeDisplay<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut op = StatusTreeDisplayOp {
-            show_ignored: self.show_ignored,
-            formatter: f,
-        };
-        match self.hash_plan.walk(&mut op) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(fmt::Error),
-        }
-    }
-}
-
-
-/// An operation that walks a StatusTree to Display it
-struct StatusTreeDisplayOp<'s, 'f: 's> {
-    show_ignored: bool,
-    formatter: &'s mut fmt::Formatter<'f>,
-}
-impl<'a, 'b> WalkOp<&'a StatusTree> for StatusTreeDisplayOp<'a, 'b> {
-    type VisitResult = ();
-
-    fn should_descend(&mut self, _ps: &PathStack, node: &&StatusTree) -> bool {
-        node.targ_is_dir && node.status.is_included()
-    }
-
-    fn no_descend(&mut self,
-                  ps: &PathStack,
-                  node: &StatusTree)
-                  -> Result<Option<Self::VisitResult>> {
-        let show = node.status != Status::Unchanged &&
-                   (node.status != Status::Ignored || self.show_ignored);
-        let mut ps = ps.to_string();
-        if node.targ_is_dir {
-            ps += "/";
-        }
-        if show {
-            writeln!(self.formatter, "{} {}", node.status.code(), ps)?;
-        }
-        Ok(None)
     }
 }
