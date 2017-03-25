@@ -41,11 +41,6 @@ error_chain!{
             description("revision not found in object store")
             display("revision not found in object store: {}", r)
         }
-
-        RefNotFound(r: String) {
-            description("ref not found in repository")
-            display("ref not found in repository: {}", r)
-        }
     }
 }
 
