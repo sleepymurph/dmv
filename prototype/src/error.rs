@@ -23,10 +23,6 @@ error_chain!{
             #[doc = "Error from disk-backed data"];
     }
     errors {
-        BadRevSpec(bad: String) {
-            description("could not parse revision")
-            display("could not parse revision: '{}'", bad)
-        }
         BadObjectKey(bad_key: String) {
             description("could not parse hash key")
             display("could not parse hash key: '{}'", bad_key)
@@ -41,7 +37,7 @@ error_chain!{
             display("object not found in object store: {}", h)
         }
 
-        RevNotFound(r: $crate::object_store::RevSpec) {
+        RefOrHashNotFound(r: String) {
             description("revision not found in object store")
             display("revision not found in object store: {}", r)
         }

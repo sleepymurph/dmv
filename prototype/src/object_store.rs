@@ -16,7 +16,6 @@ use std::io::Write;
 use std::iter;
 use std::path::Path;
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::thread;
 use std::time::Instant;
 use variance::VarianceCalc;
@@ -166,34 +165,8 @@ impl ObjectStore {
     pub fn expect_ref_or_hash(&self, rev: &str) -> Result<ObjSpec> {
         match self.ref_or_hash(rev) {
             Ok(Some(x)) => Ok(x),
-            Ok(None) => bail!("Object not found: {}", rev),
+            Ok(None) => bail!(ErrorKind::RefOrHashNotFound(rev.to_owned())),
             Err(e) => bail!(e),
-        }
-    }
-
-    pub fn find_object(&self, rev: &RevSpec) -> Result<ObjectKey> {
-        match self.try_find_object(rev) {
-            Ok(Some(x)) => Ok(x),
-            Ok(None) => bail!(ErrorKind::RevNotFound(rev.to_owned())),
-            Err(e) => bail!(e),
-        }
-    }
-
-    pub fn try_find_object(&self, rev: &RevSpec) -> Result<Option<ObjectKey>> {
-        match *rev {
-            RevSpec::Hash(ref hash) => {
-                match self.has_object(hash) {
-                    true => Ok(Some(hash.to_owned())),
-                    false => Ok(None),
-                }
-            }
-            RevSpec::ShortHash(ref s) => {
-                match self.try_find_short_hash(s) {
-                    Ok(None) => Ok(self.try_find_ref(s)),
-                    other => other,
-                }
-            }
-            RevSpec::Ref(ref s) => Ok(self.try_find_ref(s)),
         }
     }
 
@@ -556,47 +529,6 @@ impl ObjSpec {
 }
 
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum RevSpec {
-    Hash(ObjectKey),
-    ShortHash(String),
-    Ref(String),
-}
-
-impl FromStr for RevSpec {
-    type Err = Error;
-    fn from_str(s: &str) -> Result<Self> {
-
-        if OBJECT_KEY_PAT.is_match(s) {
-            ObjectKey::parse(s).map(|h| RevSpec::Hash(h))
-
-        } else if SHORT_OBJECT_KEY_PAT.is_match(s) {
-            Ok(RevSpec::ShortHash(s.to_owned()))
-
-        } else if REF_NAME_PAT.is_match(s) {
-            Ok(RevSpec::Ref(s.to_owned()))
-
-        } else {
-            bail!(ErrorKind::BadRevSpec(s.to_owned()))
-        }
-    }
-}
-
-impl From<ObjectKey> for RevSpec {
-    fn from(hash: ObjectKey) -> Self { RevSpec::Hash(hash) }
-}
-
-impl fmt::Display for RevSpec {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            RevSpec::Hash(ref hash) => write!(f, "{:x}", hash),
-            RevSpec::ShortHash(ref short) => write!(f, "{}", short),
-            RevSpec::Ref(ref refname) => write!(f, "{}", refname),
-        }
-    }
-}
-
-
 /// Iterator over commits
 pub struct Commits<'a> {
     pub object_store: &'a ObjectStore,
@@ -735,48 +667,5 @@ pub mod test {
 
         let result = store.try_find_ref("master");
         assert_match!(result, Some(x) if x==hash);
-    }
-
-
-    #[test]
-    fn test_rev_spec() {
-        let hash = ObjectKey::parse("da39a3ee5e6b4b0d3255bfef95601890afd80709")
-            .unwrap();
-
-        let rev = RevSpec::from_str("da39a3ee5e6b4b0d3255bfef95601890afd80709");
-        assert_match!(rev, Ok(RevSpec::Hash(ref h)) if h==&hash);
-
-        let rev = RevSpec::from_str(&hash.to_short());
-        assert_match!(rev, Ok(RevSpec::ShortHash(ref s)) if s=="da39a3ee");
-
-        let rev = RevSpec::from_str("master");
-        assert_match!(rev, Ok(RevSpec::Ref(ref s)) if s=="master");
-    }
-
-
-    #[test]
-    fn test_find_object() {
-        let (_tempdir, mut store) = create_temp_repository().unwrap();
-        let blob = Blob::from("Hello!");
-        let hash = store.store_object(&blob).unwrap();
-
-        let rev = RevSpec::from(hash);
-        let result = store.find_object(&rev);
-        assert_match!(result, Ok(found) if found==hash);
-
-        let rev = RevSpec::from_str(&hash.to_short()).unwrap();
-        let result = store.find_object(&rev);
-        assert_match!(result, Ok(found) if found==hash);
-
-        store.update_ref("master", &hash).unwrap();
-        let rev = RevSpec::from_str("master").unwrap();
-        let result = store.find_object(&rev);
-        assert_match!(result, Ok(found) if found==hash);
-
-        // Mistaken identity: ref that could be a short hash
-        store.update_ref("abad1dea", &hash).unwrap();
-        let rev = RevSpec::from_str("abad1dea").unwrap();
-        let result = store.find_object(&rev);
-        assert_match!(result, Ok(found) if found==hash);
     }
 }
