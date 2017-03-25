@@ -102,8 +102,8 @@ impl WorkDir {
 
     pub fn status(&mut self,
                   show_ignored: bool,
-                  rev1: Option<RevSpec>,
-                  rev2: Option<RevSpec>)
+                  rev1: Option<&str>,
+                  rev2: Option<&str>)
                   -> Result<()> {
         debug!("Current branch: {}. Parents: {}",
                self.branch().unwrap_or("<detached head>"),
@@ -111,8 +111,12 @@ impl WorkDir {
 
         let abs_path = self.path().to_owned();
 
-        let rev1 = rev1.and_then_try(|r| self.object_store.find_object(&r))?;
-        let rev2 = rev2.and_then_try(|r| self.object_store.find_object(&r))?;
+        let rev1 =
+            rev1.and_then_try(|r| self.object_store.expect_ref_or_hash(&r))?
+                .map(|r| r.into_hash());
+        let rev2 =
+            rev2.and_then_try(|r| self.object_store.expect_ref_or_hash(&r))?
+                .map(|r| r.into_hash());
 
         match (rev1, rev2) {
             (None, None) => {

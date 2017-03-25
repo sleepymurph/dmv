@@ -90,8 +90,8 @@ pub fn cache_status(file_path: PathBuf) -> Result<()> {
 }
 
 pub fn status(show_ignored: bool,
-              rev1: Option<RevSpec>,
-              rev2: Option<RevSpec>)
+              rev1: Option<&str>,
+              rev2: Option<&str>)
               -> Result<()> {
     let mut work_dir = find_work_dir()?;
     work_dir.status(show_ignored, rev1, rev2)
