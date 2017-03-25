@@ -435,13 +435,6 @@ impl ObjectStore {
     pub fn try_find_ref(&self, name: &str) -> Option<ObjectKey> {
         self.refs.get(name).cloned()
     }
-
-    pub fn log(&self, start: &RevSpec) -> Result<Commits> {
-        Ok(Commits {
-            object_store: &self,
-            next: self.try_find_object(start)?,
-        })
-    }
 }
 
 lazy_static!{
@@ -600,8 +593,9 @@ impl fmt::Display for RevSpec {
 
 /// Iterator over commits
 pub struct Commits<'a> {
-    object_store: &'a ObjectStore,
-    next: Option<ObjectKey>,
+    pub object_store: &'a ObjectStore,
+    pub next: Option<ObjectKey>,
+    pub head: Option<ObjectKey>,
 }
 
 impl<'a> Iterator for Commits<'a> {
@@ -616,9 +610,11 @@ impl<'a> Iterator for Commits<'a> {
                     _ => unimplemented!(),
                 }
             }
-            result.map(|commit| {
-                (hash, commit, self.object_store.refs_for(&hash))
-            })
+            let mut refs = self.object_store.refs_for(&hash);
+            if self.head == Some(hash) {
+                refs.insert(0, "HEAD");
+            }
+            result.map(|commit| (hash, commit, refs))
         })
     }
 }

@@ -9,6 +9,7 @@ use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::ComparePrintWalkDisplay;
 use fs_transfer::FsTransfer;
+use object_store::Commits;
 use object_store::ObjectStore;
 use object_store::RevSpec;
 use status::*;
@@ -211,6 +212,14 @@ impl WorkDir {
                       ref_name)
             }
         }
+    }
+
+    pub fn log(&self, start: &RevSpec) -> Result<Commits> {
+        Ok(Commits {
+            object_store: &self,
+            next: self.try_find_object(start)?,
+            head: self.parent(),
+        })
     }
 }
 
