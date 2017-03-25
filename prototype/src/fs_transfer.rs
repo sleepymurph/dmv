@@ -217,11 +217,6 @@ impl<'s, 'f> WalkOp<CompareNode> for ComparePrintWalkOp<'s, 'f> {
 
 
 
-/// An operation that compares files to a previous commit to build a StatusTree
-///
-/// Walks a filesystem tree and a Tree object in parallel, comparing them and
-/// building a StatusTree. This is the basis of the status command and the first
-/// step of a commit.
 pub struct TransferEstimateOp {
     acc: ObjectSize,
 }
@@ -262,7 +257,6 @@ impl WalkOp<CompareNode> for TransferEstimateOp {
 
 
 
-/// An operation that walks a StatusTree to hash and store the files as a Tree
 pub struct HashAndStoreOp<'a, 'b> {
     fs_transfer: &'a FsTransfer,
     progress: &'b ProgressCounter,
@@ -280,28 +274,30 @@ impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp<'a, 'b> {
                   ps: &PathStack,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
-        let node = StatusTree::compare(&node.0, &node.1);
-        match (node.status.is_included(), node.targ_hash, &node.fs_path) {
+        let status = ComparableNode::compare(&node.0, &node.1);
+        let file_hash = node.1.as_ref().and_then(|n| n.hash);
+        let file_path = node.1.as_ref().and_then(|n| n.fs_path.as_ref());
+        match (status.is_included(), file_hash, &file_path) {
             (false, _, _) => {
-                debug!("{} {} - skipping", node.status.code(), ps);
+                debug!("{} {} - skipping", status.code(), ps);
                 Ok(None)
             }
             (true, Some(hash), _) => {
                 debug!("{} {} - including with known hash {}",
-                       node.status.code(),
+                       status.code(),
                        ps,
                        hash);
                 Ok(Some(hash))
             }
             (true, None, &Some(ref fs_path)) => {
-                debug!("{} {} - hashing", node.status.code(), ps);
+                debug!("{} {} - hashing", status.code(), ps);
                 let hash = self.fs_transfer
                     .hash_file(fs_path.as_path(), self.progress)?;
                 Ok(Some(hash))
             }
             (true, None, &None) => {
                 bail!("{} {} - Node has neither known hash nor fs_path",
-                      node.status.code(),
+                      status.code(),
                       ps);
             }
         }
