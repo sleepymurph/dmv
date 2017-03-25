@@ -11,7 +11,6 @@ use fs_transfer::ComparePrintWalkDisplay;
 use fs_transfer::FsTransfer;
 use object_store::Commits;
 use object_store::ObjectStore;
-use object_store::RevSpec;
 use status::*;
 use std::path::Path;
 use std::path::PathBuf;
@@ -218,10 +217,10 @@ impl WorkDir {
         }
     }
 
-    pub fn log(&self, start: &RevSpec) -> Result<Commits> {
+    pub fn log(&self, start: &str) -> Result<Commits> {
         Ok(Commits {
             object_store: &self,
-            next: self.try_find_object(start)?,
+            next: self.ref_or_hash(start)?.map(|r| r.into_hash()),
             head: self.parent(),
         })
     }

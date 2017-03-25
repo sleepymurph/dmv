@@ -9,11 +9,9 @@ use find_repo::RepoLayout;
 use find_repo::find_fs_transfer;
 use find_repo::find_object_store;
 use find_repo::find_work_dir;
-use object_store::RevSpec;
 use std::env::current_dir;
 use std::path::Path;
 use std::path::PathBuf;
-use std::str::FromStr;
 use work_dir::WorkDir;
 
 pub fn init() -> Result<()> {
@@ -106,7 +104,7 @@ pub fn commit(message: String) -> Result<()> {
 
 pub fn log() -> Result<()> {
     let work_dir = find_work_dir()?;
-    let branch = RevSpec::from_str(HARDCODED_BRANCH)?;
+    let branch = HARDCODED_BRANCH;
     for commit in work_dir.log(&branch)? {
         let (hash, commit, refs) = commit?;
         match refs.len() {
