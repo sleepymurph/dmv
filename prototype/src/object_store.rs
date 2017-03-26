@@ -1,6 +1,7 @@
 use dag::*;
 use disk_backed::DiskBacked;
 use error::*;
+use filebuffer::FileBuffer;
 use fsutil;
 use human_readable::human_bytes;
 use log::LogLevel;
@@ -103,8 +104,8 @@ impl ObjectStore {
                 size_stats.item(size as i64);
 
                 let hash = self.object_from_path(&obj_file.path())?;
-                let obj_file = self.open_object_file(&hash)?;
-                let mut obj_file = ProgressReader::new(obj_file, &prog);
+                let obj_file = FileBuffer::open(&obj_file.path())?;
+                let mut obj_file = ProgressReader::new(&*obj_file, &prog);
                 let mut hasher = HashWriter::wrap(io::sink());
 
                 let mut header_buf = [0u8; 12];

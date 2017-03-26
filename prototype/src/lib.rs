@@ -9,6 +9,7 @@ extern crate crypto;
 extern crate disk_backed;
 #[macro_use]
 extern crate error_chain;
+extern crate filebuffer;
 extern crate human_readable;
 #[macro_use]
 extern crate lazy_static;
