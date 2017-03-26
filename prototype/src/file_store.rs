@@ -56,9 +56,10 @@ impl FileStore {
                      object_store: &ObjectStore,
                      progress: &ProgressCounter)
                      -> Result<ObjectKey> {
-        let file = File::open(&file_path)?;
-        let meta = file.metadata()?;
-        let file = BufReader::new(ProgressReader::new(file, progress));
+        use filebuffer::FileBuffer;
+        let meta = file_path.metadata()?;
+        let file = FileBuffer::open(&file_path)?;
+        let file = BufReader::new(ProgressReader::new(&*file, progress));
 
         if let Ok(Some(hash)) = self.cache.check(file_path, &meta) {
             debug!("Already hashed: {} {}", hash, file_path.display());
