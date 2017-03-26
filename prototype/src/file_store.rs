@@ -9,7 +9,7 @@ use progress::*;
 use rolling_hash::read_file_objects;
 use status::ComparableNode;
 use std::fs::*;
-use std::io::BufReader;
+use std::io::Cursor;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
@@ -59,7 +59,7 @@ impl FileStore {
         use filebuffer::FileBuffer;
         let meta = file_path.metadata()?;
         let file = FileBuffer::open(&file_path)?;
-        let file = BufReader::new(ProgressReader::new(&*file, progress));
+        let file = ProgressReader::new(Cursor::new(&*file), progress);
 
         if let Ok(Some(hash)) = self.cache.check(file_path, &meta) {
             debug!("Already hashed: {} {}", hash, file_path.display());

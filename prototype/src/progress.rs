@@ -1,6 +1,7 @@
 use human_readable::human_bytes;
 use std::fmt;
 use std::io;
+use std::io::BufRead;
 use std::io::Read;
 use std::io::Write;
 use std::io::stderr;
@@ -142,6 +143,15 @@ impl<'a, R: Read> Read for ProgressReader<'a, R> {
         let count = self.r.read(buf)?;
         self.p.add(count as u64);
         Ok(count)
+    }
+}
+impl<'a, R> BufRead for ProgressReader<'a, R>
+    where R: BufRead
+{
+    fn fill_buf(&mut self) -> io::Result<&[u8]> { self.r.fill_buf() }
+    fn consume(&mut self, amt: usize) {
+        self.p.add(amt as u64);
+        self.r.consume(amt)
     }
 }
 
