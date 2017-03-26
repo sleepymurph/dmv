@@ -9,6 +9,7 @@ use progress::*;
 use rolling_hash::read_file_objects;
 use status::ComparableNode;
 use std::fs::*;
+use std::io::BufWriter;
 use std::io::Cursor;
 use std::io::Write;
 use std::path::Path;
@@ -105,11 +106,14 @@ impl FileStore {
             .create(true)
             .truncate(true)
             .open(path)?;
+        let out_file = ProgressWriter::new(out_file, progress);
+        let mut out_file = BufWriter::new(out_file);
 
-        let mut out_file = ProgressWriter::new(out_file, progress);
         object_store.copy_blob_content(hash, &mut out_file)?;
         out_file.flush()?;
-        let out_file = out_file.into_inner();
+        let out_file = out_file.into_inner()
+            .map_err(|e| format!("Error flushin BufWriter: {}", e))?
+            .into_inner();
 
         self.cache.insert(path.to_owned(), &out_file.metadata()?, *hash)?;
 

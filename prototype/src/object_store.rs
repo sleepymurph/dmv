@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
 use std::io;
+use std::io::BufWriter;
 use std::io::Read;
 use std::io::Write;
 use std::iter;
@@ -309,13 +310,14 @@ impl ObjectStore {
         // Create temporary file
         let temp_path = self.path.join("tmp");
         try!(fsutil::create_parents(&temp_path));
-        let mut file = try!(fs::OpenOptions::new()
+        let file = try!(fs::OpenOptions::new()
             .write(true)
             .create(true)
             .open(&temp_path)
             .map_err(|e| {
                 io::Error::new(e.kind(), format!("{}", &temp_path.display()))
             }));
+        let mut file = BufWriter::new(file);
 
         // Write object to temporary file
         let key = try!(obj.write_to(&mut file));
