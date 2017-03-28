@@ -9,7 +9,6 @@ use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::ComparePrintWalkDisplay;
 use fs_transfer::FsTransfer;
-use object_store::Commits;
 use object_store::ObjectStore;
 use status::*;
 use std::path::Path;
@@ -216,12 +215,23 @@ impl WorkDir {
         }
     }
 
-    pub fn log(&self, start: &str) -> Result<Commits> {
-        Ok(Commits {
-            object_store: &self,
-            next: self.ref_or_hash(start)?.map(|r| r.into_hash()),
-            head: self.parent(),
-        })
+    pub fn log(&self) -> Result<()> {
+        use object_store::DepthFirstCommitSort;
+
+        debug!("First pass: sort commits");
+        let mut start_refs: Vec<ObjectKey> = self.parents().clone();
+        start_refs.extend(self.object_store.refs().iter().map(|(_, v)| v));
+        start_refs.dedup();
+
+        let mut sorted = DepthFirstCommitSort::new(&self.object_store,
+                                                   start_refs).run()?;
+
+        debug!("Second pass: print");
+        while let Some((hash, commit)) = sorted.pop() {
+            println!("{} {}", hash, commit.message);
+        }
+
+        Ok(())
     }
 }
 

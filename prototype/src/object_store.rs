@@ -9,6 +9,7 @@ use progress::*;
 use regex::Regex;
 use status::ComparableNode;
 use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::fmt;
 use std::fs;
 use std::io;
@@ -558,6 +559,52 @@ impl<'a> Iterator for Commits<'a> {
     }
 }
 
+
+pub struct DepthFirstCommitSort<'a> {
+    object_store: &'a ObjectStore,
+    unvisited: Vec<ObjectKey>,
+    visited: HashSet<ObjectKey>,
+    sorted: Vec<(ObjectKey, Commit)>,
+}
+impl<'a> DepthFirstCommitSort<'a> {
+    pub fn new(object_store: &'a ObjectStore,
+               unvisited: Vec<ObjectKey>)
+               -> Self {
+        DepthFirstCommitSort {
+            object_store: object_store,
+            unvisited: unvisited,
+            visited: HashSet::new(),
+            sorted: Vec::new(),
+        }
+    }
+
+    pub fn run(mut self) -> Result<Vec<(ObjectKey, Commit)>> {
+        debug!("Sorting commits, starting with: {:?}", self.unvisited);
+        for hash in &self.unvisited.clone() {
+            self.visit(&hash)?;
+        }
+        Ok(self.sorted)
+    }
+
+    fn visit(&mut self, hash: &ObjectKey) -> Result<()> {
+        if self.visited.contains(hash) {
+            debug!("Already visited: {}", hash);
+            return Ok(());
+        }
+        self.visited.insert(*hash);
+        let commit = self.object_store.open_commit(hash)?;
+        debug!("Visiting {} {}, parents: {:?}",
+               hash,
+               commit.message,
+               commit.parents);
+        for parent in &commit.parents {
+            self.visit(parent)?;
+        }
+        debug!("Pushing  {} {}", hash, commit.message);
+        self.sorted.push((*hash, commit));
+        Ok(())
+    }
+}
 
 
 /// A wrapper to Display a LsTree, with options

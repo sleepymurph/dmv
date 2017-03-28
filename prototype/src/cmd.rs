@@ -1,7 +1,6 @@
 //! High-level commands
 
 use cache::AllCaches;
-use constants::HARDCODED_BRANCH;
 use dag::ObjectCommon;
 use dag::ObjectHandle;
 use error::*;
@@ -104,15 +103,7 @@ pub fn commit(message: String) -> Result<()> {
 
 pub fn log() -> Result<()> {
     let work_dir = find_work_dir()?;
-    let branch = HARDCODED_BRANCH;
-    for commit in work_dir.log(&branch)? {
-        let (hash, commit, refs) = commit?;
-        match refs.len() {
-            0 => println!("{} {}", hash, commit.message),
-            _ => println!("{} ({}) {}", hash, refs.join(", "), commit.message),
-        }
-    }
-    Ok(())
+    work_dir.log()
 }
 
 pub fn branch_list() -> Result<()> {
