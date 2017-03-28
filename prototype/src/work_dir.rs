@@ -217,6 +217,7 @@ impl WorkDir {
 
     pub fn log(&self) -> Result<()> {
         use object_store::DepthFirstCommitSort;
+        use std::cmp;
 
         debug!("First pass: sort commits");
         let mut start_refs: Vec<ObjectKey> = self.parents().clone();
@@ -245,8 +246,51 @@ impl WorkDir {
             }
             println!("{} {}", hash, commit.message);
             match commit.parents.len() {
-                0 => (),
-                1 => slots[slot] = commit.parents[0],
+                0 => {
+                    slots.remove(slot);
+                    for _i in 0..slot {
+                        print!("| ");
+                    }
+                    if slot < slots.len() {
+                        print!("|/");
+                    }
+                    for _i in (slot + 1)..slots.len() {
+                        print!(" /");
+                    }
+                    if 0 < slot && slot < slots.len() {
+                        println!();
+                    }
+                }
+                1 => {
+                    slots[slot] = commit.parents[0];
+                    let mut dup = 0;
+                    while dup < slots.len() {
+                        if slots[dup] == slots[slot] && dup != slot {
+                            break;
+                        }
+                        dup += 1;
+                    }
+                    if dup < slots.len() {
+                        let (slot, dup) = (cmp::min(slot, dup),
+                                           cmp::max(slot, dup));
+                        for _i in 0..slot {
+                            print!("| ");
+                        }
+                        if slot == dup - 1 {
+                            print!("|/");
+                        } else {
+                            print!("+-");
+                        }
+                        for _i in (slot + 1)..dup {
+                            print!("--");
+                        }
+                        for _i in (dup + 1)..slots.len() {
+                            print!(" /");
+                        }
+                        println!();
+                        slots.remove(dup);
+                    }
+                }
                 _ => unimplemented!(),
             }
         }
