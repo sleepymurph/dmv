@@ -227,8 +227,28 @@ impl WorkDir {
                                                    start_refs).run()?;
 
         debug!("Second pass: print");
+        let mut slots = Vec::new();
         while let Some((hash, commit)) = sorted.pop() {
+            if !slots.contains(&hash) {
+                slots.push(hash);
+            }
+            let mut slot = 0;
+            for i in 0..slots.len() {
+                let slot_hash = slots[i].clone();
+                if slot_hash != hash {
+                    print!("| ");
+                }
+                if slot_hash == hash {
+                    slot = i;
+                    print!("* ");
+                }
+            }
             println!("{} {}", hash, commit.message);
+            match commit.parents.len() {
+                0 => (),
+                1 => slots[slot] = commit.parents[0],
+                _ => unimplemented!(),
+            }
         }
 
         Ok(())
