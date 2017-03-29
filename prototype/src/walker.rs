@@ -284,6 +284,56 @@ impl<'a, A, B, RA, RB> NodeReader<(Option<A>, Option<B>)> for (&'a RA, &'a RB)
 
 
 
+impl<'a, A, RA> NodeReader<Vec<Option<A>>> for RA
+    where RA: NodeReader<A>
+{
+    fn read_children(&self,
+                     node: &Vec<Option<A>>)
+                     -> Result<ChildMap<Vec<Option<A>>>> {
+
+        // optional childmaps
+        let mut ocms: Vec<Option<ChildMap<A>>> = Vec::with_capacity(node.len());
+        for n in node {
+            let ocm = n.as_ref().and_then_try(|n| self.read_children(n))?;
+            ocms.push(ocm);
+        }
+
+        // children iterators
+        let mut cis = Vec::with_capacity(node.len());
+        for ocm in ocms {
+            let ci = ocm.into_iter().flat_map(|cm| cm.into_iter()).peekable();
+            cis.push(ci);
+        }
+
+        // chilren
+        let mut children = ChildMap::new();
+
+        // multiplex the children
+        while let Some(next_name) = cis.iter_mut()
+                .map(|ci| ci.peek())            // each next child (option)
+                .flat_map(|oc| oc.into_iter())  // unwrap each Some(next child)
+                .map(|&(ref name, _)| name)     // each name
+                .min()                          // minimum name
+                .map(|name| name.to_owned())    // release the borrow
+        {
+
+            // child row
+            let mut cs = Vec::with_capacity(node.len());
+            for ci in cis.iter_mut() {
+                if ci.peek().map(|&(ref name,_)| name) == Some(&next_name) {
+                    cs.push(ci.next().map(|(_,a)| a));
+                } else {
+                    cs.push(None);
+                }
+            }
+            children.insert(next_name, cs);
+        }
+        Ok(children)
+    }
+}
+
+
+
 #[cfg(test)]
 mod test_path_stack {
     use std::path::Path;
