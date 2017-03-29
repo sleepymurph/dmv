@@ -194,8 +194,10 @@ impl WorkDir {
     pub fn checkout(&mut self, rev: &str) -> Result<()> {
         let abs_path = self.path().to_owned();
         let rev = self.object_store.expect_ref_or_hash(rev)?;
-        self.fs_transfer.extract_object(rev.hash(), &abs_path)?;
-        self.state.parents = vec![*rev.hash()];
+        if self.state.parents != [*rev.hash()] {
+            self.fs_transfer.extract_object(rev.hash(), &abs_path)?;
+            self.state.parents = vec![*rev.hash()];
+        }
         self.state.branch = rev.ref_name().map(|s| s.to_owned());
         self.state.flush()?;
         Ok(())

@@ -128,6 +128,7 @@ pub fn branch_set(branch_name: &str, target: &str) -> Result<()> {
 pub fn branch_set_to_head(branch_name: &str) -> Result<()> {
     let mut work_dir = find_work_dir()?;
     work_dir.update_ref_to_head(branch_name)?;
+    work_dir.checkout(branch_name)?;
     Ok(())
 }
 
