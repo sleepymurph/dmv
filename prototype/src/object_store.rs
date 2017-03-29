@@ -618,7 +618,6 @@ pub mod test {
     use dag::Blob;
     use dag::Object;
     use dag::ToHashed;
-    use std::str::FromStr;
     use super::*;
     use testutil::tempdir::TempDir;
 
