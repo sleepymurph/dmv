@@ -304,8 +304,11 @@ impl WorkDir {
                         } else {
                             print!("+-");
                         }
-                        for _i in (slot + 1)..dup {
+                        for _i in (slot + 1)..(dup - 1) {
                             print!("--");
+                        }
+                        if slot < dup - 1 {
+                            print!("-´");
                         }
                         for _i in (dup + 1)..slots.len() {
                             print!(" /");
