@@ -5,6 +5,7 @@ extern crate error_chain;
 extern crate env_logger;
 extern crate prototype;
 
+use clap::Arg;
 use prototype::cmd;
 use prototype::constants::*;
 use prototype::error::*;
@@ -16,8 +17,52 @@ quick_main!(run);
 fn run() -> Result<()> {
     env_logger::init().unwrap();
 
-    let arg_yaml = load_yaml!("cli.yaml");
-    let argmatch = clap::App::from_yaml(arg_yaml).get_matches();
+    let argmatch = clap_app!(
+        (PROJECT_NAME) =>
+            (author: "Mike Murphy <sleepymurph@gmail.com>")
+            (@arg version: --version "print version and exit")
+        )
+        .subcommand(clap_app!(init =>
+                (@arg bare: --bare
+                        "create bare object store without working directory")
+        ))
+        .subcommand(clap_app!(("hash-object") =>
+                (help: "hash and store a file or directory in the object store")
+                (@arg filepath: +required)
+        ))
+        .subcommand(clap_app!(("show-object") =>
+                )
+            .arg(Arg::with_name("obj-spec").required(true)))
+        .subcommand(clap_app!(parents =>
+                (about: "show current parent commits")
+        ))
+        .subcommand(clap_app!(("ls-files") =>
+                (@arg verbose: -v "include additional information")
+                )
+            .arg(Arg::with_name("obj-spec")))
+        .subcommand(clap_app!(("extract-object") =>)
+            .arg(Arg::with_name("obj-spec").required(true))
+            .arg(Arg::with_name("filepath").required(true)))
+        .subcommand(clap_app!(("cache-status") =>
+                (@arg filepath: +required)
+        ))
+        .subcommand(clap_app!(status =>
+                (@arg ignored: -i --ignored "show ignored files")
+                (@arg rev1:)
+                (@arg rev2:)
+        ))
+        .subcommand(clap_app!(commit =>
+                (@arg message: -m <MESSAGE> +required)
+        ))
+        .subcommand(clap_app!(log =>
+        ))
+        .subcommand(clap_app!(branch =>)
+            .arg(Arg::with_name("branch-name"))
+            .arg(Arg::with_name("target-rev")))
+        .subcommand(clap_app!(fsck =>
+        ))
+        .subcommand(clap_app!(checkout =>).arg(Arg::with_name("target-rev")))
+        .get_matches();
 
     if argmatch.is_present("version") {
         println!("{}: git version {}", PROJECT_NAME, PROJECT_GIT_LOG.trim());
