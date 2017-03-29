@@ -229,7 +229,6 @@ impl WorkDir {
 
         debug!("Second pass: print");
         let mut slots = Vec::new();
-        let mut glyphs = Vec::new();
         while let Some((hash, commit)) = sorted.pop() {
             if !slots.contains(&hash) {
                 slots.push(hash);
@@ -240,14 +239,7 @@ impl WorkDir {
                 assert!(slot < slots.len(), "current hash not found in slots");
             }
 
-            glyphs.clear();
-            for i in 0..slots.len() {
-                match i {
-                    _ if i == slot => glyphs.push(LogGlyph::Commit),
-                    _ => glyphs.push(LogGlyph::Straight),
-                }
-            }
-            LogGlyph::print_ascii(&glyphs);
+            LogGlyph::print_ascii(&LogGlyph::commit_pat(slots.len(), slot));
 
             let mut refs = self.object_store.refs_for(&hash);
             let parent_ref_name = self.parents()
@@ -275,21 +267,17 @@ impl WorkDir {
             }
 
 
-            glyphs.clear();
+            let mut transition_glyphs = None;
             match commit.parents.len() {
                 0 => {
+                    // Dead end
+                    transition_glyphs =
+                        Some(LogGlyph::contract_pat(slots.len(), slot, None));
                     slots.remove(slot);
-                    for i in 0..slots.len() {
-                        match i {
-                            _ if i < slot => glyphs.push(LogGlyph::Straight),
-                            _ if i == slot => glyphs.push(LogGlyph::Join),
-                            _ if i > slot => glyphs.push(LogGlyph::ShiftLeft),
-                            _ => unreachable!(),
-                        }
-                    }
                 }
                 1 => {
                     slots[slot] = commit.parents[0];
+                    // Potential join
                     let mut dup = 0;
                     while dup < slots.len() {
                         if slots[dup] == slots[slot] && dup != slot {
@@ -300,32 +288,20 @@ impl WorkDir {
                     if dup < slots.len() {
                         let (slot, dup) = (cmp::min(slot, dup),
                                            cmp::max(slot, dup));
-                        for _i in 0..slot {
-                            print!("| ");
-                        }
-                        if slot == dup - 1 {
-                            print!("|/");
-                        } else {
-                            print!("+-");
-                        }
-                        for _i in (slot + 1)..(dup - 1) {
-                            print!("--");
-                        }
-                        if slot < dup - 1 {
-                            print!("-´");
-                        }
-                        for _i in (dup + 1)..slots.len() {
-                            print!(" /");
-                        }
-                        println!();
+                        transition_glyphs =
+                            Some(LogGlyph::contract_pat(slots.len(),
+                                                        slot,
+                                                        Some(dup)));
                         slots.remove(dup);
                     }
                 }
                 _ => unimplemented!(),
             }
-            if glyphs.len() > 0 {
-                LogGlyph::print_ascii(&glyphs);
-                println!();
+            if let Some(glyphs) = transition_glyphs {
+                if glyphs.len() > 0 {
+                    LogGlyph::print_ascii(&glyphs);
+                    println!();
+                }
             }
         }
 
@@ -367,6 +343,37 @@ impl LogGlyph {
         for glyph in glyphs {
             print!("{}", glyph.ascii());
         }
+    }
+    pub fn commit_pat(slots: usize, commit_slot: usize) -> Vec<LogGlyph> {
+        let mut glyphs = Vec::with_capacity(slots);
+        for i in 0..slots {
+            match i {
+                _ if i == commit_slot => glyphs.push(LogGlyph::Commit),
+                _ => glyphs.push(LogGlyph::Straight),
+            }
+        }
+        glyphs
+    }
+    pub fn contract_pat(slots: usize,
+                        commit_slot: usize,
+                        dup_slot: Option<usize>)
+                        -> Vec<LogGlyph> {
+        let mut glyphs = Vec::with_capacity(slots);
+        let c = commit_slot;
+        for i in 0..slots - 1 {
+            glyphs.push(match dup_slot {
+                _ if i < c => LogGlyph::Straight,
+                None if i == c => LogGlyph::Join,
+                None if i > c => LogGlyph::ShiftLeft,
+                Some(d) if i == c && d == c + 1 => LogGlyph::Join,
+                Some(d) if i == c && d > c + 1 => LogGlyph::StartSpan,
+                Some(d) if c + 1 < i && i < d - 1 => LogGlyph::Span,
+                Some(d) if i == d - 1 && d != c + 1 => LogGlyph::EndSpanUp,
+                Some(d) if i > d => LogGlyph::ShiftLeft,
+                _ => unreachable!(),
+            });
+        }
+        glyphs
     }
 }
 
