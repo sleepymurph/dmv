@@ -229,21 +229,26 @@ impl WorkDir {
 
         debug!("Second pass: print");
         let mut slots = Vec::new();
+        let mut glyphs = Vec::new();
         while let Some((hash, commit)) = sorted.pop() {
             if !slots.contains(&hash) {
                 slots.push(hash);
             }
             let mut slot = 0;
+            while slots[slot] != hash {
+                slot += 1;
+                assert!(slot < slots.len(), "current hash not found in slots");
+            }
+
+            glyphs.clear();
             for i in 0..slots.len() {
-                let slot_hash = slots[i].clone();
-                if slot_hash != hash {
-                    print!("| ");
-                }
-                if slot_hash == hash {
-                    slot = i;
-                    print!("* ");
+                match i {
+                    _ if i == slot => glyphs.push(LogGlyph::Commit),
+                    _ => glyphs.push(LogGlyph::Straight),
                 }
             }
+            LogGlyph::print_ascii(&glyphs);
+
             let mut refs = self.object_store.refs_for(&hash);
             let parent_ref_name = self.parents()
                 .iter()
@@ -268,20 +273,19 @@ impl WorkDir {
                              commit.message)
                 }
             }
+
+
+            glyphs.clear();
             match commit.parents.len() {
                 0 => {
                     slots.remove(slot);
-                    for _i in 0..slot {
-                        print!("| ");
-                    }
-                    if slot < slots.len() {
-                        print!("|/");
-                    }
-                    for _i in (slot + 1)..slots.len() {
-                        print!(" /");
-                    }
-                    if 0 < slot && slot < slots.len() {
-                        println!();
+                    for i in 0..slots.len() {
+                        match i {
+                            _ if i < slot => glyphs.push(LogGlyph::Straight),
+                            _ if i == slot => glyphs.push(LogGlyph::Join),
+                            _ if i > slot => glyphs.push(LogGlyph::ShiftLeft),
+                            _ => unreachable!(),
+                        }
                     }
                 }
                 1 => {
@@ -319,9 +323,50 @@ impl WorkDir {
                 }
                 _ => unimplemented!(),
             }
+            if glyphs.len() > 0 {
+                LogGlyph::print_ascii(&glyphs);
+                println!();
+            }
         }
 
         Ok(())
+    }
+}
+
+#[cfg_attr(rustfmt, rustfmt_skip)]
+const LOG_GLYPHS:&'static [(LogGlyph,&'static str)] = &[
+    (LogGlyph::Commit,      "* "),
+    (LogGlyph::Straight,    "| "),
+    (LogGlyph::Join,        "|/"),
+    (LogGlyph::ShiftLeft,   " /"),
+    (LogGlyph::StartSpan,   "+-"),
+    (LogGlyph::Span,        "--"),
+    (LogGlyph::EndSpanUp,   "-´"),
+    (LogGlyph::EndSpanDown, "-,"),
+];
+
+#[derive(Debug,Clone,Copy,PartialEq,Eq)]
+enum LogGlyph {
+    Commit,
+    Straight,
+    Join,
+    ShiftLeft,
+    StartSpan,
+    Span,
+    EndSpanUp,
+    EndSpanDown,
+}
+impl LogGlyph {
+    fn glyph(&self) -> &'static (LogGlyph, &'static str) {
+        let glyph = &LOG_GLYPHS[*self as usize];
+        assert_eq!(glyph.0, *self, "Mismatch in glyph constants");
+        glyph
+    }
+    pub fn ascii(&self) -> &'static str { self.glyph().1 }
+    pub fn print_ascii(glyphs: &[LogGlyph]) {
+        for glyph in glyphs {
+            print!("{}", glyph.ascii());
+        }
     }
 }
 
