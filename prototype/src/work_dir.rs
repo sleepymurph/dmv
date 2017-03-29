@@ -75,20 +75,14 @@ impl WorkDir {
     pub fn head(&self) -> Option<ObjectKey> {
         match self.parents().len() {
             0 => None,
-            _ => Some(self.parents()[0].to_owned()),
+            _ => Some(self.parents()[0]),
         }
     }
 
     pub fn parents(&self) -> &Vec<ObjectKey> { &self.state.parents }
 
     /// Assume a single parent and return that (for now)
-    fn parent(&self) -> Option<ObjectKey> {
-        match self.parents() {
-            ref v if v.len() == 1 => Some(v[0]),
-            ref v if v.len() == 0 => None,
-            _ => unimplemented!(),
-        }
-    }
+    fn parent(&self) -> Option<ObjectKey> { self.head() }
 
     fn parents_short_hashes(&self) -> Vec<String> {
         self.state
@@ -206,6 +200,11 @@ impl WorkDir {
     pub fn merge<'a, I: 'a>(&mut self, revs: I) -> Result<()>
         where I: Iterator<Item = &'a str>
     {
+        for rev in revs {
+            let rev = self.object_store.expect_ref_or_hash(rev)?;
+            self.state.parents.push(*rev.hash());
+        }
+        self.state.flush()?;
         unimplemented!()
     }
 
