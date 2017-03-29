@@ -391,12 +391,12 @@ impl ObjectStore {
     /// Get all refs
     pub fn refs(&self) -> &RefMap { &self.refs }
 
-    pub fn refs_for(&self, hash: &ObjectKey) -> Vec<&str> {
+    pub fn refs_for(&self, hash: &ObjectKey) -> Vec<String> {
         self.refs
             .iter()
             .filter(|&(_, v)| v == hash)
-            .map(|(k, _)| k.as_str())
-            .collect::<Vec<&str>>()
+            .map(|(k, _)| k.to_owned())
+            .collect::<Vec<_>>()
     }
 
     pub fn update_ref<S, O>(&mut self, name: S, hash: O) -> Result<()>
@@ -527,35 +527,6 @@ impl ObjSpec {
             &ObjSpec::Ref(ref r, _) => Some(r.as_str()),
             &ObjSpec::Hash(_) => None,
         }
-    }
-}
-
-
-/// Iterator over commits
-pub struct Commits<'a> {
-    pub object_store: &'a ObjectStore,
-    pub next: Option<ObjectKey>,
-    pub head: Option<ObjectKey>,
-}
-
-impl<'a> Iterator for Commits<'a> {
-    type Item = Result<(ObjectKey, Commit, Vec<&'a str>)>;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next.map(|hash| {
-            let result = self.object_store.open_commit(&hash);
-            if let &Ok(ref commit) = &result {
-                self.next = match commit.parents.len() {
-                    0 => None,
-                    1 => Some(commit.parents[0]),
-                    _ => unimplemented!(),
-                }
-            }
-            let mut refs = self.object_store.refs_for(&hash);
-            if self.head == Some(hash) {
-                refs.insert(0, "HEAD");
-            }
-            result.map(|commit| (hash, commit, refs))
-        })
     }
 }
 

@@ -244,7 +244,30 @@ impl WorkDir {
                     print!("* ");
                 }
             }
-            println!("{} {}", hash, commit.message);
+            let mut refs = self.object_store.refs_for(&hash);
+            let parent_ref_name = self.parents()
+                .iter()
+                .enumerate()
+                .filter(|&(_, head_hash)| head_hash == &hash)
+                .map(|(i, _)| i)
+                .take(1)
+                .next()
+                .map(|p| match self.parents().len() {
+                    1 => "HEAD".to_owned(),
+                    _ => format!("PARENT{}", p),
+                });
+            if let Some(s) = parent_ref_name {
+                refs.insert(0, s);
+            }
+            match refs.len() {
+                0 => println!("{} {}", hash, commit.message),
+                _ => {
+                    println!("{} ({}) {}",
+                             hash,
+                             refs.join(", "),
+                             commit.message)
+                }
+            }
             match commit.parents.len() {
                 0 => {
                     slots.remove(slot);
