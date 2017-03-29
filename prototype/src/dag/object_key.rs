@@ -186,7 +186,7 @@ impl fmt::Display for ObjectKey {
 impl fmt::Debug for ObjectKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("ObjectKey")
-            .field(&self.to_hex())
+            .field(&self.to_short())
             .finish()
     }
 }
