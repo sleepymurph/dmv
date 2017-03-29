@@ -103,9 +103,6 @@ impl WorkDir {
                   rev1: Option<&str>,
                   rev2: Option<&str>)
                   -> Result<()> {
-        debug!("Current branch: {}. Parents: {}",
-               self.branch().unwrap_or("<detached head>"),
-               self.parents_short_hashes().join(","));
 
         let abs_path = self.path().to_owned();
 
@@ -118,6 +115,9 @@ impl WorkDir {
 
         match (rev1, rev2) {
             (None, None) => {
+                stderrln!("On branch {}, parents: {}",
+                          self.branch().unwrap_or("<detached head>"),
+                          self.parents_short_hashes().join(","));
                 let parent = self.parent();
                 self.status_obj_file(show_ignored, parent, abs_path)
             }
