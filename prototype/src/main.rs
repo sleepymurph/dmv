@@ -17,9 +17,11 @@ fn run() -> Result<()> {
     env_logger::init().unwrap();
 
     let argmatch = clap_app!(
-        (PROJECT_NAME) =>
-            (author: "Mike Murphy <sleepymurph@gmail.com>")
-            (@arg version: --version "print version and exit")
+        (crate_name!()) =>
+            (author: crate_authors!())
+            (version: format!("{} ({})",
+                        crate_version!(), PROJECT_GIT_LOG).as_str())
+            (about: crate_description!())
         )
         .subcommand(clap_app!(init =>
                 (about: "initialize repository")
@@ -87,11 +89,6 @@ fn run() -> Result<()> {
                 (@arg rev:)
         ))
         .get_matches();
-
-    if argmatch.is_present("version") {
-        println!("{}: git version {}", PROJECT_NAME, PROJECT_GIT_LOG.trim());
-        return Ok(());
-    }
 
     match argmatch.subcommand_name() {
         Some(name) => {

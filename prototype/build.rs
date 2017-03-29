@@ -13,5 +13,7 @@ fn main() {
     let output = Command::new("git").arg("log").arg("-n1").arg("--oneline")
         .output().expect("could not get current Git version");
 
-    f.write_all(&output.stdout).unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    f.write_all(stdout.trim().as_bytes()).unwrap();
 }
