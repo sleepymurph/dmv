@@ -217,7 +217,6 @@ impl WorkDir {
 
     pub fn log(&self) -> Result<()> {
         use object_store::DepthFirstCommitSort;
-        use std::cmp;
 
         debug!("First pass: sort commits");
         let mut start_refs: Vec<ObjectKey> = self.parents().clone();
@@ -233,11 +232,12 @@ impl WorkDir {
             if !slots.contains(&hash) {
                 slots.push(hash);
             }
-            let mut slot = 0;
-            while slots[slot] != hash {
-                slot += 1;
-                assert!(slot < slots.len(), "current hash not found in slots");
-            }
+
+            let search = linear_search(&slots, &hash);
+            let slot = match search.len() {
+                1 => search[0],
+                _ => panic!("Unexpected. Hash: {}, Slots: {:?}", hash, slots),
+            };
 
             LogGlyph::print_ascii(&LogGlyph::commit_pat(slots.len(), slot));
 
@@ -278,21 +278,13 @@ impl WorkDir {
                 1 => {
                     slots[slot] = commit.parents[0];
                     // Potential join
-                    let mut dup = 0;
-                    while dup < slots.len() {
-                        if slots[dup] == slots[slot] && dup != slot {
-                            break;
-                        }
-                        dup += 1;
-                    }
-                    if dup < slots.len() {
-                        let (slot, dup) = (cmp::min(slot, dup),
-                                           cmp::max(slot, dup));
+                    let search = linear_search(&slots, &slots[slot]);
+                    if search.len() == 2 {
                         transition_glyphs =
                             Some(LogGlyph::contract_pat(slots.len(),
-                                                        slot,
-                                                        Some(dup)));
-                        slots.remove(dup);
+                                                        search[0],
+                                                        Some(search[1])));
+                        slots.remove(search[1]);
                     }
                 }
                 _ => unimplemented!(),
@@ -307,6 +299,16 @@ impl WorkDir {
 
         Ok(())
     }
+}
+
+fn linear_search<T: PartialEq>(slice: &[T], target: &T) -> Vec<usize> {
+    let mut found = Vec::new();
+    for i in 0..slice.len() {
+        if slice[i] == *target {
+            found.push(i);
+        }
+    }
+    found
 }
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
