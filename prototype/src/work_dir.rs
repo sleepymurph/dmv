@@ -314,21 +314,21 @@ enum LogDraw {
     Straight,
     Join,
     ShiftLeft,
-    SpanStart,
-    SpanMid,
-    SpanEndUp,
+    JoinSpanStart,
+    JoinSpanMid,
+    JoinSpanEnd,
     EndSpanDown,
 }
 #[cfg_attr(rustfmt, rustfmt_skip)]
 const LOG_GLYPHS:&'static [(LogDraw,&'static str)] = &[
-    (LogDraw::Commit,      "* "),
-    (LogDraw::Straight,    "| "),
-    (LogDraw::Join,        "|/"),
-    (LogDraw::ShiftLeft,   " /"),
-    (LogDraw::SpanStart,   "+-"),
-    (LogDraw::SpanMid,     "--"),
-    (LogDraw::SpanEndUp,   "-´"),
-    (LogDraw::EndSpanDown, "-,"),
+    (LogDraw::Commit,           "* "),
+    (LogDraw::Straight,         "| "),
+    (LogDraw::Join,             "|/"),
+    (LogDraw::ShiftLeft,        " /"),
+    (LogDraw::JoinSpanStart,    "|,"),
+    (LogDraw::JoinSpanMid,      "--"),
+    (LogDraw::JoinSpanEnd,      "-´"),
+    (LogDraw::EndSpanDown,      "-,"),
 ];
 impl LogDraw {
     fn glyph(&self) -> &'static (LogDraw, &'static str) {
@@ -374,9 +374,9 @@ impl LogDraw {
             glyphs.push(match i {
                 _ if i < c => LogDraw::Straight,
                 _ if i == c && d == c + 1 => LogDraw::Join,
-                _ if i == c && d > c + 1 => LogDraw::SpanStart,
-                _ if c + 1 < i && i < d - 1 => LogDraw::SpanMid,
-                _ if i == d - 1 && d != c + 1 => LogDraw::SpanEndUp,
+                _ if i == c && d > c + 1 => LogDraw::JoinSpanStart,
+                _ if c + 1 < i && i < d - 1 => LogDraw::JoinSpanMid,
+                _ if i == d - 1 && d != c + 1 => LogDraw::JoinSpanEnd,
                 _ if i > d => LogDraw::ShiftLeft,
                 _ => unreachable!(),
             });
