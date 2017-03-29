@@ -23,45 +23,70 @@ fn run() -> Result<()> {
             (@arg version: --version "print version and exit")
         )
         .subcommand(clap_app!(init =>
-                (@arg bare: --bare
-                        "create bare object store without working directory")
+                (about: "initialize repository")
         ))
-        .subcommand(clap_app!(("hash-object") =>
-                (help: "hash and store a file or directory in the object store")
+        .subcommand(clap_app!(
+            ("hash-object") =>
+                (about: "store a file or directory in the object store")
                 (@arg filepath: +required)
         ))
-        .subcommand(clap_app!(("show-object") =>
+        .subcommand(clap_app!(
+            ("show-object") =>
+                (about: "print information about an object")
                 )
             .arg(Arg::with_name("obj-spec").required(true)))
-        .subcommand(clap_app!(parents =>
+        .subcommand(clap_app!(
+            parents =>
                 (about: "show current parent commits")
         ))
-        .subcommand(clap_app!(("ls-files") =>
+        .subcommand(clap_app!(
+            ("ls-files") =>
+                (about: "list files")
                 (@arg verbose: -v "include additional information")
                 )
             .arg(Arg::with_name("obj-spec")))
-        .subcommand(clap_app!(("extract-object") =>)
+        .subcommand(clap_app!(
+            ("extract-object") =>
+                (about: "extract a file or tree")
+                )
             .arg(Arg::with_name("obj-spec").required(true))
             .arg(Arg::with_name("filepath").required(true)))
-        .subcommand(clap_app!(("cache-status") =>
+        .subcommand(clap_app!(
+            ("cache-status") =>
+                (about: "show cache status of a file")
                 (@arg filepath: +required)
         ))
-        .subcommand(clap_app!(status =>
+        .subcommand(clap_app!(
+            status =>
+                (about: "show status of files")
                 (@arg ignored: -i --ignored "show ignored files")
                 (@arg rev1:)
                 (@arg rev2:)
         ))
-        .subcommand(clap_app!(commit =>
+        .subcommand(clap_app!(
+            commit =>
+                (about: "commit current files to the repository")
                 (@arg message: -m <MESSAGE> +required)
         ))
-        .subcommand(clap_app!(log =>
+        .subcommand(clap_app!(
+            log =>
+                (about: "show commit history")
         ))
-        .subcommand(clap_app!(branch =>)
+        .subcommand(clap_app!(
+            branch =>
+                (about: "show/update branch information")
+        )
             .arg(Arg::with_name("branch-name"))
             .arg(Arg::with_name("target-rev")))
-        .subcommand(clap_app!(fsck =>
+        .subcommand(clap_app!(
+            fsck =>
+                (about: "verify repository integrity")
         ))
-        .subcommand(clap_app!(checkout =>).arg(Arg::with_name("target-rev")))
+        .subcommand(clap_app!(
+            checkout =>
+                (about: "check out another revision")
+        )
+            .arg(Arg::with_name("target-rev")))
         .get_matches();
 
     if argmatch.is_present("version") {
