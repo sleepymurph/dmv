@@ -5,7 +5,6 @@ extern crate error_chain;
 extern crate env_logger;
 extern crate prototype;
 
-use clap::Arg;
 use prototype::cmd;
 use prototype::constants::*;
 use prototype::error::*;
@@ -33,8 +32,8 @@ fn run() -> Result<()> {
         .subcommand(clap_app!(
             ("show-object") =>
                 (about: "print information about an object")
-                )
-            .arg(Arg::with_name("obj-spec").required(true)))
+                (@arg obj: +required)
+        ))
         .subcommand(clap_app!(
             parents =>
                 (about: "show current parent commits")
@@ -43,14 +42,14 @@ fn run() -> Result<()> {
             ("ls-files") =>
                 (about: "list files")
                 (@arg verbose: -v "include additional information")
-                )
-            .arg(Arg::with_name("obj-spec")))
+                (@arg obj:)
+        ))
         .subcommand(clap_app!(
             ("extract-object") =>
                 (about: "extract a file or tree")
-                )
-            .arg(Arg::with_name("obj-spec").required(true))
-            .arg(Arg::with_name("filepath").required(true)))
+                (@arg obj: +required)
+                (@arg filepath: +required)
+        ))
         .subcommand(clap_app!(
             ("cache-status") =>
                 (about: "show cache status of a file")
@@ -75,9 +74,9 @@ fn run() -> Result<()> {
         .subcommand(clap_app!(
             branch =>
                 (about: "show/update branch information")
-        )
-            .arg(Arg::with_name("branch-name"))
-            .arg(Arg::with_name("target-rev")))
+                (@arg branch:)
+                (@arg rev:)
+        ))
         .subcommand(clap_app!(
             fsck =>
                 (about: "verify repository integrity")
@@ -85,8 +84,8 @@ fn run() -> Result<()> {
         .subcommand(clap_app!(
             checkout =>
                 (about: "check out another revision")
-        )
-            .arg(Arg::with_name("target-rev")))
+                (@arg rev:)
+        ))
         .get_matches();
 
     if argmatch.is_present("version") {
@@ -139,7 +138,7 @@ fn cmd_hash_object(_argmatch: &clap::ArgMatches,
 fn cmd_show_object(_argmatch: &clap::ArgMatches,
                    submatch: &clap::ArgMatches)
                    -> Result<()> {
-    let obj_spec = submatch.value_of("obj-spec").expect("required");
+    let obj_spec = submatch.value_of("obj").expect("required");
     cmd::show_object(&obj_spec)
 }
 
@@ -152,7 +151,7 @@ fn cmd_parents(_argmatch: &clap::ArgMatches,
 fn cmd_ls_files(_argmatch: &clap::ArgMatches,
                 submatch: &clap::ArgMatches)
                 -> Result<()> {
-    let obj_spec = submatch.value_of("obj-spec");
+    let obj_spec = submatch.value_of("obj");
     let verbose = submatch.is_present("verbose");
 
     cmd::ls_files(obj_spec, verbose)
@@ -161,7 +160,7 @@ fn cmd_ls_files(_argmatch: &clap::ArgMatches,
 fn cmd_extract_object(_argmatch: &clap::ArgMatches,
                       submatch: &clap::ArgMatches)
                       -> Result<()> {
-    let obj_spec = submatch.value_of("obj-spec").expect("required");
+    let obj_spec = submatch.value_of("obj").expect("required");
     let file_path = submatch.value_of("filepath").expect("required");
     let file_path = PathBuf::from(file_path);
 
@@ -202,8 +201,8 @@ fn cmd_log(_argmatch: &clap::ArgMatches,
 fn cmd_branch(_argmatch: &clap::ArgMatches,
               submatch: &clap::ArgMatches)
               -> Result<()> {
-    let branch_name = submatch.value_of("branch-name");
-    let target_rev = submatch.value_of("target-rev");
+    let branch_name = submatch.value_of("branch");
+    let target_rev = submatch.value_of("rev");
     match (branch_name, target_rev) {
         (None, None) => cmd::branch_list(),
         (Some(branch_name), None) => cmd::branch_set_to_head(branch_name),
@@ -223,6 +222,6 @@ fn cmd_fsck(_argmatch: &clap::ArgMatches,
 fn cmd_checkout(_argmatch: &clap::ArgMatches,
                 submatch: &clap::ArgMatches)
                 -> Result<()> {
-    let target = submatch.value_of("target-rev").expect("required");
+    let target = submatch.value_of("rev").expect("required");
     cmd::checkout(target)
 }
