@@ -429,7 +429,7 @@ mod test {
         testutil::write_file(&filepath, in_file).unwrap();
 
         // Hash input file
-        let hash = fs_transfer.hash_path(&filepath).unwrap();
+        let hash = fs_transfer.hash_obj_file(None, &filepath).unwrap();
 
         // Check the object type
         let obj = fs_transfer.open_object(&hash).unwrap();
