@@ -89,6 +89,11 @@ fn run() -> Result<()> {
                 (about: "check out another revision")
                 (@arg rev:)
         ))
+        .subcommand(clap_app!(
+            merge =>
+                (about: "combine revisions")
+                (@arg rev: +multiple +required)
+        ))
         .get_matches();
 
     match argmatch.subcommand_name() {
@@ -108,6 +113,7 @@ fn run() -> Result<()> {
                 "branch" => cmd_branch,
                 "fsck" => cmd_fsck,
                 "checkout" => cmd_checkout,
+                "merge" => cmd_merge,
                 _ => unimplemented!(),
             };
             let submatch = argmatch.subcommand_matches(name)
@@ -222,4 +228,11 @@ fn cmd_checkout(_argmatch: &clap::ArgMatches,
                 -> Result<()> {
     let target = submatch.value_of("rev").expect("required");
     cmd::checkout(target)
+}
+
+fn cmd_merge(_argmatch: &clap::ArgMatches,
+             submatch: &clap::ArgMatches)
+             -> Result<()> {
+    let revs = submatch.values_of("rev").expect("required");
+    cmd::merge(revs)
 }

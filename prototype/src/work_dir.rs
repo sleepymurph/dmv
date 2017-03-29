@@ -203,6 +203,12 @@ impl WorkDir {
         Ok(())
     }
 
+    pub fn merge<'a, I: 'a>(&mut self, revs: I) -> Result<()>
+        where I: Iterator<Item = &'a str>
+    {
+        unimplemented!()
+    }
+
     pub fn update_ref_to_head(&mut self, ref_name: &str) -> Result<ObjectKey> {
         match self.head() {
             Some(head) => {

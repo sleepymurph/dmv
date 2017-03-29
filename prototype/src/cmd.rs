@@ -152,3 +152,10 @@ pub fn checkout(target: &str) -> Result<()> {
     let mut work_dir = find_work_dir()?;
     work_dir.checkout(target)
 }
+
+pub fn merge<'a, I: 'a>(revs: I) -> Result<()>
+    where I: Iterator<Item = &'a str>
+{
+    let mut work_dir = find_work_dir()?;
+    work_dir.merge(revs)
+}
