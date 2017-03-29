@@ -19,8 +19,9 @@ fn run() -> Result<()> {
     let argmatch = clap_app!(
         (crate_name!()) =>
             (author: crate_authors!())
-            (version: format!("{} ({})",
-                        crate_version!(), PROJECT_GIT_LOG).as_str())
+            (version: format!("{} ({}) ({})",
+                        crate_version!(), PROJECT_GIT_LOG, BUILD_PROFILE
+                        ).as_str())
             (about: crate_description!())
         )
         .subcommand(clap_app!(init =>
