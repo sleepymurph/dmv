@@ -274,29 +274,45 @@ impl WorkDir {
             }
 
 
-            let mut transition = Vec::new();
+            let mut transition;
             match commit.parents.len() {
                 0 => {
                     // Dead end
                     transition = LogDraw::dead_end_pat(slots.len(), slot);
+                    if transition.len() > 0 {
+                        LogDraw::print_ascii(&transition);
+                        println!();
+                    }
                     slots.remove(slot);
                 }
                 1 => {
                     slots[slot] = commit.parents[0];
-                    // Potential join
-                    let search = linear_search(&slots, &slots[slot]);
-                    if search.len() == 2 {
-                        transition = LogDraw::contract_pat(slots.len(),
-                                                           search[0],
-                                                           search[1]);
-                        slots.remove(search[1]);
+                }
+                _ => {
+                    slots[slot] = commit.parents[0];
+                    for (i, parent) in commit.parents[1..].iter().enumerate() {
+                        slots.insert(slot + i, *parent);
+                        transition = LogDraw::expand_pat(slots.len(), slot, 1);
+                        LogDraw::print_ascii(&transition);
+                        println!();
                     }
                 }
-                _ => unimplemented!(),
             }
-            if transition.len() > 0 {
-                LogDraw::print_ascii(&transition);
-                println!();
+            let mut i = 0;
+            while i < slots.len() {
+                let search = linear_search(&slots, &slots[i]);
+                if search.len() == 2 {
+                    transition = LogDraw::contract_pat(slots.len(),
+                                                       search[0],
+                                                       search[1]);
+                    if transition.len() > 0 {
+                        LogDraw::print_ascii(&transition);
+                        println!();
+                    }
+                    slots.remove(search[1]);
+                } else {
+                    i += 1;
+                }
             }
         }
 
@@ -319,23 +335,35 @@ fn linear_search<T: PartialEq>(slice: &[T], target: &T) -> Vec<usize> {
 enum LogDraw {
     Commit,
     Straight,
-    Join,
+
     ShiftLeft,
+    Join,
     JoinSpanStart,
     JoinSpanMid,
     JoinSpanEnd,
-    EndSpanDown,
+
+    ShiftRight,
+    Expand,
+    ExpandSpanStart,
+    ExpandSpanMid,
+    ExpandSpanEnd,
 }
 #[cfg_attr(rustfmt, rustfmt_skip)]
 const LOG_GLYPHS:&'static [(LogDraw,&'static str)] = &[
     (LogDraw::Commit,           "* "),
     (LogDraw::Straight,         "| "),
-    (LogDraw::Join,             "|/"),
+
     (LogDraw::ShiftLeft,        " /"),
+    (LogDraw::Join,             "|/"),
     (LogDraw::JoinSpanStart,    "|,"),
     (LogDraw::JoinSpanMid,      "--"),
     (LogDraw::JoinSpanEnd,      "-´"),
-    (LogDraw::EndSpanDown,      "-,"),
+
+    (LogDraw::ShiftRight,       " \\"),
+    (LogDraw::Expand,           "|\\"),
+    (LogDraw::ExpandSpanStart,  "|'"),
+    (LogDraw::ExpandSpanMid,    "T-"),
+    (LogDraw::ExpandSpanEnd,    ", "),
 ];
 impl LogDraw {
     fn glyph(&self) -> &'static (LogDraw, &'static str) {
@@ -371,20 +399,50 @@ impl LogDraw {
         }
         glyphs
     }
+    pub fn expand_pat(slots: usize,
+                      commit_slot: usize,
+                      expand_to: usize)
+                      -> Vec<LogDraw> {
+        let mut glyphs = Vec::with_capacity(slots);
+        let (c, e) = (commit_slot, expand_to - 1);
+        let span = e > 1;
+        for i in 0..slots - 1 {
+            glyphs.push(match i {
+                _ if i < c => LogDraw::Straight,
+                _ if !span && i == c => LogDraw::Expand,
+                _ if span && i == c => LogDraw::ExpandSpanStart,
+                _ if span && c + 1 < i && i < c + e - 1 => {
+                    LogDraw::ExpandSpanMid
+                }
+                _ if span && i == c + e - 1 => LogDraw::ExpandSpanEnd,
+                _ if i > c + e - 1 => LogDraw::ShiftRight,
+                _ => {
+                    panic!("Unexpected. i:{}, s:{}, c:{}, e:{}, span:{:?}",
+                           i,
+                           slots,
+                           c,
+                           e,
+                           span)
+                }
+            });
+        }
+        glyphs
+    }
     pub fn contract_pat(slots: usize,
                         commit_slot: usize,
                         dup_slot: usize)
                         -> Vec<LogDraw> {
         let mut glyphs = Vec::with_capacity(slots);
         let (c, d) = (commit_slot, dup_slot);
+        let span = d > c + 1;
         for i in 0..slots - 1 {
             glyphs.push(match i {
                 _ if i < c => LogDraw::Straight,
-                _ if i == c && d == c + 1 => LogDraw::Join,
-                _ if i == c && d > c + 1 => LogDraw::JoinSpanStart,
-                _ if c + 1 < i && i < d - 1 => LogDraw::JoinSpanMid,
-                _ if i == d - 1 && d != c + 1 => LogDraw::JoinSpanEnd,
-                _ if i > d => LogDraw::ShiftLeft,
+                _ if !span && i == c => LogDraw::Join,
+                _ if span && i == c => LogDraw::JoinSpanStart,
+                _ if span && c + 1 < i && i < d - 1 => LogDraw::JoinSpanMid,
+                _ if span && i == d - 1 => LogDraw::JoinSpanEnd,
+                _ if i >= d => LogDraw::ShiftLeft,
                 _ => unreachable!(),
             });
         }
