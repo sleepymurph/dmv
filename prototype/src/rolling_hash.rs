@@ -58,9 +58,9 @@ impl RollingHasher {
 /// The rolling hash window and the number of bits that have to match will be
 /// adjusted so that the probability of hitting a chunk boundary is one out of
 /// this number of bytes.
-pub const CHUNK_TARGET_SIZE: usize = 15 * 1024;
-const WINDOW_SIZE: usize = 4096;
-const MATCH_BITS: RollingHashValue = 14;
+pub const CHUNK_TARGET_SIZE: usize = WINDOW_SIZE + WINDOW_MATCH_SIZE as usize;
+const WINDOW_SIZE: usize = 32 * 1024;
+const WINDOW_MATCH_SIZE: RollingHashValue = 16 * 1024;
 
 /// Flags chunk boundaries where the rolling hash has enough zero bits
 pub struct ChunkFlagger {
@@ -72,7 +72,7 @@ impl ChunkFlagger {
     pub fn new() -> Self {
         ChunkFlagger {
             hasher: RollingHasher::new(WINDOW_SIZE),
-            mask: 1 << MATCH_BITS,
+            mask: WINDOW_MATCH_SIZE,
         }
     }
     pub fn window_match(window_size: usize, mask: RollingHashValue) -> Self {
@@ -333,9 +333,10 @@ mod test {
 
     #[test]
     fn test_chunk_target_size() {
-        const CHUNK_TARGET_MIN: usize = 10 * 1024;
-        const CHUNK_TARGET_MAX: usize = 25 * 1024;
-        const ACCEPTABLE_DEVIATION: usize = 25 * 1024;
+        const CHUNK_TARGET_MIN: usize = CHUNK_TARGET_SIZE * 8 / 10;
+        const CHUNK_TARGET_MAX: usize = CHUNK_TARGET_SIZE * 12 / 10;
+        const ACCEPTABLE_DEVIATION: usize = WINDOW_MATCH_SIZE as usize * 14 /
+                                            10;
 
         let vcalc = measure_chunk_size(ChunkFlagger::new());
 
@@ -345,10 +346,13 @@ mod test {
         assert!(vcalc.count() > 1 && CHUNK_TARGET_MIN < mean &&
                 mean < CHUNK_TARGET_MAX &&
                 std < ACCEPTABLE_DEVIATION,
-                "count: {}, mean: {}, std: {}",
+                "count: {}, mean: {} ({}-{}), std: {} ({})",
                 vcalc.count(),
                 human_bytes(mean as u64),
-                human_bytes(std as u64));
+                human_bytes(CHUNK_TARGET_MIN as u64),
+                human_bytes(CHUNK_TARGET_MAX as u64),
+                human_bytes(std as u64),
+                human_bytes(ACCEPTABLE_DEVIATION as u64));
     }
 
 
@@ -439,12 +443,12 @@ mod test {
 
     #[test]
     fn test_object_iterator_two_chunks() {
-        do_object_reconstruction_test(CHUNK_TARGET_SIZE, 2);
+        do_object_reconstruction_test(CHUNK_TARGET_SIZE * 2, 2);
     }
 
     #[test]
     fn test_object_iterator_many_chunks() {
-        do_object_reconstruction_test(CHUNK_TARGET_SIZE * 10, 9);
+        do_object_reconstruction_test(CHUNK_TARGET_SIZE * 10, 11);
     }
 
     type ObjectStore = collections::HashMap<dag::ObjectKey, dag::Object>;
@@ -458,8 +462,8 @@ mod test {
         let mut objects = ObjectStore::new();
         let last_key = dump_into_store(&mut object_read, &mut objects);
 
-        assert_eq!(objects.len(),
-                   expected_chunks + 1,
+        assert_eq!(objects.len() - 1,
+                   expected_chunks,
                    "unexpected number of chunks");
 
         let reconstructed = reconstruct_file(&objects, &last_key);
