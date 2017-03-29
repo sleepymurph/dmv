@@ -559,19 +559,19 @@ impl<'a> DepthFirstCommitSort<'a> {
 
     fn visit(&mut self, hash: &ObjectKey) -> Result<()> {
         if self.visited.contains(hash) {
-            debug!("Already visited: {}", hash);
+            trace!("Already visited: {}", hash);
             return Ok(());
         }
         self.visited.insert(*hash);
         let commit = self.object_store.open_commit(hash)?;
-        debug!("Visiting {} {}, parents: {:?}",
+        trace!("Visiting {} {}, parents: {:?}",
                hash,
                commit.message,
                commit.parents);
         for parent in &commit.parents {
             self.visit(parent)?;
         }
-        debug!("Pushing  {} {}", hash, commit.message);
+        trace!("Pushing  {} {}", hash, commit.message);
         self.sorted.push((*hash, commit));
         Ok(())
     }
