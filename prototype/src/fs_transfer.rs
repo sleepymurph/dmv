@@ -12,7 +12,6 @@ use object_store::ObjectWalkNode;
 use progress::ProgressCounter;
 use progress::std_err_watch;
 use status::*;
-use std::fmt;
 use std::fs::create_dir;
 use std::fs::remove_dir_all;
 use std::fs::remove_file;
@@ -132,64 +131,22 @@ type CompareNode = (Option<ComparableNode>, Option<ComparableNode>);
 
 
 
-/// A wrapper to Display a Node Comparison, with options
-pub struct ComparePrintWalkDisplay<'a, R: 'a>
-    where R: NodeReader<CompareNode>
-{
-    reader: &'a R,
-    node: CompareNode,
+pub struct ComparePrintWalkOp<'s> {
+    writer: &'s mut Write,
     show_ignored: bool,
 }
-impl<'a, R> ComparePrintWalkDisplay<'a, R>
-    where R: NodeReader<CompareNode>
-{
-    pub fn new(show_ignored: bool, reader: &'a R, node: CompareNode) -> Self {
-        ComparePrintWalkDisplay {
-            reader: reader,
-            node: node,
+impl<'s> ComparePrintWalkOp<'s> {
+    pub fn new(writer: &'s mut Write, show_ignored: bool) -> Self {
+        ComparePrintWalkOp {
+            writer: writer,
             show_ignored: show_ignored,
         }
     }
-    pub fn show_ignored(mut self, si: bool) -> Self {
-        self.show_ignored = si;
-        self
-    }
-}
-impl<'a, R> fmt::Display for ComparePrintWalkDisplay<'a, R>
-    where R: NodeReader<CompareNode>
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut op = ComparePrintWalkOp {
-            show_ignored: self.show_ignored,
-            formatter: f,
-        };
-        match self.reader.walk_node(&mut op, self.node.clone()) {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                stderrln!("Error while walking+printing status: {}", e);
-                for e in e.iter().skip(1) {
-                    stderrln!("Caused by: {}", e);
-                }
-                if let Some(backtrace) = e.backtrace() {
-                    stderrln!("{:?}", backtrace);
-                }
-                Err(fmt::Error)
-            }
-        }
-    }
-}
-
-
-pub struct ComparePrintWalkOp<'s, 'f: 's> {
-    show_ignored: bool,
-    formatter: &'s mut fmt::Formatter<'f>,
-}
-impl<'s, 'f> ComparePrintWalkOp<'s, 'f> {
     fn status(&self, node: &CompareNode, _ps: &PathStack) -> Status {
         ComparableNode::compare_pair(node)
     }
 }
-impl<'s, 'f> WalkOp<CompareNode> for ComparePrintWalkOp<'s, 'f> {
+impl<'s> WalkOp<CompareNode> for ComparePrintWalkOp<'s> {
     type VisitResult = ();
 
     fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
@@ -210,7 +167,7 @@ impl<'s, 'f> WalkOp<CompareNode> for ComparePrintWalkOp<'s, 'f> {
             ps += "/";
         }
         if show {
-            writeln!(self.formatter, "{} {}", status.code(), ps)?;
+            writeln!(self.writer, "{} {}", status.code(), ps)?;
         }
         Ok(None)
     }

@@ -7,7 +7,7 @@ use dag::ObjectKey;
 use disk_backed::DiskBacked;
 use error::*;
 use find_repo::RepoLayout;
-use fs_transfer::ComparePrintWalkDisplay;
+use fs_transfer::ComparePrintWalkOp;
 use fs_transfer::FsTransfer;
 use fs_transfer::MultiComparePrintWalkOp;
 use object_store::ObjectStore;
@@ -143,9 +143,9 @@ impl WorkDir {
         let node = (src, targ);
 
         let combo = (&self.object_store, &self.file_store);
-        let display = ComparePrintWalkDisplay::new(show_ignored, &combo, node);
-
-        print!("{}", display);
+        let mut writer = io::stdout();
+        let mut op = ComparePrintWalkOp::new(&mut writer, show_ignored);
+        combo.walk_node(&mut op, node)?;
         Ok(())
     }
 
@@ -183,9 +183,9 @@ impl WorkDir {
         let node = (Some(src), Some(targ));
         let combo = (&self.object_store, &self.object_store);
 
-        let display = ComparePrintWalkDisplay::new(show_ignored, &combo, node);
-
-        print!("{}", display);
+        let mut writer = io::stdout();
+        let mut op = ComparePrintWalkOp::new(&mut writer, show_ignored);
+        combo.walk_node(&mut op, node)?;
         Ok(())
     }
 
