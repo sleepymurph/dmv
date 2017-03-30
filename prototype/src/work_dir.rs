@@ -9,8 +9,10 @@ use error::*;
 use find_repo::RepoLayout;
 use fs_transfer::ComparePrintWalkDisplay;
 use fs_transfer::FsTransfer;
+use fs_transfer::MultiComparePrintWalkOp;
 use object_store::ObjectStore;
 use status::*;
+use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use walker::*;
@@ -107,13 +109,14 @@ impl WorkDir {
             rev2.and_then_try(|r| self.object_store.expect_ref_or_hash(&r))?
                 .map(|r| r.into_hash());
 
+        println!("{:?} {:?}", rev1, rev2);
         match (rev1, rev2) {
             (None, None) => {
                 stderrln!("On branch {}, parents: {}",
                           self.branch().unwrap_or("<detached head>"),
                           self.parents_short_hashes().join(","));
-                let parent = self.parent();
-                self.status_obj_file(show_ignored, parent, abs_path)
+                let parents = self.parents().iter().map(|h| Some(*h)).collect();
+                self.status_many_objs_file(show_ignored, parents, abs_path)
             }
             (Some(hash1), None) => {
                 self.status_obj_file(show_ignored, Some(hash1), abs_path)
@@ -143,6 +146,29 @@ impl WorkDir {
         let display = ComparePrintWalkDisplay::new(show_ignored, &combo, node);
 
         print!("{}", display);
+        Ok(())
+    }
+
+    fn status_many_objs_file(&mut self,
+                             show_ignored: bool,
+                             src: Vec<Option<ObjectKey>>,
+                             targ: PathBuf)
+                             -> Result<()> {
+
+        let mut src_nodes = Vec::new();
+        for src in src {
+            src_nodes.push(src.and_then_try(|hash| self.object_store.lookup_node(hash))?);
+        }
+
+        let targ: Option<ComparableNode> = Some(self.file_store
+            .lookup_node(targ)?);
+
+        let node = (src_nodes, targ);
+
+        let combo = (&self.object_store, &self.file_store);
+        let mut writer = io::stdout();
+        let mut op = MultiComparePrintWalkOp::new(&mut writer, show_ignored);
+        combo.walk_node(&mut op, node)?;
         Ok(())
     }
 

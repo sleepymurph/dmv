@@ -110,7 +110,7 @@ impl ComparableNode {
             (true, false, _, _) if src_is_ignored => Status::Ignored,
             (true, false, _, _) => Status::Delete,
 
-            (false, false, _, _) => unreachable!(),
+            (false, false, _, _) => Status::Unchanged,
         }
     }
 }

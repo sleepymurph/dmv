@@ -16,6 +16,7 @@ use std::fmt;
 use std::fs::create_dir;
 use std::fs::remove_dir_all;
 use std::fs::remove_file;
+use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::thread;
@@ -210,6 +211,63 @@ impl<'s, 'f> WalkOp<CompareNode> for ComparePrintWalkOp<'s, 'f> {
         }
         if show {
             writeln!(self.formatter, "{} {}", status.code(), ps)?;
+        }
+        Ok(None)
+    }
+}
+
+
+
+type MultiCompareNode = (Vec<Option<ComparableNode>>, Option<ComparableNode>);
+
+pub struct MultiComparePrintWalkOp<'s> {
+    writer: &'s mut Write,
+    show_ignored: bool,
+}
+impl<'s> MultiComparePrintWalkOp<'s> {
+    pub fn new(writer: &'s mut Write, show_ignored: bool) -> Self {
+        MultiComparePrintWalkOp {
+            writer: writer,
+            show_ignored: show_ignored,
+        }
+    }
+    fn status(&self, node: &MultiCompareNode, _ps: &PathStack) -> Vec<Status> {
+        node.0
+            .iter()
+            .map(|src| ComparableNode::compare(src.as_ref(), node.1.as_ref()))
+            .collect()
+    }
+}
+impl<'s> WalkOp<MultiCompareNode> for MultiComparePrintWalkOp<'s> {
+    type VisitResult = ();
+
+    fn should_descend(&mut self,
+                      ps: &PathStack,
+                      node: &MultiCompareNode)
+                      -> bool {
+        let targ = node.1.as_ref();
+        let is_treeish = targ.map(|n| n.is_treeish).unwrap_or(false);
+        let included = self.status(&node, ps).iter().any(|s| s.is_included());
+        is_treeish && included
+    }
+    fn no_descend(&mut self,
+                  ps: &PathStack,
+                  node: MultiCompareNode)
+                  -> Result<Option<Self::VisitResult>> {
+        let status = self.status(&node, &ps);
+        let show = status.iter().any(|status| {
+            *status != Status::Unchanged &&
+            (*status != Status::Ignored || self.show_ignored)
+        });
+        let mut ps = ps.to_string();
+        if node.1.map(|n| n.is_treeish).unwrap_or(false) {
+            ps += "/";
+        }
+        if show {
+            for status in status {
+                write!(self.writer, "{}", status.code())?;
+            }
+            writeln!(self.writer, " {}", ps)?;
         }
         Ok(None)
     }

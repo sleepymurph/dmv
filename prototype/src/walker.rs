@@ -334,6 +334,38 @@ impl<'a, A, RA> NodeReader<Vec<Option<A>>> for RA
 
 
 
+impl<'a, A, B, RA, RB> NodeReader<(Vec<Option<A>>, Option<B>)>
+    for (&'a RA, &'a RB)
+    where RA: NodeReader<Vec<Option<A>>>,
+          RB: NodeReader<B>,
+          A: Clone
+{
+    fn read_children(&self,
+                     node: &(Vec<Option<A>>, Option<B>))
+                     -> Result<ChildMap<(Vec<Option<A>>, Option<B>)>> {
+        let count_a = node.0.len();
+        let mut children = ChildMap::new();
+        match node {
+            &(ref a, Some(ref b)) => {
+                let a: ChildMap<Vec<Option<A>>> = self.0.read_children(a)?;
+                let b: ChildMap<B> = self.1.read_children(b)?;
+                for (name, a, b) in mux(a.into_iter(), b.into_iter()) {
+                    let a = a.unwrap_or_else(|| vec![None;count_a]);
+                    children.insert(name, (a, b));
+                }
+            }
+            &(ref a, None) => {
+                for (name, a) in self.0.read_children(a)? {
+                    children.insert(name, (a, None));
+                }
+            }
+        }
+        Ok(children)
+    }
+}
+
+
+
 #[cfg(test)]
 mod test_path_stack {
     use std::path::Path;
