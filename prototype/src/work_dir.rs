@@ -157,7 +157,9 @@ impl WorkDir {
 
         let mut src_nodes = Vec::new();
         for src in src {
-            src_nodes.push(src.and_then_try(|hash| self.object_store.lookup_node(hash))?);
+            src_nodes.push(
+                src.and_then_try(|hash| self.object_store.lookup_node(hash))?
+            );
         }
 
         let targ: Option<ComparableNode> = Some(self.file_store

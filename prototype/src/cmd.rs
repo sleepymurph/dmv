@@ -153,6 +153,17 @@ pub fn checkout(target: &str) -> Result<()> {
     work_dir.checkout(target)
 }
 
+pub fn merge_base<'a, I: 'a>(revs: I) -> Result<()>
+    where I: Iterator<Item = &'a str>
+{
+    let object_store = find_object_store()?;
+    let ancestor = object_store.find_common_ancestor(revs)?;
+    if let Some(hash) = ancestor {
+        println!("{}", hash);
+    }
+    Ok(())
+}
+
 pub fn merge<'a, I: 'a>(revs: I) -> Result<()>
     where I: Iterator<Item = &'a str>
 {

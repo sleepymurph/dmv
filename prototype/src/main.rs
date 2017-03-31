@@ -90,6 +90,11 @@ fn run() -> Result<()> {
                 (@arg rev:)
         ))
         .subcommand(clap_app!(
+            ("merge-base") =>
+                (about: "find common ancestor")
+                (@arg rev: +multiple +required)
+        ))
+        .subcommand(clap_app!(
             merge =>
                 (about: "combine revisions")
                 (@arg rev: +multiple +required)
@@ -113,6 +118,7 @@ fn run() -> Result<()> {
                 "branch" => cmd_branch,
                 "fsck" => cmd_fsck,
                 "checkout" => cmd_checkout,
+                "merge-base" => cmd_merge_base,
                 "merge" => cmd_merge,
                 _ => unimplemented!(),
             };
@@ -228,6 +234,13 @@ fn cmd_checkout(_argmatch: &clap::ArgMatches,
                 -> Result<()> {
     let target = submatch.value_of("rev").expect("required");
     cmd::checkout(target)
+}
+
+fn cmd_merge_base(_argmatch: &clap::ArgMatches,
+                  submatch: &clap::ArgMatches)
+                  -> Result<()> {
+    let revs = submatch.values_of("rev").expect("required");
+    cmd::merge_base(revs)
 }
 
 fn cmd_merge(_argmatch: &clap::ArgMatches,

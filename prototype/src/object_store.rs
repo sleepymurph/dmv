@@ -10,6 +10,7 @@ use regex::Regex;
 use status::ComparableNode;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::fmt;
 use std::fs;
 use std::io;
@@ -409,6 +410,55 @@ impl ObjectStore {
 
     pub fn try_find_ref(&self, name: &str) -> Option<ObjectKey> {
         self.refs.get(name).cloned()
+    }
+
+    pub fn find_common_ancestor<I, S>(&self,
+                                      revs: I)
+                                      -> Result<Option<ObjectKey>>
+        where I: IntoIterator<Item = S>,
+              S: AsRef<str>
+    {
+        let mut search_queues = Vec::new();
+        for rev in revs {
+            let hash = self.expect_ref_or_hash(rev.as_ref())?.into_hash();
+
+            let mut queue = VecDeque::new();
+            queue.push_back(hash);
+            search_queues.push(queue);
+        }
+        search_queues.dedup();
+
+        let mut seen_sets = vec![HashSet::new(); search_queues.len()];
+        let mut depth = 0;
+        loop {
+            depth += 1;
+
+            let mut seen_a_hash = false;
+            for (i, queue) in search_queues.iter_mut().enumerate() {
+                match queue.pop_front() {
+                    None => (),
+                    Some(hash) => {
+                        seen_a_hash = true;
+                        seen_sets[i].insert(hash);
+                        if seen_sets.iter().all(|set| set.contains(&hash)) {
+                            debug!("Ancestor: Found it! {}", hash);
+                            return Ok(Some(hash));
+                        }
+                        let commit = self.open_commit(&hash)?;
+                        trace!("Ancestor: Round {}, Slot {}: {} {}",
+                               depth,
+                               i,
+                               hash,
+                               commit.message);
+                        queue.extend(commit.parents);
+                    }
+                }
+            }
+            if !seen_a_hash {
+                debug!("Ancestor: end of history. No common ancestor found.");
+                return Ok(None);
+            }
+        }
     }
 }
 
