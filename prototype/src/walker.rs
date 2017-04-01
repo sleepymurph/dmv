@@ -64,6 +64,14 @@ impl PathStack {
         }
         path
     }
+
+    pub fn join_to(&self, path: &Path) -> PathBuf {
+        let mut path = path.to_path_buf();
+        for c in self {
+            path.push(c);
+        }
+        path
+    }
 }
 impl IntoIterator for PathStack {
     type Item = String;

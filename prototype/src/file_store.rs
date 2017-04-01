@@ -58,7 +58,10 @@ impl FileStore {
                      -> Result<ObjectKey> {
         use filebuffer::FileBuffer;
         let meta = file_path.metadata()?;
-        let file = FileBuffer::open(&file_path)?;
+        let file =
+            FileBuffer::open(&file_path).chain_err(|| {
+                    format!("Could not read {}", file_path.display())
+                })?;
         let file = ProgressReader::new(Cursor::new(&*file), progress);
 
         if let Ok(Some(hash)) = self.cache.check(file_path, &meta) {

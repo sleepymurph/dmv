@@ -6,15 +6,16 @@ use dag::Commit;
 use dag::ObjectKey;
 use disk_backed::DiskBacked;
 use error::*;
+use file_store::*;
 use find_repo::RepoLayout;
-use fs_transfer::ComparePrintWalkOp;
-use fs_transfer::FsTransfer;
-use fs_transfer::MultiComparePrintWalkOp;
-use object_store::ObjectStore;
+use fs_transfer::*;
+use object_store::*;
+use progress::*;
 use status::*;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
+use std::thread;
 use walker::*;
 
 
@@ -228,12 +229,47 @@ impl WorkDir {
     pub fn merge<'a, I: 'a>(&mut self, revs: I) -> Result<()>
         where I: Iterator<Item = &'a str>
     {
-        for rev in revs {
-            let rev = self.object_store.expect_ref_or_hash(rev)?;
-            self.state.parents.push(*rev.hash());
+        let prog = ProgressCounter::arc("Merging", 0);
+        let prog_clone = prog.clone();
+        let prog_thread = thread::spawn(move || std_err_watch(prog_clone));
+
+        let wd_node: Option<FileWalkNode> = Some(self.file_store
+            .lookup_node(self.path().to_path_buf())?);
+
+        for theirs in revs {
+            debug!("Three-way merging {}", theirs);
+            let theirs =
+                self.object_store.expect_ref_or_hash(theirs)?.into_hash();
+
+            self.state.parents.push(theirs);
+            self.state.flush()?;
+
+            let common = self.object_store
+                .find_common_ancestor(self.state
+                    .parents
+                    .iter()
+                    .map(|h| h.to_short()))?;
+
+            let common_node: Option<ObjectWalkNode> =
+                common.and_then_try(|hash|
+                                    self.object_store.lookup_node(hash))?;
+
+            let theirs_node: Option<ObjectWalkNode> = Some(self.object_store
+                .lookup_node(theirs)?);
+
+            let node = (vec![common_node, theirs_node], wd_node.clone());
+            let combo = (&self.object_store, &self.file_store);
+
+            let mut op = ThreeWayMergeWalkOp::new(&self.fs_transfer,
+                                                  self.path(),
+                                                  &*prog);
+
+            combo.walk_node(&mut op, node)?;
         }
-        self.state.flush()?;
-        unimplemented!()
+
+        prog.finish();
+        prog_thread.join().unwrap();
+        Ok(())
     }
 
     pub fn update_ref_to_head(&mut self, ref_name: &str) -> Result<ObjectKey> {

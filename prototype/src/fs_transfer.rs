@@ -123,8 +123,15 @@ impl FsTransfer {
                  -> Result<ObjectKey> {
         self.file_store.hash_file(file_path, &self.object_store, progress)
     }
-}
 
+    pub fn extract_file(&self,
+                        hash: &ObjectKey,
+                        path: &Path,
+                        progress: &ProgressCounter)
+                        -> Result<()> {
+        self.file_store.extract_file(&self.object_store, hash, path, progress)
+    }
+}
 
 
 type CompareNode = (Option<ComparableNode>, Option<ComparableNode>);
@@ -229,7 +236,6 @@ impl<'s> WalkOp<MultiCompareNode> for MultiComparePrintWalkOp<'s> {
         Ok(None)
     }
 }
-
 
 
 pub struct TransferEstimateOp {
@@ -348,15 +354,6 @@ pub struct CheckoutOp<'a> {
     extract_root: &'a Path,
     progress: &'a ProgressCounter,
 }
-impl<'a> CheckoutOp<'a> {
-    fn abs_path(&self, ps: &PathStack) -> PathBuf {
-        let mut abs_path = self.extract_root.to_path_buf();
-        for path in ps {
-            abs_path.push(path);
-        }
-        abs_path
-    }
-}
 impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
     type VisitResult = ();
 
@@ -368,16 +365,8 @@ impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
                    ps: &PathStack,
                    _node: &CheckoutNode)
                    -> Result<()> {
-        let path = self.abs_path(ps);
-        if !path.is_dir() {
-            if path.exists() {
-                debug!("Checkout: Removing file {}", path.display());
-                remove_file(&path)?;
-            }
-            debug!("Checkout: Creating dir  {}", path.display());
-            create_dir(&path)?;
-        }
-        Ok(())
+        let path = ps.join_to(self.extract_root);
+        create_dir_clobber(&path)
     }
 
     fn no_descend(&mut self,
@@ -388,7 +377,7 @@ impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
         let obj = node.1;
         let status = ComparableNode::compare_into(file.clone(), obj.clone());
 
-        let path = self.abs_path(ps);
+        let path = ps.join_to(self.extract_root);
 
         if status == Status::Delete {
             let file = file.unwrap(); // safe to unwrap
@@ -414,6 +403,135 @@ impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
     }
 }
 
+
+
+type ThreeWayMergeNode = (Vec<Option<ObjectWalkNode>>, Option<FileWalkNode>);
+enum MergeSlot {
+    Common = 0,
+    Theirs = 1,
+}
+pub struct ThreeWayMergeWalkOp<'a> {
+    fs_transfer: &'a FsTransfer,
+    base_path: &'a Path,
+    progress: &'a ProgressCounter,
+}
+impl<'a> ThreeWayMergeWalkOp<'a> {
+    pub fn new(fs_transfer: &'a FsTransfer,
+               base_path: &'a Path,
+               progress: &'a ProgressCounter)
+               -> Self {
+        ThreeWayMergeWalkOp {
+            base_path: base_path,
+            fs_transfer: fs_transfer,
+            progress: progress,
+        }
+    }
+}
+impl<'a> WalkOp<ThreeWayMergeNode> for ThreeWayMergeWalkOp<'a> {
+    type VisitResult = ();
+
+    fn should_descend(&mut self,
+                      _ps: &PathStack,
+                      node: &ThreeWayMergeNode)
+                      -> bool {
+        let is_dir = |n: &Option<FileWalkNode>| {
+            n.as_ref().map(|n| n.metadata.is_dir()).unwrap_or(false)
+        };
+        let is_tree = |n: &Option<ObjectWalkNode>| {
+            n.as_ref().map(|n| n.object_type.is_treeish()).unwrap_or(false)
+        };
+
+        let wd_is_dir = is_dir(&node.1);
+        let wd_is_ignore = &node.1.as_ref().map(|n| n.ignored).unwrap_or(false);
+        let theirs_is_tree = is_tree(&node.0[MergeSlot::Theirs as usize]);
+
+        wd_is_dir && !wd_is_ignore || theirs_is_tree
+    }
+    fn pre_descend(&mut self,
+                   ps: &PathStack,
+                   _node: &ThreeWayMergeNode)
+                   -> Result<()> {
+        let path = ps.join_to(self.base_path);
+        create_dir_clobber(&path)
+    }
+    fn no_descend(&mut self,
+                  ps: &PathStack,
+                  node: ThreeWayMergeNode)
+                  -> Result<Option<Self::VisitResult>> {
+        let path = ps.join_to(self.base_path);
+
+        let wd = match node.1 {
+            None => None,
+            Some(FileWalkNode { hash: Some(h), .. }) => Some(h),
+            Some(FileWalkNode { ignored: true, .. }) => None,
+            Some(FileWalkNode { hash: None, .. }) => {
+                Some(self.fs_transfer.hash_file(&path, &self.progress)?)
+            }
+        };
+        let common = node.0[MergeSlot::Common as usize].map(|n| n.hash);
+        let theirs = node.0[MergeSlot::Theirs as usize].map(|n| n.hash);
+
+        #[derive(Debug,Clone,Copy)]
+        enum Action {
+            KeepWd,
+            KeepTheirs,
+            Conflict,
+        }
+
+        let action = match (common, wd, theirs) {
+            (_, w, t) if w == t => Action::KeepWd,
+            (c, _, t) if c == t => Action::KeepWd,
+            (c, w, _) if c == w => Action::KeepTheirs,
+            (_, _, _) => Action::Conflict,
+        };
+
+        trace!("{}: common: {:?}, wd: {:?}, theirs: {:?} => {:?}",
+               ps,
+               common,
+               wd,
+               theirs,
+               action);
+
+        match action {
+            Action::KeepWd => (),
+            Action::KeepTheirs => {
+                match theirs {
+                    Some(t) => {
+                        self.fs_transfer
+                            .extract_file(&t, &path, &self.progress)?;
+                    }
+                    None => {
+                        if path.exists() {
+                            remove_file(path)?;
+                        }
+                    }
+                }
+            }
+            Action::Conflict => {
+                bail!("Conflict not implemented. common: {:?}, wd: {:?}, \
+                       theirs: {:?}",
+                      common,
+                      wd,
+                      theirs);
+            }
+        }
+        Ok(None)
+    }
+}
+
+
+
+fn create_dir_clobber(path: &Path) -> Result<()> {
+    if !path.is_dir() {
+        if path.exists() {
+            debug!("Removing file {}", path.display());
+            remove_file(&path)?;
+        }
+        debug!("Creating dir  {}", path.display());
+        create_dir(&path)?;
+    }
+    Ok(())
+}
 
 
 #[cfg(test)]
