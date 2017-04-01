@@ -87,14 +87,6 @@ impl WorkDir {
     /// Assume a single parent and return that (for now)
     fn parent(&self) -> Option<ObjectKey> { self.head() }
 
-    fn parents_short_hashes(&self) -> Vec<String> {
-        self.state
-            .parents
-            .iter()
-            .map(|h| h.to_short())
-            .collect::<Vec<String>>()
-    }
-
     pub fn status(&mut self,
                   show_ignored: bool,
                   rev1: Option<&str>,
@@ -112,9 +104,14 @@ impl WorkDir {
 
         match (rev1, rev2) {
             (None, None) => {
-                stderrln!("On branch {}, parents: {}",
-                          self.branch().unwrap_or("<detached head>"),
-                          self.parents_short_hashes().join(","));
+                stderrln!("On branch {}",
+                          self.branch().unwrap_or("<detached head>"));
+                for (i, parent) in self.parents().iter().enumerate() {
+                    let commit = self.object_store.open_commit(parent)?;
+                    stderrln!("PARENT{}: {} {}", i, parent, commit.message);
+                }
+                stderrln!();
+
                 let parents = self.parents().iter().map(|h| Some(*h)).collect();
                 self.status_many_objs_file(show_ignored, parents, abs_path)
             }
