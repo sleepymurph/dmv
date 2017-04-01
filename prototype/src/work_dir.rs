@@ -110,7 +110,6 @@ impl WorkDir {
             rev2.and_then_try(|r| self.object_store.expect_ref_or_hash(&r))?
                 .map(|r| r.into_hash());
 
-        println!("{:?} {:?}", rev1, rev2);
         match (rev1, rev2) {
             (None, None) => {
                 stderrln!("On branch {}, parents: {}",
