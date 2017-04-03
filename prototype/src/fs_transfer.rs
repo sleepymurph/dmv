@@ -365,7 +365,7 @@ impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
                    ps: &PathStack,
                    _node: &CheckoutNode)
                    -> Result<()> {
-        let path = ps.join_to(self.extract_root);
+        let path = self.extract_root.join(ps);
         create_dir_clobber(&path)
     }
 
@@ -380,7 +380,7 @@ impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
         let path = if &**ps == Path::new("") {
             self.extract_root.to_owned()
         } else {
-            ps.join_to(self.extract_root)
+            self.extract_root.join(ps)
         };
 
         if status == Status::Delete {
@@ -457,14 +457,14 @@ impl<'a> WalkOp<ThreeWayMergeNode> for ThreeWayMergeWalkOp<'a> {
                    ps: &PathStack,
                    _node: &ThreeWayMergeNode)
                    -> Result<()> {
-        let path = ps.join_to(self.base_path);
+        let path = self.base_path.join(ps);
         create_dir_clobber(&path)
     }
     fn no_descend(&mut self,
                   ps: &PathStack,
                   node: ThreeWayMergeNode)
                   -> Result<Option<Self::VisitResult>> {
-        let path = ps.join_to(self.base_path);
+        let path = self.base_path.join(ps);
 
         let wd = match node.1 {
             None => None,

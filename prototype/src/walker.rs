@@ -2,33 +2,14 @@
 
 use error::*;
 use maputil::mux;
-use std::borrow::Borrow;
 use std::collections::BTreeMap;
-use std::path::Path;
 use std::path::PathBuf;
 
 /// Type for reading and iterating over a node's children
 pub type ChildMap<N> = BTreeMap<String, N>;
 
 /// Tracks the position in the hierarchy during a walk
-wrapper_struct!{
-#[derive(Debug,Clone,Hash,PartialEq,Eq,PartialOrd,Ord)]
-pub struct PathStack(PathBuf);
-}
-impl PathStack {
-    pub fn new() -> Self { PathStack(PathBuf::new()) }
-
-    pub fn from_path<P: ?Sized>(path: &P) -> Result<Self>
-        where P: Borrow<Path>
-    {
-        let stack = PathStack(path.borrow().to_path_buf());
-        Ok(stack)
-    }
-
-    pub fn to_path_buf(&self) -> PathBuf { self.0.clone() }
-
-    pub fn join_to(&self, path: &Path) -> PathBuf { path.join(self.0.clone()) }
-}
+pub type PathStack = PathBuf;
 
 
 
