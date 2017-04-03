@@ -149,21 +149,21 @@ impl<'s> ComparePrintWalkOp<'s> {
             show_ignored: show_ignored,
         }
     }
-    fn status(&self, node: &CompareNode, _ps: &PathStack) -> Status {
+    fn status(&self, node: &CompareNode, _ps: &Path) -> Status {
         ComparableNode::compare_pair(node)
     }
 }
 impl<'s> WalkOp<CompareNode> for ComparePrintWalkOp<'s> {
     type VisitResult = ();
 
-    fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
+    fn should_descend(&mut self, ps: &Path, node: &CompareNode) -> bool {
         let targ = node.1.as_ref();
         let is_treeish = targ.map(|n| n.is_treeish).unwrap_or(false);
         let included = self.status(&node, ps).is_included();
         is_treeish && included
     }
     fn no_descend(&mut self,
-                  ps: &PathStack,
+                  ps: &Path,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
         let status = ComparableNode::compare_pair(&node);
@@ -195,7 +195,7 @@ impl<'s> MultiComparePrintWalkOp<'s> {
             show_ignored: show_ignored,
         }
     }
-    fn status(&self, node: &MultiCompareNode, _ps: &PathStack) -> Vec<Status> {
+    fn status(&self, node: &MultiCompareNode, _ps: &Path) -> Vec<Status> {
         node.0
             .iter()
             .map(|src| ComparableNode::compare(src.as_ref(), node.1.as_ref()))
@@ -205,17 +205,14 @@ impl<'s> MultiComparePrintWalkOp<'s> {
 impl<'s> WalkOp<MultiCompareNode> for MultiComparePrintWalkOp<'s> {
     type VisitResult = ();
 
-    fn should_descend(&mut self,
-                      ps: &PathStack,
-                      node: &MultiCompareNode)
-                      -> bool {
+    fn should_descend(&mut self, ps: &Path, node: &MultiCompareNode) -> bool {
         let targ = node.1.as_ref();
         let is_treeish = targ.map(|n| n.is_treeish).unwrap_or(false);
         let included = self.status(&node, ps).iter().any(|s| s.is_included());
         is_treeish && included
     }
     fn no_descend(&mut self,
-                  ps: &PathStack,
+                  ps: &Path,
                   node: MultiCompareNode)
                   -> Result<Option<Self::VisitResult>> {
         let status = self.status(&node, &ps);
@@ -244,21 +241,21 @@ pub struct TransferEstimateOp {
 impl TransferEstimateOp {
     pub fn new() -> Self { TransferEstimateOp { acc: 0 } }
     pub fn estimate(&self) -> ObjectSize { self.acc }
-    fn status(&self, node: &CompareNode, _ps: &PathStack) -> Status {
+    fn status(&self, node: &CompareNode, _ps: &Path) -> Status {
         ComparableNode::compare_pair(node)
     }
 }
 impl WalkOp<CompareNode> for TransferEstimateOp {
     type VisitResult = ();
 
-    fn should_descend(&mut self, ps: &PathStack, node: &CompareNode) -> bool {
+    fn should_descend(&mut self, ps: &Path, node: &CompareNode) -> bool {
         let targ = node.1.as_ref();
         let is_treeish = targ.map(|n| n.is_treeish).unwrap_or(false);
         let included = self.status(&node, ps).is_included();
         is_treeish && included
     }
     fn no_descend(&mut self,
-                  ps: &PathStack,
+                  ps: &Path,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
         let status = ComparableNode::compare_pair(&node);
@@ -285,14 +282,14 @@ pub struct HashAndStoreOp<'a, 'b> {
 impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp<'a, 'b> {
     type VisitResult = ObjectKey;
 
-    fn should_descend(&mut self, _ps: &PathStack, node: &CompareNode) -> bool {
+    fn should_descend(&mut self, _ps: &Path, node: &CompareNode) -> bool {
         let status = ComparableNode::compare_pair(node);
         node.1.as_ref().map(|ref n| n.is_treeish).unwrap_or(false) &&
         status.is_included()
     }
 
     fn no_descend(&mut self,
-                  ps: &PathStack,
+                  ps: &Path,
                   node: CompareNode)
                   -> Result<Option<Self::VisitResult>> {
         let status = ComparableNode::compare_pair(&node);
@@ -325,7 +322,7 @@ impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp<'a, 'b> {
     }
 
     fn post_descend(&mut self,
-                    ps: &PathStack,
+                    ps: &Path,
                     _node: CompareNode,
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
@@ -357,27 +354,24 @@ pub struct CheckoutOp<'a> {
 impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
     type VisitResult = ();
 
-    fn should_descend(&mut self, _ps: &PathStack, node: &CheckoutNode) -> bool {
+    fn should_descend(&mut self, _ps: &Path, node: &CheckoutNode) -> bool {
         node.1.map(|n| n.object_type.is_treeish()).unwrap_or(false)
     }
 
-    fn pre_descend(&mut self,
-                   ps: &PathStack,
-                   _node: &CheckoutNode)
-                   -> Result<()> {
+    fn pre_descend(&mut self, ps: &Path, _node: &CheckoutNode) -> Result<()> {
         let path = self.extract_root.join(ps);
         create_dir_clobber(&path)
     }
 
     fn no_descend(&mut self,
-                  ps: &PathStack,
+                  ps: &Path,
                   node: CheckoutNode)
                   -> Result<Option<Self::VisitResult>> {
         let file = node.0;
         let obj = node.1;
         let status = ComparableNode::compare_into(file.clone(), obj.clone());
 
-        let path = if &**ps == Path::new("") {
+        let path = if ps == Path::new("") {
             self.extract_root.to_owned()
         } else {
             self.extract_root.join(ps)
@@ -436,10 +430,7 @@ impl<'a> ThreeWayMergeWalkOp<'a> {
 impl<'a> WalkOp<ThreeWayMergeNode> for ThreeWayMergeWalkOp<'a> {
     type VisitResult = ();
 
-    fn should_descend(&mut self,
-                      _ps: &PathStack,
-                      node: &ThreeWayMergeNode)
-                      -> bool {
+    fn should_descend(&mut self, _ps: &Path, node: &ThreeWayMergeNode) -> bool {
         let is_dir = |n: &Option<FileWalkNode>| {
             n.as_ref().map(|n| n.metadata.is_dir()).unwrap_or(false)
         };
@@ -454,14 +445,14 @@ impl<'a> WalkOp<ThreeWayMergeNode> for ThreeWayMergeWalkOp<'a> {
         wd_is_dir && !wd_is_ignore || theirs_is_tree
     }
     fn pre_descend(&mut self,
-                   ps: &PathStack,
+                   ps: &Path,
                    _node: &ThreeWayMergeNode)
                    -> Result<()> {
         let path = self.base_path.join(ps);
         create_dir_clobber(&path)
     }
     fn no_descend(&mut self,
-                  ps: &PathStack,
+                  ps: &Path,
                   node: ThreeWayMergeNode)
                   -> Result<Option<Self::VisitResult>> {
         let path = self.base_path.join(ps);

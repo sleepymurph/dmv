@@ -3,14 +3,11 @@
 use error::*;
 use maputil::mux;
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::path::PathBuf;
 
 /// Type for reading and iterating over a node's children
 pub type ChildMap<N> = BTreeMap<String, N>;
-
-/// Tracks the position in the hierarchy during a walk
-pub type PathStack = PathBuf;
-
 
 
 /// A repository that can look up nodes by some handle
@@ -43,7 +40,7 @@ pub trait NodeReader<N> {
                     -> Result<Option<O::VisitResult>>
         where O: WalkOp<N>
     {
-        self.walk_node_stack(op, node, &mut PathStack::new())
+        self.walk_node_stack(op, node, &mut PathBuf::new())
     }
 
     /// Do a walk operation, tracking the path stack
@@ -52,7 +49,7 @@ pub trait NodeReader<N> {
     fn walk_node_stack<O>(&self,
                           op: &mut O,
                           node: N,
-                          path_stack: &mut PathStack)
+                          path_stack: &mut PathBuf)
                           -> Result<Option<O::VisitResult>>
         where O: WalkOp<N>
     {
@@ -115,7 +112,7 @@ pub trait WalkOp<N> {
     type VisitResult;
 
     /// Called before descending into a tree node, return false to stop descent
-    fn should_descend(&mut self, path_stack: &PathStack, node: &N) -> bool;
+    fn should_descend(&mut self, path_stack: &Path, node: &N) -> bool;
 
     /// Called before visiting a node that was not descended into
     ///
@@ -123,7 +120,7 @@ pub trait WalkOp<N> {
     ///
     /// Default implementation is a no-op
     fn no_descend(&mut self,
-                  _ps: &PathStack,
+                  _ps: &Path,
                   _node: N)
                   -> Result<Option<Self::VisitResult>> {
         Ok(None)
@@ -133,15 +130,13 @@ pub trait WalkOp<N> {
     /// Called before descending in to tree node to gather its child results
     ///
     /// Default implementation is a no-op
-    fn pre_descend(&mut self, _ps: &PathStack, _node: &N) -> Result<()> {
-        Ok(())
-    }
+    fn pre_descend(&mut self, _ps: &Path, _node: &N) -> Result<()> { Ok(()) }
 
     /// Called after descending in to tree node and gathering its child results
     ///
     /// Default implementation is a no-op
     fn post_descend(&mut self,
-                    _ps: &PathStack,
+                    _ps: &Path,
                     _node: N,
                     _children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {

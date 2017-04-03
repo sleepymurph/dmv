@@ -656,15 +656,12 @@ struct TreeDisplayOp<'s, 'f: 's> {
 impl<'a, 'b> WalkOp<ObjectWalkNode> for TreeDisplayOp<'a, 'b> {
     type VisitResult = ();
 
-    fn should_descend(&mut self,
-                      _ps: &PathStack,
-                      node: &ObjectWalkNode)
-                      -> bool {
+    fn should_descend(&mut self, _ps: &Path, node: &ObjectWalkNode) -> bool {
         node.object_type.is_treeish()
     }
 
     fn no_descend(&mut self,
-                  ps: &PathStack,
+                  ps: &Path,
                   node: ObjectWalkNode)
                   -> Result<Option<Self::VisitResult>> {
         if self.verbose {
