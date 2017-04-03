@@ -672,9 +672,9 @@ impl<'a, 'b> WalkOp<ObjectWalkNode> for TreeDisplayOp<'a, 'b> {
                      "{} {} {}",
                      node.hash,
                      node.object_type.code(),
-                     ps)?;
+                     ps.display())?;
         } else {
-            writeln!(self.formatter, "{}", ps)?;
+            writeln!(self.formatter, "{}", ps.display())?;
         }
         Ok(None)
     }

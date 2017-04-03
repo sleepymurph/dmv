@@ -169,7 +169,7 @@ impl<'s> WalkOp<CompareNode> for ComparePrintWalkOp<'s> {
         let status = ComparableNode::compare_pair(&node);
         let show = status != Status::Unchanged &&
                    (status != Status::Ignored || self.show_ignored);
-        let mut ps = ps.to_string();
+        let mut ps = ps.to_string_lossy();
         if node.1.map(|n| n.is_treeish).unwrap_or(false) {
             ps += "/";
         }
@@ -223,7 +223,7 @@ impl<'s> WalkOp<MultiCompareNode> for MultiComparePrintWalkOp<'s> {
             *status != Status::Unchanged &&
             (*status != Status::Ignored || self.show_ignored)
         });
-        let mut ps = ps.to_string();
+        let mut ps = ps.to_string_lossy();
         if node.1.map(|n| n.is_treeish).unwrap_or(false) {
             ps += "/";
         }
@@ -268,7 +268,7 @@ impl WalkOp<CompareNode> for TransferEstimateOp {
         }
         trace!("{} {} -- {} to transfer, {} total",
                status.code(),
-               ps,
+               ps.display(),
                size,
                self.acc);
         Ok(None)
@@ -300,18 +300,18 @@ impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp<'a, 'b> {
         let file_path = node.1.as_ref().and_then(|n| n.fs_path.as_ref());
         match (status.is_included(), file_hash, &file_path) {
             (false, _, _) => {
-                debug!("{} {} - skipping", status.code(), ps);
+                debug!("{} {} - skipping", status.code(), ps.display());
                 Ok(None)
             }
             (true, Some(hash), _) => {
                 debug!("{} {} - including with known hash {}",
                        status.code(),
-                       ps,
+                       ps.display(),
                        hash);
                 Ok(Some(hash))
             }
             (true, None, &Some(ref fs_path)) => {
-                debug!("{} {} - hashing", status.code(), ps);
+                debug!("{} {} - hashing", status.code(), ps.display());
                 let hash = self.fs_transfer
                     .hash_file(fs_path.as_path(), self.progress)?;
                 Ok(Some(hash))
@@ -319,7 +319,7 @@ impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp<'a, 'b> {
             (true, None, &None) => {
                 bail!("{} {} - Node has neither known hash nor fs_path",
                       status.code(),
-                      ps);
+                      ps.display());
             }
         }
     }
@@ -330,7 +330,7 @@ impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp<'a, 'b> {
                     children: ChildMap<Self::VisitResult>)
                     -> Result<Option<Self::VisitResult>> {
         if children.is_empty() {
-            debug!("  {} - dropping empty dir", ps);
+            debug!("  {} - dropping empty dir", ps.display());
             return Ok(None);
         }
         let mut tree = Tree::new();
@@ -338,7 +338,7 @@ impl<'a, 'b> WalkOp<CompareNode> for HashAndStoreOp<'a, 'b> {
             tree.insert(name, hash);
         }
         let hash = self.fs_transfer.store_object(&tree)?;
-        debug!("  {} - storing tree {}", ps, hash);
+        debug!("  {} - storing tree {}", ps.display(), hash);
         Ok(Some(hash))
     }
 }
@@ -377,7 +377,11 @@ impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
         let obj = node.1;
         let status = ComparableNode::compare_into(file.clone(), obj.clone());
 
-        let path = ps.join_to(self.extract_root);
+        let path = if &**ps == Path::new("") {
+            self.extract_root.to_owned()
+        } else {
+            ps.join_to(self.extract_root)
+        };
 
         if status == Status::Delete {
             let file = file.unwrap(); // safe to unwrap
@@ -395,7 +399,9 @@ impl<'a> WalkOp<CheckoutNode> for CheckoutOp<'a> {
             self.file_store
                 .extract_file(self.object_store, &hash, &path, self.progress)
                 .chain_err(|| {
-                    format!("Checkout: Could not extract object {}", hash)
+                    format!("Checkout: Could not extract object {} to {}",
+                            hash,
+                            path.display())
                 })?;
         }
 
@@ -486,7 +492,7 @@ impl<'a> WalkOp<ThreeWayMergeNode> for ThreeWayMergeWalkOp<'a> {
         };
 
         trace!("{}: common: {:?}, wd: {:?}, theirs: {:?} => {:?}",
-               ps,
+               ps.display(),
                common,
                wd,
                theirs,
