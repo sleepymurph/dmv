@@ -37,9 +37,9 @@ error_chain!{
             display("object not found in object store: {}", h)
         }
 
-        RefOrHashNotFound(r: String) {
-            description("revision not found in object store")
-            display("revision not found in object store: {}", r)
+        RevNameNotFound(r: String) {
+            description("string does not match any ref or hash in repository")
+            display("string does not match any ref or hash in repository: {}", r)
         }
     }
 }

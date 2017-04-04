@@ -156,25 +156,19 @@ impl ObjectStore {
         self.object_path(key).is_file()
     }
 
-    pub fn ref_or_hash(&self, rev: &str) -> Result<Option<ObjSpec>> {
-        if let Some(hash) = self.refs().get(rev) {
-            Ok(Some(ObjSpec::Ref(rev.to_owned(), *hash)))
-        } else if let Some(hash) = self.try_find_short_hash(&rev)? {
-            Ok(Some(ObjSpec::Hash(hash)))
-        } else {
-            Ok(None)
-        }
+    pub fn expect_ref_or_hash(&self, rev: &RevNameStr) -> Result<ObjSpec> {
+        {
+                self.refs
+                    .get(rev)
+                    .map(|hash| ObjSpec::Ref(rev.to_owned(), *hash))
+                    .ok_or(())
+            }
+            .or_else(|_| {
+                self.try_find_short_hash(rev).map(|hash| ObjSpec::Hash(hash))
+            })
     }
 
-    pub fn expect_ref_or_hash(&self, rev: &str) -> Result<ObjSpec> {
-        match self.ref_or_hash(rev) {
-            Ok(Some(x)) => Ok(x),
-            Ok(None) => bail!(ErrorKind::RefOrHashNotFound(rev.to_owned())),
-            Err(e) => bail!(e),
-        }
-    }
-
-    fn try_find_short_hash(&self, s: &str) -> Result<Option<ObjectKey>> {
+    fn try_find_short_hash(&self, s: &str) -> Result<ObjectKey> {
         fn get_fn_str(path: &Path) -> &str {
             path.file_name()
                 .expect("should have a file_name")
@@ -187,7 +181,7 @@ impl ObjectStore {
         let short_name = get_fn_str(&path);
 
         if !dir.exists() {
-            return Ok(None);
+            return Err(ErrorKind::RevNameNotFound(s.to_owned()).into());
         } else {
             for entry in dir.read_dir()? {
                 let entry = entry?.path();
@@ -195,10 +189,10 @@ impl ObjectStore {
                        s,
                        entry.strip_prefix(&self.path)?.display());
                 if get_fn_str(&entry).starts_with(&short_name) {
-                    return Ok(Some(self.object_from_path(&entry)?));
+                    return self.object_from_path(&entry);
                 }
             }
-            return Ok(None);
+            return Err(ErrorKind::RevNameNotFound(s.to_owned()).into());
         }
     }
 
@@ -553,7 +547,7 @@ impl NodeReader<ComparableNode> for ObjectStore {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum ObjSpec {
-    Ref(RevName, ObjectKey),
+    Ref(RevNameBuf, ObjectKey),
     Hash(ObjectKey),
 }
 

@@ -120,13 +120,13 @@ pub fn branch_list() -> Result<()> {
     Ok(())
 }
 
-pub fn branch_set(branch_name: RevName, target: RevName) -> Result<()> {
+pub fn branch_set(branch_name: RevNameBuf, target: RevNameBuf) -> Result<()> {
     let mut object_store = find_object_store()?;
     let hash = object_store.expect_ref_or_hash(&target)?.into_hash();
     object_store.update_ref(branch_name, hash)
 }
 
-pub fn branch_set_to_head(branch_name: RevName) -> Result<()> {
+pub fn branch_set_to_head(branch_name: RevNameBuf) -> Result<()> {
     let mut work_dir = find_work_dir()?;
     work_dir.update_ref_to_head(branch_name.clone())?;
     work_dir.checkout(&branch_name.parse()?)?;

@@ -8,11 +8,12 @@ use std::str::FromStr;
 /// The name of a revision or object: either a ref name or a hash
 ///
 /// Needs to be checked agaist the object store to see if it actually exists
-pub type RevName = String;
+pub type RevNameBuf = String;
+pub type RevNameStr = str;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct RevSpec {
-    pub rev_name: RevName,
+    pub rev_name: RevNameBuf,
     pub path: Option<PathBuf>,
 }
 impl FromStr for RevSpec {

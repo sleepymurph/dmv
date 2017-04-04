@@ -277,7 +277,7 @@ impl WorkDir {
     }
 
     pub fn update_ref_to_head(&mut self,
-                              ref_name: RevName)
+                              ref_name: RevNameBuf)
                               -> Result<ObjectKey> {
         match self.head() {
             Some(head) => {
