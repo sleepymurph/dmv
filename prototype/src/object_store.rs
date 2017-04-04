@@ -197,6 +197,43 @@ impl ObjectStore {
         Err(format!("Hash not found: {}", s).into())
     }
 
+    fn lookup_tree_path(&self,
+                        key: &ObjectKey,
+                        path: &Path)
+                        -> Result<ObjectKey> {
+        use std::path::Component;
+        let mut components = path.components();
+        match components.next() {
+
+                None => Ok(*key),
+
+                Some(Component::Normal(child_path)) => {
+                    self.open_tree(key)
+                        .and_then(|tree| {
+                            tree.get(child_path)
+                                .map(|hash| *hash)
+                                .ok_or_else(|| {
+                                    format!("Tree {} has no child {}",
+                                            key,
+                                            child_path.to_string_lossy())
+                                        .into()
+                                })
+                        })
+                        .and_then(|hash| {
+                            self.lookup_tree_path(&hash, components.as_path())
+                        })
+                }
+
+                Some(other) => {
+                    Err(format!("Unexpected component type {:?} in path: {}",
+                                other,
+                                path.display())
+                        .into())
+                }
+            }
+            .chain_err(|| format!("Could not open {}:{}", key, path.display()))
+    }
+
     pub fn open_object_file(&self,
                             key: &ObjectKey)
                             -> Result<io::BufReader<fs::File>> {
@@ -243,49 +280,6 @@ impl ObjectStore {
                 Err(e) => Err(e),
             }
             .chain_err(|| format!("Could not open object {}", key))
-    }
-
-    pub fn try_find_tree_path(&self,
-                              key: &ObjectKey,
-                              path: &Path)
-                              -> Result<Option<ObjectKey>> {
-        use std::path::Component;
-
-        let mut next_key = key.to_owned();
-
-        if path == PathBuf::from("") {
-            match self.open_object(&next_key)? {
-                ObjectHandle::Commit(raw) => {
-                    return raw.read_content().map(|commit| Some(commit.tree));
-                }
-                _ => return Ok(Some(next_key)),
-            }
-        }
-
-        let mut path_so_far = PathBuf::new();
-        for component in path.components() {
-            let tree = self.open_tree(&next_key)
-                .chain_err(|| {
-                    format!("While trying to open {}/{}",
-                            key,
-                            path_so_far.display())
-                })?;
-            match component {
-                Component::Normal(child_path) => {
-                    path_so_far.push(&child_path);
-                    match tree.get(child_path) {
-                        Some(child_key) => next_key = child_key.to_owned(),
-                        None => return Ok(None),
-                    }
-                }
-                _ => {
-                    bail!("Unexpected path component type '{:?}' in path '{}'",
-                          component,
-                          path.display())
-                }
-            }
-        }
-        Ok(Some(next_key))
     }
 
     /// Writes a single object into the object store
