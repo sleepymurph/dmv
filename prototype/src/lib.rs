@@ -27,6 +27,16 @@ extern crate testutil;
 
 
 /// Write to stderr
+macro_rules! stderr {
+    () => {};
+    ( $($arg:expr),* ) => {{
+        use ::std::io::Write;
+        write!(::std::io::stderr(), $($arg),*)
+            .expect("could not write to stderr")
+    }};
+}
+
+/// Write to stderr
 macro_rules! stderrln {
     () => {{ stderrln!("") }};
     ( $($arg:expr),* ) => {{
@@ -61,6 +71,7 @@ pub mod constants;
 #[macro_use]
 pub mod dag;
 pub mod rolling_hash;
+pub mod revisions;
 pub mod object_store;
 pub mod cache;
 pub mod ignore;

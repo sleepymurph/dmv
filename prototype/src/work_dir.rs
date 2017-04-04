@@ -24,6 +24,7 @@ use walker::*;
 pub struct WorkDirState {
     parents: Vec<ObjectKey>,
     branch: Option<String>,
+    subtree: Option<PathBuf>,
 }
 
 impl Default for WorkDirState {
@@ -31,6 +32,7 @@ impl Default for WorkDirState {
         WorkDirState {
             parents: Vec::new(),
             branch: Some(DEFAULT_BRANCH_NAME.to_owned()),
+            subtree: None,
         }
     }
 }
@@ -104,8 +106,13 @@ impl WorkDir {
 
         match (rev1, rev2) {
             (None, None) => {
-                stderrln!("On branch {}",
-                          self.branch().unwrap_or("<detached head>"));
+                stderr!("On branch {}",
+                        self.branch().unwrap_or("<detached head>"));
+                if let &Some(ref subtree) = &self.state.subtree {
+                    stderrln!(":{}", subtree.display());
+                } else {
+                    stderrln!();
+                }
                 for (i, parent) in self.parents().iter().enumerate() {
                     let commit = self.object_store.open_commit(parent)?;
                     stderrln!("PARENT{}: {} {}", i, parent, commit.message);
