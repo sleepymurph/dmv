@@ -7,6 +7,7 @@ use human_readable::human_bytes;
 use log::LogLevel;
 use progress::*;
 use regex::Regex;
+use revisions::*;
 use status::ComparableNode;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
@@ -555,7 +556,7 @@ impl NodeReader<ComparableNode> for ObjectStore {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum ObjSpec {
-    Ref(String, ObjectKey),
+    Ref(RevName, ObjectKey),
     Hash(ObjectKey),
 }
 
