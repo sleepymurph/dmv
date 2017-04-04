@@ -157,18 +157,21 @@ impl ObjectStore {
     }
 
     pub fn expect_ref_or_hash(&self, rev: &RevNameStr) -> Result<ObjSpec> {
-        {
-                self.refs
-                    .get(rev)
-                    .map(|hash| ObjSpec::Ref(rev.to_owned(), *hash))
-                    .ok_or(())
-            }
+        self.lookup_ref(rev)
+            .map(|hash| ObjSpec::Ref(rev.to_owned(), hash))
             .or_else(|_| {
-                self.try_find_short_hash(rev).map(|hash| ObjSpec::Hash(hash))
+                self.lookup_short_hash(rev).map(|hash| ObjSpec::Hash(hash))
             })
     }
 
-    fn try_find_short_hash(&self, s: &str) -> Result<ObjectKey> {
+    fn lookup_ref(&self, rev: &RevNameStr) -> Result<ObjectKey> {
+        self.refs
+            .get(rev)
+            .map(|hash| *hash)
+            .ok_or_else(|| format!("Not a ref: {}", rev).into())
+    }
+
+    fn lookup_short_hash(&self, s: &RevNameStr) -> Result<ObjectKey> {
         fn get_fn_str(path: &Path) -> &str {
             path.file_name()
                 .expect("should have a file_name")
@@ -180,9 +183,7 @@ impl ObjectStore {
         let dir = path.parent_or_err()?;
         let short_name = get_fn_str(&path);
 
-        if !dir.exists() {
-            return Err(ErrorKind::RevNameNotFound(s.to_owned()).into());
-        } else {
+        if dir.exists() {
             for entry in dir.read_dir()? {
                 let entry = entry?.path();
                 trace!("Looking for '{}', checking: {}",
@@ -192,8 +193,8 @@ impl ObjectStore {
                     return self.object_from_path(&entry);
                 }
             }
-            return Err(ErrorKind::RevNameNotFound(s.to_owned()).into());
         }
+        Err(format!("Hash not found: {}", s).into())
     }
 
     pub fn open_object_file(&self,
