@@ -8,6 +8,7 @@ use find_repo::RepoLayout;
 use find_repo::find_fs_transfer;
 use find_repo::find_object_store;
 use find_repo::find_work_dir;
+use revisions::*;
 use std::env::current_dir;
 use std::path::Path;
 use std::path::PathBuf;
@@ -119,16 +120,16 @@ pub fn branch_list() -> Result<()> {
     Ok(())
 }
 
-pub fn branch_set(branch_name: &str, target: &str) -> Result<()> {
+pub fn branch_set(branch_name: RevName, target: RevName) -> Result<()> {
     let mut object_store = find_object_store()?;
     let hash = object_store.expect_ref_or_hash(&target)?.into_hash();
     object_store.update_ref(branch_name, hash)
 }
 
-pub fn branch_set_to_head(branch_name: &str) -> Result<()> {
+pub fn branch_set_to_head(branch_name: RevName) -> Result<()> {
     let mut work_dir = find_work_dir()?;
-    work_dir.update_ref_to_head(branch_name)?;
-    work_dir.checkout(branch_name)?;
+    work_dir.update_ref_to_head(branch_name.clone())?;
+    work_dir.checkout(&branch_name.parse()?)?;
     Ok(())
 }
 
@@ -148,7 +149,7 @@ pub fn fsck() -> Result<()> {
     }
 }
 
-pub fn checkout(target: &str) -> Result<()> {
+pub fn checkout(target: &RevSpec) -> Result<()> {
     let mut work_dir = find_work_dir()?;
     work_dir.checkout(target)
 }

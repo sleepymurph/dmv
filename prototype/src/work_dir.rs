@@ -11,6 +11,7 @@ use find_repo::RepoLayout;
 use fs_transfer::*;
 use object_store::*;
 use progress::*;
+use revisions::*;
 use status::*;
 use std::io;
 use std::path::Path;
@@ -217,9 +218,9 @@ impl WorkDir {
         Ok((self.branch(), hash))
     }
 
-    pub fn checkout(&mut self, rev: &str) -> Result<()> {
+    pub fn checkout(&mut self, rev: &RevSpec) -> Result<()> {
         let abs_path = self.path().to_owned();
-        let rev = self.object_store.expect_ref_or_hash(rev)?;
+        let rev = self.object_store.expect_ref_or_hash(&rev.rev_name)?;
         if self.state.parents != [*rev.hash()] {
             self.fs_transfer.extract_object(rev.hash(), &abs_path)?;
             self.state.parents = vec![*rev.hash()];
@@ -275,7 +276,9 @@ impl WorkDir {
         Ok(())
     }
 
-    pub fn update_ref_to_head(&mut self, ref_name: &str) -> Result<ObjectKey> {
+    pub fn update_ref_to_head(&mut self,
+                              ref_name: RevName)
+                              -> Result<ObjectKey> {
         match self.head() {
             Some(head) => {
                 self.update_ref(ref_name, head)?;

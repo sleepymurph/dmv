@@ -211,8 +211,8 @@ fn cmd_log(_argmatch: &clap::ArgMatches,
 fn cmd_branch(_argmatch: &clap::ArgMatches,
               submatch: &clap::ArgMatches)
               -> Result<()> {
-    let branch_name = submatch.value_of("branch");
-    let target_rev = submatch.value_of("rev");
+    let branch_name = submatch.value_of("branch").map(|s| s.to_owned());
+    let target_rev = submatch.value_of("rev").map(|s| s.to_owned());
     match (branch_name, target_rev) {
         (None, None) => cmd::branch_list(),
         (Some(branch_name), None) => cmd::branch_set_to_head(branch_name),
@@ -232,8 +232,8 @@ fn cmd_fsck(_argmatch: &clap::ArgMatches,
 fn cmd_checkout(_argmatch: &clap::ArgMatches,
                 submatch: &clap::ArgMatches)
                 -> Result<()> {
-    let target = submatch.value_of("rev").expect("required");
-    cmd::checkout(target)
+    let target = submatch.value_of("rev").expect("required").parse()?;
+    cmd::checkout(&target)
 }
 
 fn cmd_merge_base(_argmatch: &clap::ArgMatches,

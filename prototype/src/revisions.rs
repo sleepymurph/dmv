@@ -12,8 +12,8 @@ pub type RevName = String;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct RevSpec {
-    rev_name: RevName,
-    path: Option<PathBuf>,
+    pub rev_name: RevName,
+    pub path: Option<PathBuf>,
 }
 impl FromStr for RevSpec {
     type Err = Error;

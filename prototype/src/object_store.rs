@@ -401,11 +401,8 @@ impl ObjectStore {
             .collect::<Vec<_>>()
     }
 
-    pub fn update_ref<S, O>(&mut self, name: S, hash: O) -> Result<()>
-        where S: Into<String>,
-              O: Into<ObjectKey>
-    {
-        self.refs.insert(name.into(), hash.into());
+    pub fn update_ref(&mut self, name: String, hash: ObjectKey) -> Result<()> {
+        self.refs.insert(name, hash);
         self.refs.flush().map_err(|e| e.into())
     }
 
