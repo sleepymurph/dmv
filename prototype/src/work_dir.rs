@@ -100,18 +100,7 @@ impl WorkDir {
 
         match (rev1, rev2) {
             (None, None) => {
-                stderr!("On branch {}",
-                        self.branch().unwrap_or("<detached head>"));
-                if let &Some(ref subtree) = &self.state.subtree {
-                    stderrln!(":{}", subtree.display());
-                } else {
-                    stderrln!();
-                }
-                for (i, parent) in self.parents().iter().enumerate() {
-                    let commit = self.object_store.open_commit(parent)?;
-                    stderrln!("PARENT{}: {} {}", i, parent, commit.message);
-                }
-                stderrln!();
+                self.prett_print_state(&mut io::stderr())?;
 
                 let parents = self.parents()
                     .iter()
@@ -139,6 +128,27 @@ impl WorkDir {
             }
             (None, Some(_)) => unreachable!(),
         }
+    }
+
+    fn prett_print_state<W>(&self, w: &mut W) -> Result<()>
+        where W: io::Write
+    {
+        writeln!(w,
+                 "On branch {}",
+                 self.branch().unwrap_or("<detached head>"))?;
+        if let &Some(ref subtree) = &self.state.subtree {
+            writeln!(w, "Subtree: {}", subtree.display())?;
+        }
+        for (i, parent) in self.parents().iter().enumerate() {
+            let commit = self.object_store.open_commit(parent)?;
+            let parent_name = match self.parents().len() {
+                1 => "HEAD".to_owned(),
+                _ => format!("P{}", i),
+            };
+            writeln!(w, "{}: {} {}", parent_name, parent, commit.message)?;
+        }
+        writeln!(w)?;
+        Ok(())
     }
 
     fn status_obj_file(&mut self,
