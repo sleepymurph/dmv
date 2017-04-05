@@ -156,6 +156,35 @@ impl ObjectStore {
         self.object_path(key).is_file()
     }
 
+    /// Look up a RevSpec
+    ///
+    /// Returns a three-value tuple:
+    ///
+    /// - Hash of exact object specified, which may be a subtree of a commit
+    /// - Hash of the commit specified
+    /// - The ref name specified
+    ///
+    pub fn lookup(&self,
+                  rev: &RevSpec)
+                  -> Result<(ObjectKey, ObjectKey, Option<RevNameBuf>)> {
+        self.lookup_ref_or_hash(&rev.rev_name)
+            .and_then(|(hash, ref_name)| match &rev.path {
+                &None => Ok((hash, hash, ref_name)),
+                &Some(ref path) => {
+                    self.lookup_rev_path(&hash, path)
+                        .map(|subtree| (subtree, hash, ref_name))
+                }
+            })
+    }
+
+    fn lookup_ref_or_hash(&self,
+                          name: &RevNameStr)
+                          -> Result<(ObjectKey, Option<RevNameBuf>)> {
+        self.lookup_ref(name)
+            .map(|hash| (hash, Some(name.to_owned())))
+            .or_else(|_| self.lookup_short_hash(name).map(|hash| (hash, None)))
+    }
+
     pub fn expect_ref_or_hash(&self, rev: &RevNameStr) -> Result<ObjSpec> {
         self.lookup_ref(rev)
             .map(|hash| ObjSpec::Ref(rev.to_owned(), hash))
@@ -197,30 +226,30 @@ impl ObjectStore {
         Err(format!("Hash not found: {}", s).into())
     }
 
-    fn lookup_tree_path(&self,
-                        key: &ObjectKey,
-                        path: &Path)
-                        -> Result<ObjectKey> {
+    fn lookup_rev_path(&self,
+                       hash: &ObjectKey,
+                       path: &Path)
+                       -> Result<ObjectKey> {
         use std::path::Component;
         let mut components = path.components();
         match components.next() {
 
-                None => Ok(*key),
+                None => Ok(*hash),
 
-                Some(Component::Normal(child_path)) => {
-                    self.open_tree(key)
+                Some(Component::Normal(ch_path)) => {
+                    self.open_tree(hash)
                         .and_then(|tree| {
-                            tree.get(child_path)
-                                .map(|hash| *hash)
+                            tree.get(ch_path)
+                                .map(|ch_hash| *ch_hash)
                                 .ok_or_else(|| {
                                     format!("Tree {} has no child {}",
-                                            key,
-                                            child_path.to_string_lossy())
+                                            hash,
+                                            ch_path.to_string_lossy())
                                         .into()
                                 })
                         })
-                        .and_then(|hash| {
-                            self.lookup_tree_path(&hash, components.as_path())
+                        .and_then(|ch_hash| {
+                            self.lookup_rev_path(&ch_hash, components.as_path())
                         })
                 }
 
@@ -231,7 +260,7 @@ impl ObjectStore {
                         .into())
                 }
             }
-            .chain_err(|| format!("Could not open {}:{}", key, path.display()))
+            .chain_err(|| format!("Could not open {}:{}", hash, path.display()))
     }
 
     pub fn open_object_file(&self,

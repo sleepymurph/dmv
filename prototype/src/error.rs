@@ -38,8 +38,8 @@ error_chain!{
         }
 
         RevNameNotFound(r: String) {
-            description("string does not match any ref or hash in repository")
-            display("string does not match any ref or hash in repository: {}", r)
+            description("ref or hash not found")
+            display("ref or hash not found: {}", r)
         }
     }
 }

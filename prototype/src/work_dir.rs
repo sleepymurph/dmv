@@ -220,12 +220,13 @@ impl WorkDir {
 
     pub fn checkout(&mut self, rev: &RevSpec) -> Result<()> {
         let abs_path = self.path().to_owned();
-        let rev = self.object_store.expect_ref_or_hash(&rev.rev_name)?;
-        if self.state.parents != [*rev.hash()] {
-            self.fs_transfer.extract_object(rev.hash(), &abs_path)?;
-            self.state.parents = vec![*rev.hash()];
+        let (tree, commit, branch) = self.object_store.lookup(&rev)?;
+        if self.state.parents != [commit] || self.state.subtree != rev.path {
+            self.fs_transfer.extract_object(&tree, &abs_path)?;
+            self.state.parents = vec![commit];
         }
-        self.state.branch = rev.ref_name().map(|s| s.to_owned());
+        self.state.branch = branch;
+        self.state.subtree = rev.path.clone();
         self.state.flush()?;
         Ok(())
     }
