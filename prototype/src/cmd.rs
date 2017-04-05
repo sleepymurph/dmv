@@ -65,8 +65,11 @@ pub fn ls_files(rev: Option<RevSpec>, verbose: bool) -> Result<()> {
         }
         None => {
             let wd = find_work_dir()?;
-            let hash = wd.head()
+            let mut hash = wd.head()
                 .ok_or_else(|| "No commit specified and no parent commit")?;
+            if let &Some(ref path) = &wd.state.subtree {
+                hash = wd.object_store.lookup_rev_path(&hash, path)?;
+            }
             print!("{}", wd.ls_files(hash, verbose)?);
         }
     };

@@ -23,9 +23,9 @@ use walker::*;
 /// State stored in a file in the WorkDir, including current branch
 #[derive(Debug,Clone,Hash,PartialEq,Eq,RustcEncodable,RustcDecodable)]
 pub struct WorkDirState {
-    parents: Vec<ObjectKey>,
-    branch: Option<String>,
-    subtree: Option<PathBuf>,
+    pub parents: Vec<ObjectKey>,
+    pub branch: Option<String>,
+    pub subtree: Option<PathBuf>,
 }
 
 impl Default for WorkDirState {
@@ -44,7 +44,7 @@ impl Default for WorkDirState {
 pub struct WorkDir {
     fs_transfer: FsTransfer,
     path: PathBuf,
-    state: DiskBacked<WorkDirState>,
+    pub state: DiskBacked<WorkDirState>,
 }
 impl_deref_mut!(WorkDir => FsTransfer, fs_transfer);
 
