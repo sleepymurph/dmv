@@ -16,6 +16,13 @@ pub struct RevSpec {
     pub rev_name: RevNameBuf,
     pub path: Option<PathBuf>,
 }
+impl RevSpec {
+    pub fn set_path_if_none<F>(&mut self, f: F)
+        where F: FnOnce() -> Option<PathBuf>
+    {
+        self.path = self.path.take().or_else(f);
+    }
+}
 impl FromStr for RevSpec {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {

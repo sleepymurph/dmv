@@ -226,10 +226,10 @@ impl ObjectStore {
         Err(format!("Hash not found: {}", s).into())
     }
 
-    fn lookup_rev_path(&self,
-                       hash: &ObjectKey,
-                       path: &Path)
-                       -> Result<ObjectKey> {
+    pub fn lookup_rev_path(&self,
+                           hash: &ObjectKey,
+                           path: &Path)
+                           -> Result<ObjectKey> {
         use std::path::Component;
         let mut components = path.components();
         match components.next() {

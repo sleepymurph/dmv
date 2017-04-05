@@ -92,18 +92,11 @@ impl WorkDir {
 
     pub fn status(&mut self,
                   show_ignored: bool,
-                  rev1: Option<&str>,
-                  rev2: Option<&str>)
+                  rev1: Option<RevSpec>,
+                  rev2: Option<RevSpec>)
                   -> Result<()> {
 
         let abs_path = self.path().to_owned();
-
-        let rev1 =
-            rev1.and_then_try(|r| self.object_store.expect_ref_or_hash(&r))?
-                .map(|r| r.into_hash());
-        let rev2 =
-            rev2.and_then_try(|r| self.object_store.expect_ref_or_hash(&r))?
-                .map(|r| r.into_hash());
 
         match (rev1, rev2) {
             (None, None) => {
@@ -120,14 +113,29 @@ impl WorkDir {
                 }
                 stderrln!();
 
-                let parents = self.parents().iter().map(|h| Some(*h)).collect();
+                let parents = self.parents()
+                    .iter()
+                    .map(|h| {
+                        match self.state.subtree.as_ref() {
+                            // If this is a subtree checkout, adjust all parents
+                            Some(ref path) => {
+                                self.object_store.lookup_rev_path(h, path).ok()
+                            }
+                            None => Some(*h),
+                        }
+                    })
+                    .collect();
                 self.status_many_objs_file(show_ignored, parents, abs_path)
             }
-            (Some(hash1), None) => {
-                self.status_obj_file(show_ignored, Some(hash1), abs_path)
+            (Some(mut src_rev), None) => {
+                src_rev.set_path_if_none(|| self.state.subtree.clone());
+                let (src_rev, _, _) = self.object_store.lookup(&src_rev)?;
+                self.status_obj_file(show_ignored, Some(src_rev), abs_path)
             }
-            (Some(hash1), Some(hash2)) => {
-                self.status_obj_obj(show_ignored, hash1, hash2)
+            (Some(src_rev), Some(targ_rev)) => {
+                let (src_rev, _, _) = self.object_store.lookup(&src_rev)?;
+                let (targ_rev, _, _) = self.object_store.lookup(&targ_rev)?;
+                self.status_obj_obj(show_ignored, src_rev, targ_rev)
             }
             (None, Some(_)) => unreachable!(),
         }
