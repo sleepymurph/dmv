@@ -219,8 +219,32 @@ impl WorkDir {
                   -> Result<(Option<&str>, ObjectKey)> {
 
         let abs_path = self.path().to_owned();
-        let parent = self.parent();
-        let tree_hash = self.hash_obj_file(parent, &abs_path)?;
+        let parent_commit = self.parent();
+        let parent_tree = match (parent_commit, &self.state.subtree) {
+            (Some(parent_commit), &Some(ref path)) => {
+                Some(self.object_store.lookup_rev_path(&parent_commit, path)?)
+            }
+            (Some(parent_commit), &None) => Some(parent_commit),
+            (None, _) => None,
+        };
+        let mut tree_hash = self.hash_obj_file(parent_tree, &abs_path)?;
+
+        // Patch subtree into parent commit if necessary
+        if let (Some(parent_commit), &Some(ref path)) = (parent_commit,
+                                                         &self.state.subtree) {
+            let mut tree_stack = Vec::new();
+            let mut parent_tree = parent_commit;
+            for component in path {
+                let tree = self.object_store.open_tree(&parent_tree)?;
+                parent_tree = *tree.get(component)
+                    .expect("path should be present in tree");
+                tree_stack.push((tree, component));
+            }
+            while let Some((mut tree, component)) = tree_stack.pop() {
+                tree.insert(component, tree_hash);
+                tree_hash = self.object_store.store_object(&tree)?;
+            }
+        }
 
         let commit = Commit {
             tree: tree_hash,
