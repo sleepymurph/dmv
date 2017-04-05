@@ -148,7 +148,7 @@ fn cmd_hash_object(_argmatch: &clap::ArgMatches,
 fn cmd_show_object(_argmatch: &clap::ArgMatches,
                    submatch: &clap::ArgMatches)
                    -> Result<()> {
-    let obj_spec = submatch.value_of("obj").expect("required");
+    let obj_spec = submatch.value_of("obj").expect("required").parse()?;
     cmd::show_object(&obj_spec)
 }
 
@@ -161,7 +161,7 @@ fn cmd_parents(_argmatch: &clap::ArgMatches,
 fn cmd_ls_files(_argmatch: &clap::ArgMatches,
                 submatch: &clap::ArgMatches)
                 -> Result<()> {
-    let obj_spec = submatch.value_of("obj");
+    let obj_spec = submatch.value_of("obj").and_then_try(|r| r.parse())?;
     let verbose = submatch.is_present("verbose");
 
     cmd::ls_files(obj_spec, verbose)
@@ -170,11 +170,11 @@ fn cmd_ls_files(_argmatch: &clap::ArgMatches,
 fn cmd_extract_object(_argmatch: &clap::ArgMatches,
                       submatch: &clap::ArgMatches)
                       -> Result<()> {
-    let obj_spec = submatch.value_of("obj").expect("required");
+    let obj_spec = submatch.value_of("obj").expect("required").parse()?;
     let file_path = submatch.value_of("filepath").expect("required");
     let file_path = PathBuf::from(file_path);
 
-    cmd::extract_object(obj_spec, &file_path)
+    cmd::extract_object(&obj_spec, &file_path)
 }
 
 fn cmd_cache_status(_argmatch: &clap::ArgMatches,
@@ -212,7 +212,7 @@ fn cmd_branch(_argmatch: &clap::ArgMatches,
               submatch: &clap::ArgMatches)
               -> Result<()> {
     let branch_name = submatch.value_of("branch").map(|s| s.to_owned());
-    let target_rev = submatch.value_of("rev").map(|s| s.to_owned());
+    let target_rev = submatch.value_of("rev").and_then_try(|r| r.parse())?;
     match (branch_name, target_rev) {
         (None, None) => cmd::branch_list(),
         (Some(branch_name), None) => cmd::branch_set_to_head(branch_name),
@@ -246,6 +246,9 @@ fn cmd_merge_base(_argmatch: &clap::ArgMatches,
 fn cmd_merge(_argmatch: &clap::ArgMatches,
              submatch: &clap::ArgMatches)
              -> Result<()> {
-    let revs = submatch.values_of("rev").expect("required");
-    cmd::merge(revs)
+    let mut revs = Vec::new();
+    for rev in submatch.values_of("rev").expect("required") {
+        revs.push(rev.parse()?);
+    }
+    cmd::merge(revs.iter())
 }

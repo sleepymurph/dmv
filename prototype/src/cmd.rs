@@ -28,11 +28,11 @@ pub fn hash_object(path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn show_object(obj_spec: &str) -> Result<()> {
+pub fn show_object(rev: &RevSpec) -> Result<()> {
 
     let object_store = find_object_store()?;
 
-    let hash = object_store.expect_ref_or_hash(obj_spec)?.into_hash();
+    let (hash, _, _) = object_store.lookup(rev)?;
 
     let handle = try!(object_store.open_object(&hash));
     match handle {
@@ -55,12 +55,12 @@ pub fn parents() -> Result<()> {
     Ok(())
 }
 
-pub fn ls_files(obj_spec: Option<&str>, verbose: bool) -> Result<()> {
+pub fn ls_files(rev: Option<RevSpec>, verbose: bool) -> Result<()> {
 
-    match obj_spec {
+    match rev {
         Some(ref r) => {
             let object_store = &find_object_store()?;
-            let hash = object_store.expect_ref_or_hash(r)?.into_hash();
+            let (hash, _, _) = object_store.lookup(r)?;
             print!("{}", object_store.ls_files(hash, verbose)?);
         }
         None => {
@@ -73,10 +73,10 @@ pub fn ls_files(obj_spec: Option<&str>, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn extract_object(obj_spec: &str, file_path: &Path) -> Result<()> {
+pub fn extract_object(rev: &RevSpec, file_path: &Path) -> Result<()> {
 
     let fs_transfer = find_fs_transfer()?;
-    let hash = fs_transfer.expect_ref_or_hash(obj_spec)?.into_hash();
+    let (hash, _, _) = fs_transfer.lookup(rev)?;
     fs_transfer.extract_object(&hash, &file_path)
 }
 
@@ -120,10 +120,10 @@ pub fn branch_list() -> Result<()> {
     Ok(())
 }
 
-pub fn branch_set(branch_name: RevNameBuf, target: RevNameBuf) -> Result<()> {
+pub fn branch_set(branch_name: RevNameBuf, target: RevSpec) -> Result<()> {
     let mut object_store = find_object_store()?;
-    let hash = object_store.expect_ref_or_hash(&target)?.into_hash();
-    object_store.update_ref(branch_name, hash)
+    let (_, commit, _) = object_store.lookup(&target)?;
+    object_store.update_ref(branch_name, commit)
 }
 
 pub fn branch_set_to_head(branch_name: RevNameBuf) -> Result<()> {
@@ -166,7 +166,7 @@ pub fn merge_base<'a, I: 'a>(revs: I) -> Result<()>
 }
 
 pub fn merge<'a, I: 'a>(revs: I) -> Result<()>
-    where I: Iterator<Item = &'a str>
+    where I: Iterator<Item = &'a RevSpec>
 {
     let mut work_dir = find_work_dir()?;
     work_dir.merge(revs)

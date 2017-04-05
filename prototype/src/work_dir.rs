@@ -250,7 +250,7 @@ impl WorkDir {
     }
 
     pub fn merge<'a, I: 'a>(&mut self, revs: I) -> Result<()>
-        where I: Iterator<Item = &'a str>
+        where I: Iterator<Item = &'a RevSpec>
     {
         let prog = ProgressCounter::arc("Merging", 0);
         let prog_clone = prog.clone();
@@ -261,8 +261,7 @@ impl WorkDir {
 
         for theirs in revs {
             debug!("Three-way merging {}", theirs);
-            let theirs =
-                self.object_store.expect_ref_or_hash(theirs)?.into_hash();
+            let (theirs, _, _) = self.object_store.lookup(theirs)?;
 
             self.state.parents.push(theirs);
             self.state.flush()?;

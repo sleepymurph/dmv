@@ -436,7 +436,7 @@ impl ObjectStore {
     {
         let mut search_queues = Vec::new();
         for rev in revs {
-            let hash = self.expect_ref_or_hash(rev.as_ref())?.into_hash();
+            let (hash, _) = self.lookup_ref_or_hash(rev.as_ref())?;
 
             let mut queue = VecDeque::new();
             queue.push_back(hash);
