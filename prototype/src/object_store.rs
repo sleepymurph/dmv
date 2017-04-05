@@ -185,14 +185,6 @@ impl ObjectStore {
             .or_else(|_| self.lookup_short_hash(name).map(|hash| (hash, None)))
     }
 
-    pub fn expect_ref_or_hash(&self, rev: &RevNameStr) -> Result<ObjSpec> {
-        self.lookup_ref(rev)
-            .map(|hash| ObjSpec::Ref(rev.to_owned(), hash))
-            .or_else(|_| {
-                self.lookup_short_hash(rev).map(|hash| ObjSpec::Hash(hash))
-            })
-    }
-
     fn lookup_ref(&self, rev: &RevNameStr) -> Result<ObjectKey> {
         self.refs
             .get(rev)
@@ -565,34 +557,6 @@ impl NodeReader<ComparableNode> for ObjectStore {
             children.insert(name, node);
         }
         Ok(children)
-    }
-}
-
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum ObjSpec {
-    Ref(RevNameBuf, ObjectKey),
-    Hash(ObjectKey),
-}
-
-impl ObjSpec {
-    pub fn hash(&self) -> &ObjectKey {
-        match self {
-            &ObjSpec::Ref(_, ref hash) => hash,
-            &ObjSpec::Hash(ref hash) => hash,
-        }
-    }
-    pub fn into_hash(self) -> ObjectKey {
-        match self {
-            ObjSpec::Ref(_, hash) => hash,
-            ObjSpec::Hash(hash) => hash,
-        }
-    }
-    pub fn ref_name(&self) -> Option<&str> {
-        match self {
-            &ObjSpec::Ref(ref r, _) => Some(r.as_str()),
-            &ObjSpec::Hash(_) => None,
-        }
     }
 }
 
