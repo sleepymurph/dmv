@@ -283,29 +283,6 @@ mod test {
     }
 
 
-    fn mean_std<'a, I>(input: I) -> (usize, usize)
-        where I: Iterator<Item = &'a usize>
-    {
-        let (mut n, mut sum, mut sumsq) = (0, 0, 0);
-        for &x in input {
-            n += 1;
-            sum += x;
-            sumsq += x * x;
-        }
-        let mean = sum / n;
-        let var = (sumsq - sum * sum / n) / (n - 1);
-        let std = (var as f64).sqrt() as usize;
-        (mean, std)
-    }
-
-    #[test]
-    fn test_mean_std() {
-        let input: &[usize] = &[2, 4, 4, 4, 5, 5, 7, 9];
-        let (expected_mean, expected_std) = (5, 2);
-        let (mean, std) = mean_std(input.iter());
-        assert_eq!((mean, std), (expected_mean, expected_std));
-    }
-
     fn measure_chunk_size(mut flagger: ChunkFlagger) -> VarianceCalc {
         const CHUNK_REPEAT: i64 = 100;
         const GIVE_UP: usize = 1 << 30;
