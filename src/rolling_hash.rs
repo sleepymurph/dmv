@@ -252,7 +252,6 @@ mod test {
     use dag;
     use dag::ToHashed;
     use human_readable::human_bytes;
-    use human_readable::human_bytes_f;
     use progress::StopWatch;
     use std::collections;
     use std::io;
@@ -333,7 +332,7 @@ mod test {
     #[test]
     fn chunk_size_experiment() {
         bothln!();
-        bothln!("{:>6} {:>6} {:>10} {:>10} {:>5}",
+        bothln!("{:>8} {:>6} {:>10} {:>10} {:>5}",
                 "window",
                 "match",
                 "mean",
@@ -341,16 +340,15 @@ mod test {
                 "secs");
         for wb in 8..18 {
             for mb in 8..16 {
-                let wb = 1 << wb;
+                let wn = 1 << wb;
                 let mn = 1 << mb;
 
                 let sw = StopWatch::new();
-                let flagger = ChunkFlagger::window_match(wb, mn);
+                let flagger = ChunkFlagger::window_match(wn, mn);
                 let vcalc = measure_chunk_size(flagger);
-                bothln!("{:3.0}{:<3} {:6} {:10.1} {:10.1} {:5.3}",
-                        human_bytes_f(wb as u64).0,
-                        human_bytes_f(wb as u64).1,
-                        mb,
+                bothln!("{:8} {:6} {:10.1} {:10.1} {:5.3}",
+                        wn,
+                        mn,
                         vcalc.mean(),
                         vcalc.std(),
                         StopWatch::float_secs(&sw.elapsed()));
