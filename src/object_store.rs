@@ -707,7 +707,7 @@ pub mod test {
         let result = store.try_find_ref("master");
         assert_match!(result, None);
 
-        let result = store.update_ref("master", &hash);
+        let result = store.update_ref("master".to_string(), hash);
         assert_match!(result, Ok(()));
 
         let result = store.try_find_ref("master");
