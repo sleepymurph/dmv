@@ -84,9 +84,6 @@ impl ChunkFlagger {
 
     /// Adds a byte to the hash, returns true if this byte triggers a flag
     pub fn slide(&mut self, byte: u8) {
-        if self.flag() {
-            self.hasher.reset();
-        }
         self.hasher.slide(byte);
     }
 
@@ -419,7 +416,7 @@ mod test {
 
     #[test]
     fn test_object_iterator_many_chunks() {
-        do_object_reconstruction_test(CHUNK_TARGET_SIZE * 10, 9);
+        do_object_reconstruction_test(CHUNK_TARGET_SIZE * 10, 12);
     }
 
     type ObjectStore = collections::HashMap<dag::ObjectKey, dag::Object>;
