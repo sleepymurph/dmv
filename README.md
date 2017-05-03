@@ -22,8 +22,8 @@ Documentation and other related repositories
 
 At this point the best source of documentation for the project is the master's
 thesis itself. The official PDF version of the thesis is available in the
-University of Tromsø's open research archive, Munin (named for [Odin's raven,
-whose name means Memory]( https://en.wikipedia.org/wiki/Huginn_and_Muninn))
+University of Tromsø's open research archive, Munin (named for [Odin's raven](
+https://en.wikipedia.org/wiki/Huginn_and_Muninn), whose name means Memory)
 (TODO: LINK, AFTER I SUBMIT).
 
 Beyond that there are three source repositories of interest:
