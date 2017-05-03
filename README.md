@@ -11,7 +11,7 @@ concept so that the actual collection/history can be distributed across several
 repositories, making it easy to transfer the files you need to the locations
 where you need them and to keep everything synchronized.
 
-DMV was created as a master's degree project at the University of Tromsø,
+DMV was created as a master's thesis project at the University of Tromsø,
 Norway's Arctic University, by a student named Mike Murphy (that's me). The
 prototype is definitely not ready for prime time yet, but I do think I'm on to
 something here.
@@ -36,9 +36,11 @@ Beyond that there are three source repositories of interest:
 3. [DMV Test Code]( https://github.com/sleepymurph/dmv-test-code), including
    helpers scripts used in my research and experiment/benchmark scripts.
 
+I welcome any feedback or questions at <dmv@sleepymurph.com>.
+
 
 Source code
---------------------------------------------------
+==================================================
 
 This repository contains the DMV prototype source code. I settled on the name
 after developing the prototype, so in the source code the crate and the
@@ -49,14 +51,15 @@ Compiling
 --------------------------------------------------
 
 DMV is written in Rust and is a Cargo library+binary crate. It is not published
-as a crate, but it can be built easily enough with the standard Cargo targets:
+in the Rust crate registry yet, but with the source downloaded it can be built
+easily enough with the standard Cargo targets:
 
 - `cargo build` -- Build the lib and executable
 - `cargo test` -- Run unit tests
 - `cargo doc` -- Build crate documentation
 
 The DMV prototype was developed under Rust 1.16 stable, and should compile with
-no trouble with stable Rust on any Unix variant.
+no trouble with stable Rust on Linux.
 
 Note that for much of development, this repository and the DMV Test Code
 repository were combined, with the prototype code in the `prototype`
