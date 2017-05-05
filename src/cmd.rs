@@ -28,20 +28,24 @@ pub fn hash_object(path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn show_object(rev: &RevSpec) -> Result<()> {
+pub fn show_object(rev: &RevSpec, type_only: bool) -> Result<()> {
 
     let object_store = find_object_store()?;
 
     let (hash, _, _) = object_store.lookup(rev)?;
 
     let handle = try!(object_store.open_object(&hash));
-    match handle {
-        ObjectHandle::Blob(blobhandle) => {
-            println!("{}", blobhandle.header());
-        }
-        _ => {
-            let object = try!(handle.read_content());
-            println!("{}", object.pretty_print());
+    if type_only {
+        println!("{}", handle.header().object_type);
+    } else {
+        match handle {
+            ObjectHandle::Blob(blobhandle) => {
+                println!("{}", blobhandle.header());
+            }
+            _ => {
+                let object = try!(handle.read_content());
+                print!("{}", object.pretty_print());
+            }
         }
     }
     Ok(())
@@ -105,9 +109,9 @@ pub fn commit(message: String) -> Result<()> {
     Ok(())
 }
 
-pub fn log() -> Result<()> {
+pub fn log(hash_only: bool) -> Result<()> {
     let work_dir = find_work_dir()?;
-    work_dir.log()
+    work_dir.log(hash_only)
 }
 
 pub fn branch_list() -> Result<()> {
@@ -133,6 +137,14 @@ pub fn branch_set_to_head(branch_name: RevNameBuf) -> Result<()> {
     let mut work_dir = find_work_dir()?;
     work_dir.update_ref_to_head(branch_name.clone())?;
     work_dir.checkout(&branch_name.parse()?)?;
+    Ok(())
+}
+
+pub fn show_ref() -> Result<()> {
+    let object_store = find_object_store()?;
+    for (name, hash) in object_store.refs() {
+        println!("{:x} {}", hash, name);
+    }
     Ok(())
 }
 

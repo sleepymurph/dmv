@@ -35,6 +35,7 @@ fn run() -> Result<()> {
         .subcommand(clap_app!(
             ("show-object") =>
                 (about: "print information about an object")
+                (@arg type: -t "print just type information")
                 (@arg obj: +required)
         ))
         .subcommand(clap_app!(
@@ -73,12 +74,18 @@ fn run() -> Result<()> {
         .subcommand(clap_app!(
             log =>
                 (about: "show commit history")
+                (@arg hash_only: --("hash-only")
+                        "print only hash IDs (ala git rev-list)")
         ))
         .subcommand(clap_app!(
             branch =>
                 (about: "show/update branch information")
                 (@arg branch:)
                 (@arg rev:)
+        ))
+        .subcommand(clap_app!(
+            ("show-ref") =>
+                (about: "show refs")
         ))
         .subcommand(clap_app!(
             fsck =>
@@ -116,6 +123,7 @@ fn run() -> Result<()> {
                 "commit" => cmd_commit,
                 "log" => cmd_log,
                 "branch" => cmd_branch,
+                "show-ref" => cmd_show_ref,
                 "fsck" => cmd_fsck,
                 "checkout" => cmd_checkout,
                 "merge-base" => cmd_merge_base,
@@ -149,7 +157,8 @@ fn cmd_show_object(_argmatch: &clap::ArgMatches,
                    submatch: &clap::ArgMatches)
                    -> Result<()> {
     let obj_spec = submatch.value_of("obj").expect("required").parse()?;
-    cmd::show_object(&obj_spec)
+    let type_only = submatch.is_present("type");
+    cmd::show_object(&obj_spec, type_only)
 }
 
 fn cmd_parents(_argmatch: &clap::ArgMatches,
@@ -203,9 +212,10 @@ fn cmd_commit(_argmatch: &clap::ArgMatches,
 }
 
 fn cmd_log(_argmatch: &clap::ArgMatches,
-           _submatch: &clap::ArgMatches)
+           submatch: &clap::ArgMatches)
            -> Result<()> {
-    cmd::log()
+    let hash_only = submatch.is_present("hash_only");
+    cmd::log(hash_only)
 }
 
 fn cmd_branch(_argmatch: &clap::ArgMatches,
@@ -221,6 +231,12 @@ fn cmd_branch(_argmatch: &clap::ArgMatches,
         }
         (None, Some(_)) => unreachable!(),
     }
+}
+
+fn cmd_show_ref(_argmatch: &clap::ArgMatches,
+                _submatch: &clap::ArgMatches)
+                -> Result<()> {
+    cmd::show_ref()
 }
 
 fn cmd_fsck(_argmatch: &clap::ArgMatches,

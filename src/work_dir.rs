@@ -334,7 +334,7 @@ impl WorkDir {
         }
     }
 
-    pub fn log(&self) -> Result<()> {
+    pub fn log(&self, hash_only: bool) -> Result<()> {
         use object_store::DepthFirstCommitSort;
 
         debug!("First pass: sort commits");
@@ -346,6 +346,14 @@ impl WorkDir {
                                                    start_refs).run()?;
 
         debug!("Second pass: print");
+
+        if hash_only {
+            for (hash, _) in sorted {
+                println!("{:x}", hash);
+            }
+            return Ok(());
+        }
+
         let mut slots = Vec::new();
         while let Some((hash, commit)) = sorted.pop() {
             if !slots.contains(&hash) {
