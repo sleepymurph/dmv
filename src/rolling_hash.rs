@@ -277,14 +277,15 @@ mod test {
     }
 
 
-    fn measure_chunk_size(mut flagger: ChunkFlagger) -> VarianceCalc {
+    fn measure_chunk_size(mut flagger: ChunkFlagger,
+                          rand: &mut TestRand)
+                          -> VarianceCalc {
         const CHUNK_REPEAT: i64 = 100;
         const GIVE_UP: usize = 1 << 30;
 
         let mut vcalc = VarianceCalc::new();
         let mut last_offset: usize = 0;
-        for (offset, byte) in TestRand::default()
-            .gen_iter::<u8>()
+        for (offset, byte) in rand.gen_iter::<u8>()
             .take(GIVE_UP)
             .enumerate() {
 
@@ -309,7 +310,8 @@ mod test {
         const ACCEPTABLE_DEVIATION: usize = WINDOW_MATCH_SIZE as usize * 14 /
                                             10;
 
-        let vcalc = measure_chunk_size(ChunkFlagger::new());
+        let vcalc = measure_chunk_size(ChunkFlagger::new(),
+                                       &mut TestRand::default());
 
         let mean = vcalc.mean() as usize;
         let std = vcalc.std() as usize;
@@ -330,6 +332,7 @@ mod test {
     #[ignore]
     #[test]
     fn chunk_size_experiment() {
+        let mut rand = TestRand::default();
         bothln!();
         bothln!("{:>8} {:>6} {:>10} {:>10} {:>5}",
                 "window",
@@ -344,7 +347,7 @@ mod test {
 
                 let sw = StopWatch::new();
                 let flagger = ChunkFlagger::window_match(wn, mn);
-                let vcalc = measure_chunk_size(flagger);
+                let vcalc = measure_chunk_size(flagger, &mut rand);
                 bothln!("{:8} {:6} {:10.1} {:10.1} {:5.3}",
                         wn,
                         mn,
