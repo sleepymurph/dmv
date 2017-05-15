@@ -60,8 +60,8 @@ impl<O: Into<Object>> From<O> for HashedObject {
 /// provides a convenient `to_hashed` chain method.
 ///
 /// ```
-/// use prototype::dag;
-/// use prototype::dag::ToHashed;
+/// use dmv::dag;
+/// use dmv::dag::ToHashed;
 ///
 /// let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
 ///

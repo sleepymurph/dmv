@@ -40,7 +40,7 @@ lazy_static!{
 /// - The conversion From<ObjectKey> for String also gives the full hash
 ///
 /// ```
-/// use prototype::dag::ObjectKey;
+/// use dmv::dag::ObjectKey;
 ///
 /// let id = ObjectKey::parse("da39a3ee5e6b4b0d3255bfef95601890afd80709")
 ///             .unwrap();

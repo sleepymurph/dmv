@@ -243,8 +243,8 @@ impl From<Commit> for Object {
 /// provides a convenient `to_object` chain method.
 ///
 /// ```
-/// use prototype::dag;
-/// use prototype::dag::ToObject;
+/// use dmv::dag;
+/// use dmv::dag::ToObject;
 ///
 /// let blob = dag::Blob::from("Hello!".as_bytes().to_owned());
 ///

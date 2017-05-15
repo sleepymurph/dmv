@@ -16,7 +16,7 @@ use super::*;
 /// type.
 ///
 /// ```
-/// use prototype::dag::{ObjectHandle, Object, ObjectCommon, Blob};
+/// use dmv::dag::{ObjectHandle, Object, ObjectCommon, Blob};
 /// use std::io::Cursor;
 ///
 /// // Create a test blob "file"

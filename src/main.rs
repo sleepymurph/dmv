@@ -3,11 +3,11 @@ extern crate clap;
 #[macro_use]
 extern crate error_chain;
 extern crate env_logger;
-extern crate prototype;
+extern crate dmv;
 
-use prototype::cmd;
-use prototype::constants::*;
-use prototype::error::*;
+use dmv::cmd;
+use dmv::constants::*;
+use dmv::error::*;
 use std::path::PathBuf;
 
 // Have error_chain create a main() function that handles Results

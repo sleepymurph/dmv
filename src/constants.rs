@@ -1,5 +1,5 @@
-pub const HIDDEN_DIR_NAME: &'static str = ".prototype";
-pub const CACHE_FILE_NAME: &'static str = ".prototype_cache";
+pub const HIDDEN_DIR_NAME: &'static str = ".dmv";
+pub const CACHE_FILE_NAME: &'static str = ".dmv_cache";
 
 pub const DEFAULT_BRANCH_NAME: &'static str = "master";
 

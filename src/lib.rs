@@ -1,4 +1,4 @@
-//! Library for master's thesis prototype
+//! Library for DMV: Distributed Media Versioning
 
 // error_chain uses macro with a lot of recursion
 #![recursion_limit = "1024"]

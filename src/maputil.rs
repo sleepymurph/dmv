@@ -13,7 +13,7 @@ use std::iter::Peekable;
 ///
 /// ```
 /// #[macro_use]
-/// extern crate prototype;
+/// extern crate dmv;
 /// use std::collections::HashMap;
 ///
 /// fn main() {

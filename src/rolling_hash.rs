@@ -168,8 +168,8 @@ impl<R: BufRead> Iterator for ChunkReader<R> {
 /// final ChunkedBlob.
 ///
 /// ```
-/// use prototype::rolling_hash::read_file_objects;
-/// use prototype::dag::HashedObject;
+/// use dmv::rolling_hash::read_file_objects;
+/// use dmv::dag::HashedObject;
 /// use std::io::BufReader;
 ///
 /// let file = b"Hello world!".as_ref();

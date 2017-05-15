@@ -24,11 +24,11 @@ wrapper_struct!{
 /// sequence.
 ///
 /// ```
-/// extern crate prototype;
+/// extern crate dmv;
 /// extern crate rustc_serialize;
 ///
 /// use rustc_serialize::json;
-/// use prototype::encodable;
+/// use dmv::encodable;
 /// use std::path;
 ///
 /// fn main() {
@@ -95,11 +95,11 @@ wrapper_struct!{
 /// epoch.
 ///
 /// ```
-/// extern crate prototype;
+/// extern crate dmv;
 /// extern crate rustc_serialize;
 ///
 /// use rustc_serialize::json;
-/// use prototype::encodable;
+/// use dmv::encodable;
 /// use std::time;
 ///
 /// fn main() {

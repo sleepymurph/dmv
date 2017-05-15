@@ -83,11 +83,11 @@ mod test {
         let ignore = IgnoreList::default();
 
         // Specific hidden names by themselves
-        assert!(ignore.ignores(".prototype"));
-        assert!(ignore.ignores(".prototype_cache"));
+        assert!(ignore.ignores(".dmv"));
+        assert!(ignore.ignores(".dmv_cache"));
 
         // Specific hidden names with leading directory
-        assert!(ignore.ignores("./.prototype"));
-        assert!(ignore.ignores("./.prototype_cache"));
+        assert!(ignore.ignores("./.dmv"));
+        assert!(ignore.ignores("./.dmv_cache"));
     }
 }
