@@ -12,7 +12,7 @@ Source code
 
 This repository contains the DMV prototype source code. I settled on the name
 after developing the prototype, so in the source code the crate and the
-executable are still named `prototype`. (TODO: Rename executable).
+executable are still named `prototype`.
 
 
 Compiling
