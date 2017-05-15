@@ -1,7 +1,7 @@
 [package]
 name = "dmv"
 version = "0.1.0"
-authors = ["Mike Murphy <codermurph@sleepymurph.com>"]
+authors = ["Mike Murphy <dmv@sleepymurph.com>"]
 description = "A distributed version-control system for media files"
 build = "build.rs"
 
