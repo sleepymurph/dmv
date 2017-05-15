@@ -10,9 +10,10 @@ system and a generalized distributed data store.
 Source code
 ==================================================
 
-This repository contains the DMV prototype source code. I settled on the name
-after developing the prototype, so in the source code the crate and the
-executable are still named `prototype`.
+This repository contains the DMV prototype source code.
+
+Note: I settled on the name after developing the prototype, so in older versions
+the source code, the crate and the executable are still named `prototype`.
 
 
 Compiling
