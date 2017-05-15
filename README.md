@@ -26,6 +26,7 @@ easily enough with the standard Cargo targets:
 - `cargo build` -- Build the lib and executable
 - `cargo test` -- Run unit tests
 - `cargo doc` -- Build crate documentation
+- `cargo doc --open` -- Launch documentation in browser
 
 The DMV prototype was developed under Rust 1.16 stable, and should compile with
 no trouble with stable Rust on Linux.
