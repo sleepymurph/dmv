@@ -32,7 +32,7 @@ error_chain!{
             display("could not parse object header: {}", msg)
         }
 
-        ObjectNotFound(h: $crate::dag::ObjectKey) {
+        ObjectNotFound(h: ::dag::ObjectKey) {
             description("object not found in object store")
             display("object not found in object store: {}", h)
         }
