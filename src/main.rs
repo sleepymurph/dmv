@@ -19,7 +19,7 @@ use std::path::PathBuf;
 quick_main!(run);
 
 fn run() -> Result<()> {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let argmatch = clap_app!(
         (crate_name!()) =>
