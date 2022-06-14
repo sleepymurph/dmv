@@ -1,3 +1,8 @@
+// Suppress warnings from using old Rust 2015
+#![allow(bare_trait_objects, ellipsis_inclusive_range_patterns)]
+// Suppress warnings from using old error_chain crate
+#![allow(unstable_name_collisions)]
+
 #[macro_use]
 extern crate clap;
 #[macro_use]

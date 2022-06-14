@@ -1,5 +1,10 @@
 //! Library for DMV: Distributed Media Versioning
 
+// Suppress warnings from using old Rust 2015
+#![allow(bare_trait_objects, ellipsis_inclusive_range_patterns)]
+// Suppress warnings from using old crates and imports
+#![allow(deprecated, unused_imports)]
+
 // error_chain uses macro with a lot of recursion
 #![recursion_limit = "1024"]
 
@@ -27,6 +32,7 @@ extern crate testutil;
 
 
 /// Write to stderr
+#[allow(unused_macros)]
 macro_rules! stderr {
     () => {};
     ( $($arg:expr),* ) => {{
@@ -37,6 +43,7 @@ macro_rules! stderr {
 }
 
 /// Write to stderr
+#[allow(unused_macros)]
 macro_rules! stderrln {
     () => {{ stderrln!("") }};
     ( $($arg:expr),* ) => {{
@@ -47,6 +54,7 @@ macro_rules! stderrln {
 }
 
 /// Write to both stdout and stderr
+#[allow(unused_macros)]
 macro_rules! bothln {
     ( $($arg:expr),* ) => {{
         stderrln!( $($arg),* );

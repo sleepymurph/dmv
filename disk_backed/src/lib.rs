@@ -28,6 +28,9 @@
 //! ```
 //!
 
+// Suppress warnings from using old Rust 2015
+#![allow(bare_trait_objects, ellipsis_inclusive_range_patterns)]
+
 #[macro_use]
 extern crate log;
 extern crate rustc_serialize;
@@ -35,9 +38,9 @@ extern crate rustc_serialize;
 #[cfg(test)]
 extern crate tempdir;
 
+use rustc_serialize::json;
 use rustc_serialize::Decodable;
 use rustc_serialize::Encodable;
-use rustc_serialize::json;
 use std::collections::hash_map::DefaultHasher;
 use std::error::Error;
 use std::fmt;
@@ -52,7 +55,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 /// Simple enum for operations, to give more context in error messages
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy)]
 enum Op {
     Read,
     Write,
@@ -69,7 +72,8 @@ pub struct DiskBackError {
 
 impl DiskBackError {
     fn new<E>(during: Op, data_desc: &str, path: &Path, cause: E) -> Self
-        where E: Into<Box<Error + Send + Sync>>
+    where
+        E: Into<Box<Error + Send + Sync>>,
     {
         DiskBackError {
             during: during,
@@ -82,21 +86,27 @@ impl DiskBackError {
 
 impl fmt::Display for DiskBackError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "Error while {} {} ({}): {}",
-               match self.during {
-                   Op::Read => "reading",
-                   Op::Write => "writing",
-               },
-               self.data_desc,
-               self.path.display(),
-               self.cause)
+        write!(
+            f,
+            "Error while {} {} ({}): {}",
+            match self.during {
+                Op::Read => "reading",
+                Op::Write => "writing",
+            },
+            self.data_desc,
+            self.path.display(),
+            self.cause
+        )
     }
 }
 
 impl Error for DiskBackError {
-    fn description(&self) -> &str { "error read/writing DiskBacked data" }
-    fn cause(&self) -> Option<&Error> { Some(&*self.cause) }
+    fn description(&self) -> &str {
+        "error read/writing DiskBacked data"
+    }
+    fn cause(&self) -> Option<&Error> {
+        Some(&*self.cause)
+    }
 }
 
 /// Custom result type
@@ -104,7 +114,8 @@ type Result<T> = ::std::result::Result<T, DiskBackError>;
 
 /// Convenience function to write serializable data
 fn write<T>(desc: &str, path: &Path, data: &T) -> Result<()>
-    where T: Encodable
+where
+    T: Encodable,
 {
     OpenOptions::new()
         .write(true)
@@ -117,15 +128,15 @@ fn write<T>(desc: &str, path: &Path, data: &T) -> Result<()>
 
 /// Convenience function to read serialized data
 fn read<T>(desc: &str, path: &Path) -> Result<T>
-    where T: Decodable
+where
+    T: Decodable,
 {
     OpenOptions::new()
         .read(true)
         .open(path)
         .and_then(|mut file| {
             let mut json = String::new();
-            file.read_to_string(&mut json)
-                .and(Ok(json))
+            file.read_to_string(&mut json).and(Ok(json))
         })
         .map_err(|e| DiskBackError::new(Op::Read, desc, path, e))
         .and_then(|json| {
@@ -136,7 +147,8 @@ fn read<T>(desc: &str, path: &Path) -> Result<T>
 
 /// Convenience method to hash hashable data
 fn hash<T>(data: &T) -> u64
-    where T: Hash
+where
+    T: Hash,
 {
     let mut hasher = DefaultHasher::new();
     data.hash(&mut hasher);
@@ -178,7 +190,8 @@ fn hash<T>(data: &T) -> u64
 /// required to implement Hash.
 ///
 pub struct DiskBacked<T>
-    where T: Encodable + Decodable + Hash
+where
+    T: Encodable + Decodable + Hash,
 {
     desc: String,
     path: PathBuf,
@@ -187,7 +200,8 @@ pub struct DiskBacked<T>
 }
 
 impl<T> DiskBacked<T>
-    where T: Encodable + Decodable + Hash
+where
+    T: Encodable + Decodable + Hash,
 {
     fn construct(desc: &str, path: PathBuf, data: T) -> Self {
         DiskBacked {
@@ -247,7 +261,8 @@ impl<T> DiskBacked<T>
 }
 
 impl<T> DiskBacked<T>
-    where T: Encodable + Decodable + Hash + Default
+where
+    T: Encodable + Decodable + Hash + Default,
 {
     /// Initialize with the inner type's Default value
     pub fn new(desc: &str, path: PathBuf) -> Self {
@@ -264,7 +279,8 @@ impl<T> DiskBacked<T>
 }
 
 impl<T> Drop for DiskBacked<T>
-    where T: Encodable + Decodable + Hash
+where
+    T: Encodable + Decodable + Hash,
 {
     fn drop(&mut self) {
         self.flush().unwrap_or_else(|e| {
@@ -274,26 +290,36 @@ impl<T> Drop for DiskBacked<T>
 }
 
 impl<T> Deref for DiskBacked<T>
-    where T: Encodable + Decodable + Hash
+where
+    T: Encodable + Decodable + Hash,
 {
     type Target = T;
-    fn deref(&self) -> &T { &self.data }
+    fn deref(&self) -> &T {
+        &self.data
+    }
 }
 
 impl<T> DerefMut for DiskBacked<T>
-    where T: Encodable + Decodable + Hash
+where
+    T: Encodable + Decodable + Hash,
 {
-    fn deref_mut(&mut self) -> &mut T { &mut self.data }
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.data
+    }
 }
 
 impl<T, U> PartialEq<U> for DiskBacked<T>
-    where T: Encodable + Decodable + Hash + PartialEq<U>
+where
+    T: Encodable + Decodable + Hash + PartialEq<U>,
 {
-    fn eq(&self, other: &U) -> bool { self.data.eq(other) }
+    fn eq(&self, other: &U) -> bool {
+        self.data.eq(other)
+    }
 }
 
 impl<T> fmt::Debug for DiskBacked<T>
-    where T: Encodable + Decodable + Hash + fmt::Debug
+where
+    T: Encodable + Decodable + Hash + fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("DiskBacked")
@@ -306,7 +332,6 @@ impl<T> fmt::Debug for DiskBacked<T>
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -314,14 +339,18 @@ mod tests {
 
     #[test]
     fn test_error_display() {
-        let e = DiskBackError::new(Op::Read,
-                                   "my cache",
-                                   &PathBuf::from("/tmp/some_cache_file"),
-                                   "(some cause)");
+        let e = DiskBackError::new(
+            Op::Read,
+            "my cache",
+            &PathBuf::from("/tmp/some_cache_file"),
+            "(some cause)",
+        );
         let display = format!("{}", e);
-        assert_eq!(display,
-                   "Error while reading my cache (/tmp/some_cache_file): \
-                    (some cause)");
+        assert_eq!(
+            display,
+            "Error while reading my cache (/tmp/some_cache_file): \
+                    (some cause)"
+        );
     }
 
     #[test]
@@ -334,8 +363,10 @@ mod tests {
             assert!(!path.exists(), "should not write immediately");
         }
 
-        assert!(!path.exists(),
-                "should not write if initialized with default");
+        assert!(
+            !path.exists(),
+            "should not write if initialized with default"
+        );
 
         {
             let mut db = DiskBacked::<String>::new("string", path.to_owned());
@@ -346,9 +377,11 @@ mod tests {
 
         {
             let db = DiskBacked::<String>::read("string", path.to_owned());
-            assert_eq!(db.unwrap(),
-                       "hello world!",
-                       "should read previously written value");
+            assert_eq!(
+                db.unwrap(),
+                "hello world!",
+                "should read previously written value"
+            );
         }
     }
 
@@ -358,9 +391,11 @@ mod tests {
         let path = temp.path().join("backing_file");
 
         {
-            let _db = DiskBacked::init("backed string",
-                                       path.to_owned(),
-                                       "hello world!".to_owned());
+            let _db = DiskBacked::init(
+                "backed string",
+                path.to_owned(),
+                "hello world!".to_owned(),
+            );
             assert!(!path.exists(), "should not write immediately");
         }
 
@@ -368,9 +403,11 @@ mod tests {
 
         {
             let db = DiskBacked::<String>::read("string", path.to_owned());
-            assert_eq!(db.unwrap(),
-                       "hello world!",
-                       "should read previously written value");
+            assert_eq!(
+                db.unwrap(),
+                "hello world!",
+                "should read previously written value"
+            );
         }
     }
 
@@ -384,27 +421,38 @@ mod tests {
             assert!(db.is_err(), "should give error on read if no file");
         }
         {
-            let db = DiskBacked::<String>::read_or_default("string",
-                                                           path.to_owned());
-            assert_eq!(db.unwrap(),
-                       String::default(),
-                       "should use default value when file does not exist");
+            let db = DiskBacked::<String>::read_or_default(
+                "string",
+                path.to_owned(),
+            );
+            assert_eq!(
+                db.unwrap(),
+                String::default(),
+                "should use default value when file does not exist"
+            );
         }
         assert!(!path.exists(), "should not write when using default");
         {
-            let db = DiskBacked::init("string",
-                                      path.to_owned(),
-                                      "provided value".to_owned());
-            assert_eq!(db,
-                       "provided value",
-                       "should use file value when file is present");
+            let db = DiskBacked::init(
+                "string",
+                path.to_owned(),
+                "provided value".to_owned(),
+            );
+            assert_eq!(
+                db, "provided value",
+                "should use file value when file is present"
+            );
         }
         {
-            let db = DiskBacked::<String>::read_or_default("string",
-                                                           path.to_owned());
-            assert_eq!(db.unwrap(),
-                       "provided value",
-                       "should use file value when file is present");
+            let db = DiskBacked::<String>::read_or_default(
+                "string",
+                path.to_owned(),
+            );
+            assert_eq!(
+                db.unwrap(),
+                "provided value",
+                "should use file value when file is present"
+            );
         }
     }
 
@@ -418,21 +466,29 @@ mod tests {
             assert!(db.is_err(), "should give error on read if no file");
         }
         {
-            let db = DiskBacked::read_or("string",
-                                         path.to_owned(),
-                                         "provided value".to_owned());
-            assert_eq!(db.unwrap(),
-                       "provided value",
-                       "should use provided value when file does not exist");
+            let db = DiskBacked::read_or(
+                "string",
+                path.to_owned(),
+                "provided value".to_owned(),
+            );
+            assert_eq!(
+                db.unwrap(),
+                "provided value",
+                "should use provided value when file does not exist"
+            );
         }
         assert!(path.is_file(), "should write when explicitly initialized");
         {
-            let db = DiskBacked::read_or("string",
-                                         path.to_owned(),
-                                         "an new value not on disk".to_owned());
-            assert_eq!(db.unwrap(),
-                       "provided value",
-                       "should use file value when file is present");
+            let db = DiskBacked::read_or(
+                "string",
+                path.to_owned(),
+                "an new value not on disk".to_owned(),
+            );
+            assert_eq!(
+                db.unwrap(),
+                "provided value",
+                "should use file value when file is present"
+            );
         }
     }
 
